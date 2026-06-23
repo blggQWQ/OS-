@@ -19,6 +19,7 @@
 
 ```text
 patches/0001-feat-dm-integrate-crypt-and-verity-targets.patch
+patches/0002-fix-dm-validate-crypt-and-verity-BIO-paths.patch
 ```
 
 补丁基于 Asterinas commit `c6284a9106f5a4c87deb7c8a990af6211dc5f540`。
@@ -27,8 +28,18 @@ patches/0001-feat-dm-integrate-crypt-and-verity-targets.patch
 ```bash
 cd asterinas
 git checkout c6284a9106f5a4c87deb7c8a990af6211dc5f540
-git am ../asterinas_port/patches/0001-feat-dm-integrate-crypt-and-verity-targets.patch
+git am ../asterinas_port/patches/0001-feat-dm-integrate-crypt-and-verity-targets.patch \
+       ../asterinas_port/patches/0002-fix-dm-validate-crypt-and-verity-BIO-paths.patch
 ```
 
 该补丁包含 `aster-dm` 组件、AES-256-XTS、on-disk dm-verity、启动参数、
 VirtIO 测试盘接入和 QEMU 演示脚本。
+
+第二个补丁修复 BIO DMA segment 的方向访问问题，并加入启动时真实 I/O 自检。
+验收日志：
+
+```text
+[dm-test] PASS AES-256-XTS decrypted a valid ext2 superblock through dm-crypt
+[dm-test] PASS first data block verified through dm-verity
+[dm-test] FAIL dm-verity rejected first data block: IntegrityViolation
+```

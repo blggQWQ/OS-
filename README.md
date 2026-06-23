@@ -9,11 +9,11 @@
 3. `dm-verity` 只读完整性校验；
 4. 文件镜像后端，可直接演示密文落盘与篡改检测；
 5. 命令行工具 `dmctl`；
-6. 测试、设计文档、性能方案、Asterinas 接入骨架和答辩材料。
+6. Asterinas `aster-dm` 内核组件、真实 VirtIO BIO 验证、测试与答辩材料。
 
 正式题面逐条对应见 [docs/requirement_mapping.md](docs/requirement_mapping.md)。
 
-> 环境已完成：Ubuntu 24.04 WSL、Rust/Cargo、QEMU、Docker Desktop 和 Asterinas 官方开发镜像均已安装。`cargo test`、`make kernel` 和 Asterinas QEMU 启动已验证通过。下一阶段是将 dm 核心模块迁移到 Asterinas 块设备层。
+> 环境已完成：Ubuntu 24.04 WSL、Rust/Cargo、QEMU、Docker Desktop 和 Asterinas 官方开发镜像均已安装。`cargo test`、`make kernel`、Asterinas dm-crypt 解密与 dm-verity 正反例均已验证通过。
 
 ## 目录结构
 
@@ -122,8 +122,9 @@ pub trait BlockDevice {
 
 - `dm-crypt` 已支持 Linux `aes-xts-plain64`、64 字节 AES-256-XTS key、`iv_offset` 和 data offset；旧的 SHA-256 流变换仅保留给最小演示命令。
 - `scripts/verify_linux_xts_compat.sh` 会让 Linux dm-crypt 与 Rust 实现加密同一扇区，并执行逐字节比较。当前固定向量的两端 SHA-256 均为 `4334c17f4b0380b3c1f902509cce0c0f98d9fa77aa93f6407ec940215d77921d`。
-- `dm-verity` 已实现 Merkle tree root hash 校验和篡改检测，当前 tree 保存在内存中。正式版本可把 hash tree 落到镜像尾部。
-- `FileBlockDevice` 用于用户态演示；Asterinas 中应实现 `VirtioBlkAdapter`，把真实 `virtio-blk` 接入同一个 trait。
+- 用户态 `dm` crate 的 verity tree 保存在内存中；Asterinas `aster-dm` 使用镜像尾部的 on-disk hash tree。
+- Asterinas 补丁中的 `aster-dm` 已接入真实 VirtIO BIO：dm-crypt 能解密 Linux `aes-xts-plain64` 生成的 ext2；dm-verity 使用 on-disk hash tree，正常镜像通过且篡改镜像返回 `IntegrityViolation`。
+- 尚未完成的是把 mapper 切换成系统 `/` 的正式根挂载目标；当前验证对象是额外 VirtIO 测试盘。
 
 ## 决赛级验证入口
 
@@ -136,6 +137,9 @@ bash scripts/benchmark.sh
 
 # 需要 root；与 Linux 内核 dm-crypt 逐字节对照
 sudo bash scripts/verify_linux_xts_compat.sh
+
+# 构建 Linux dm-crypt 兼容的加密 ext2 测试盘（WSL root）
+sudo bash scripts/build_crypt_rootfs.sh
 ```
 
 ## 国赛提交建议

@@ -85,7 +85,12 @@ Spawn the first kernel thread
 
 ## 下一阶段
 
-1. 在 Asterinas `kernel/comps/block` 和 `kernel/comps/virtio` 中确定真实块 I/O 接口；
-2. 将 dm 核心改为 Asterinas/no_std 可用模块；
-3. 先接入 passthrough，再接 dm-crypt 和 dm-verity；
-4. 挂载额外 virtio-blk 镜像做真实 I/O 测试。
+已完成额外 VirtIO 测试盘的真实 I/O 验证：
+
+```text
+[dm-test] PASS AES-256-XTS decrypted a valid ext2 superblock through dm-crypt
+[dm-test] PASS first data block verified through dm-verity
+[dm-test] FAIL dm-verity rejected first data block: IntegrityViolation
+```
+
+下一阶段只剩把已注册 mapper 接入系统 `/` 的正式根挂载流程，并记录启动耗时。

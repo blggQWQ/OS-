@@ -1,0 +1,186 @@
+From 299be40e419f9a32cac279f5b7be573efce3004e Mon Sep 17 00:00:00 2001
+From: scnu202421326914 <2787304139@qq.com>
+Date: Tue, 23 Jun 2026 22:55:34 +0800
+Subject: [PATCH] fix(dm): validate crypt and verity BIO paths
+
+---
+ kernel/comps/dm/src/device.rs | 42 ++++++++++++++++++++++++++++++++---
+ kernel/comps/dm/src/lib.rs    | 11 +++++++++
+ test/initramfs/src/init       | 15 +++++++++----
+ tools/run_dm_crypt.sh         | 31 ++++++++++++++++++++++++++
+ 4 files changed, 92 insertions(+), 7 deletions(-)
+ create mode 100644 tools/run_dm_crypt.sh
+
+diff --git a/kernel/comps/dm/src/device.rs b/kernel/comps/dm/src/device.rs
+index 43ec411..3c1294b 100644
+--- a/kernel/comps/dm/src/device.rs
++++ b/kernel/comps/dm/src/device.rs
+@@ -86,6 +86,35 @@ impl DmDevice {
+         }
+     }
+ 
++    /// Reads and validates the ext2 superblock magic through this mapper.
++    ///
++    /// The magic is located 56 bytes into the superblock, which starts at
++    /// byte 1024. Seeing it through an encrypted lower device proves that the
++    /// regular BIO path performed AES-XTS decryption with the expected key and
++    /// plain64 sector tweak.
++    pub fn self_test_ext2_magic(&self) -> Result<(), DmError> {
++        const EXT2_MAGIC_OFFSET: usize = 1024 + 56;
++        const EXT2_MAGIC: [u8; 2] = [0x53, 0xef];
++
++        let segment = BioSegment::alloc(1, BioDirection::FromDevice);
++        let device: &dyn BlockDevice = self;
++        let status = device
++            .read_blocks(Bid::new(0), segment.clone())
++            .map_err(|_| DmError::Io)?;
++        if status != BioStatus::Complete {
++            return Err(DmError::Io);
++        }
++        let mut magic = [0u8; 2];
++        segment
++            .read_bytes(EXT2_MAGIC_OFFSET, &mut magic)
++            .map_err(|_| DmError::Io)?;
++        if magic == EXT2_MAGIC {
++            Ok(())
++        } else {
++            Err(DmError::InvalidData)
++        }
++    }
++
+     fn process_passthrough(&self, bio: SubmittedBio) -> Result<(), BioEnqueueError> {
+         self.lower.enqueue(bio)
+     }
+@@ -110,7 +139,11 @@ impl DmDevice {
+         if bio_type == BioType::Write {
+             for segment in bio.segments() {
+                 let mut plaintext = vec![0u8; segment.nbytes()];
+-                if segment.read_bytes(0, &mut plaintext).is_err() {
++                if segment
++                    .inner_dma_slice()
++                    .read_bytes(0, &mut plaintext)
++                    .is_err()
++                {
+                     bio.complete(BioStatus::IoError);
+                     return;
+                 }
+@@ -149,7 +182,10 @@ impl DmDevice {
+                     let mut plaintext = vec![0u8; segment.nbytes()];
+                     if segment.inner_dma_slice().read_bytes(0, &mut plaintext).is_err()
+                         || cipher.decrypt(sector_cursor, &mut plaintext).is_err()
+-                        || segment.write_bytes(0, &plaintext).is_err()
++                        || segment
++                            .inner_dma_slice()
++                            .write_bytes(0, &plaintext)
++                            .is_err()
+                     {
+                         status = BioStatus::IoError;
+                         break;
+@@ -248,7 +284,7 @@ impl BlockDevice for DmDevice {
+     }
+ 
+     fn supports_partition_scan(&self) -> bool {
+-        !matches!(&self.target, DmTarget::Verity(_))
++        false
+     }
+ }
+ 
+diff --git a/kernel/comps/dm/src/lib.rs b/kernel/comps/dm/src/lib.rs
+index 68d15da..aa9506d 100644
+--- a/kernel/comps/dm/src/lib.rs
++++ b/kernel/comps/dm/src/lib.rs
+@@ -60,6 +60,7 @@ pub enum DmError {
+     IntegrityViolation,
+     InvalidHex,
+     InvalidKey,
++    InvalidData,
+     Io,
+     OutOfRange,
+     UnalignedIo,
+@@ -106,6 +107,16 @@ fn init() -> Result<(), ComponentInitError> {
+         let id = allocate_mapper_id()?;
+         let mapper = DmDevice::new_crypt(id, mapper_name, lower, &key)
+             .map_err(|_| ComponentInitError::Unknown)?;
++        mapper.self_test_ext2_magic().map_err(|error| {
++            ostd::early_println!(
++                "[dm-test] FAIL AES-256-XTS did not reveal a valid ext2 superblock: {:?}",
++                error
++            );
++            ComponentInitError::Unknown
++        })?;
++        ostd::early_println!(
++            "[dm-test] PASS AES-256-XTS decrypted a valid ext2 superblock through dm-crypt"
++        );
+         info!("registering AES-256-XTS device {}", mapper.name());
+         aster_block::register(Arc::new(mapper)).map_err(|_| ComponentInitError::Unknown)?;
+         ostd::early_println!("[dm] registered AES-256-XTS mapper");
+diff --git a/test/initramfs/src/init b/test/initramfs/src/init
+index 65f8398..23825d5 100755
+--- a/test/initramfs/src/init
++++ b/test/initramfs/src/init
+@@ -38,14 +38,21 @@ echo "[init] mounts complete"
+ # registration, on-disk hash verification and filesystem I/O together.
+ if [ -b /dev/vdc ]; then
+     echo "[dm-test] lower device detected: /dev/vdc"
+-    if [ ! -b /dev/dm-verity0 ]; then
+-        echo "[dm-test] FAIL mapper device /dev/dm-verity0 is missing"
++    if [ -b /dev/dm-verity0 ]; then
++        DM_MAPPER=/dev/dm-verity0
++    elif [ -b /dev/dm-crypt0 ]; then
++        DM_MAPPER=/dev/dm-crypt0
++    else
++        DM_MAPPER=
++    fi
++    if [ -z "$DM_MAPPER" ]; then
++        echo "[dm-test] FAIL mapper device is missing"
+     else
+         mkdir -p /dm-verity
+-        if mount -t ext2 -o ro /dev/dm-verity0 /dm-verity; then
++        if mount -t ext2 -o ro "$DM_MAPPER" /dm-verity; then
+             if [ -f /dm-verity/etc/dm-verity-proof ]; then
+                 echo "[dm-test] proof: $(cat /dm-verity/etc/dm-verity-proof)"
+-                echo "[dm-test] PASS protected ext2 mounted through dm-verity"
++                echo "[dm-test] PASS protected ext2 mounted through $DM_MAPPER"
+             else
+                 echo "[dm-test] FAIL proof file is missing"
+             fi
+diff --git a/tools/run_dm_crypt.sh b/tools/run_dm_crypt.sh
+new file mode 100644
+index 0000000..dd96a04
+--- /dev/null
++++ b/tools/run_dm_crypt.sh
+@@ -0,0 +1,31 @@
++#!/bin/bash
++
++# SPDX-License-Identifier: MPL-2.0
++
++set -euo pipefail
++
++DM_IMAGE=${DM_IMAGE:-./dm-crypt-test.img}
++DM_DEVICE=${DM_DEVICE:-vdc}
++DM_NAME=${DM_NAME:-dm-crypt0}
++DM_KEY=${DM_KEY:-000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f}
++
++if [ ! -f "${DM_IMAGE}" ]; then
++    echo "dm-crypt image not found: ${DM_IMAGE}" >&2
++    exit 1
++fi
++
++KCMD_ARGS="dm_crypt.device=${DM_DEVICE} \
++dm_crypt.name=${DM_NAME} \
++dm_crypt.key=${DM_KEY}"
++
++export DM_IMAGE
++OSDK_ARGS="--kcmd-args=\"${KCMD_ARGS}\""
++QEMU_ARGS=""
++if [ "${ENABLE_KVM:-0}" = "1" ]; then
++    QEMU_ARGS="-accel kvm"
++fi
++if [ -n "${QEMU_ARGS}" ]; then
++    OSDK_ARGS="${OSDK_ARGS} --qemu-args=\"${QEMU_ARGS}\""
++fi
++
++exec make run_kernel CARGO_OSDK_BUILD_ARGS="${OSDK_ARGS}"
+-- 
+2.50.1.windows.1
+

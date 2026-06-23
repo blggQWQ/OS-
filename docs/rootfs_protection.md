@@ -1,8 +1,9 @@
 # rootfs 加密与完整性保护方案
 
-> 当前状态（2026-06-23）：镜像格式化命令、启动参数骨架和用户态 mapper
-> 核心已具备；Asterinas 的真实 virtio-blk 适配与 mount 切换尚未完成。因此下面是
-> 实施顺序，不是“已经完成启动”的声明。
+> 当前状态（2026-06-23）：Asterinas `aster-dm` 已接入真实 VirtIO BIO。
+> dm-crypt 已解密 Linux `aes-xts-plain64` 生成的 ext2 superblock；dm-verity
+> 已完成正常镜像通过、篡改镜像拒绝。尚未完成的是把 mapper 切换为系统 `/`
+> 的正式根挂载目标，因此下面后续阶段不能描述成“已从受保护 rootfs 启动”。
 
 正式题目要求同时覆盖 rootfs 加密和 dm-verity 启动校验。本项目推荐按下面顺序接入，避免一开始直接改 rootfs 导致调试困难。
 
