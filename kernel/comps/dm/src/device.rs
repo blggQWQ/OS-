@@ -86,6 +86,35 @@ impl DmDevice {
         }
     }
 
+    /// Reads and validates the ext2 superblock magic through this mapper.
+    ///
+    /// The magic is located 56 bytes into the superblock, which starts at
+    /// byte 1024. Seeing it through an encrypted lower device proves that the
+    /// regular BIO path performed AES-XTS decryption with the expected key and
+    /// plain64 sector tweak.
+    pub fn self_test_ext2_magic(&self) -> Result<(), DmError> {
+        const EXT2_MAGIC_OFFSET: usize = 1024 + 56;
+        const EXT2_MAGIC: [u8; 2] = [0x53, 0xef];
+
+        let segment = BioSegment::alloc(1, BioDirection::FromDevice);
+        let device: &dyn BlockDevice = self;
+        let status = device
+            .read_blocks(Bid::new(0), segment.clone())
+            .map_err(|_| DmError::Io)?;
+        if status != BioStatus::Complete {
+            return Err(DmError::Io);
+        }
+        let mut magic = [0u8; 2];
+        segment
+            .read_bytes(EXT2_MAGIC_OFFSET, &mut magic)
+            .map_err(|_| DmError::Io)?;
+        if magic == EXT2_MAGIC {
+            Ok(())
+        } else {
+            Err(DmError::InvalidData)
+        }
+    }
+
     fn process_passthrough(&self, bio: SubmittedBio) -> Result<(), BioEnqueueError> {
         self.lower.enqueue(bio)
     }
@@ -110,7 +139,11 @@ impl DmDevice {
         if bio_type == BioType::Write {
             for segment in bio.segments() {
                 let mut plaintext = vec![0u8; segment.nbytes()];
-                if segment.read_bytes(0, &mut plaintext).is_err() {
+                if segment
+                    .inner_dma_slice()
+                    .read_bytes(0, &mut plaintext)
+                    .is_err()
+                {
                     bio.complete(BioStatus::IoError);
                     return;
                 }
@@ -149,7 +182,10 @@ impl DmDevice {
                     let mut plaintext = vec![0u8; segment.nbytes()];
                     if segment.inner_dma_slice().read_bytes(0, &mut plaintext).is_err()
                         || cipher.decrypt(sector_cursor, &mut plaintext).is_err()
-                        || segment.write_bytes(0, &plaintext).is_err()
+                        || segment
+                            .inner_dma_slice()
+                            .write_bytes(0, &plaintext)
+                            .is_err()
                     {
                         status = BioStatus::IoError;
                         break;
@@ -248,7 +284,7 @@ impl BlockDevice for DmDevice {
     }
 
     fn supports_partition_scan(&self) -> bool {
-        !matches!(&self.target, DmTarget::Verity(_))
+        false
     }
 }
 

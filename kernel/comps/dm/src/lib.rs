@@ -60,6 +60,7 @@ pub enum DmError {
     IntegrityViolation,
     InvalidHex,
     InvalidKey,
+    InvalidData,
     Io,
     OutOfRange,
     UnalignedIo,
@@ -106,6 +107,16 @@ fn init() -> Result<(), ComponentInitError> {
         let id = allocate_mapper_id()?;
         let mapper = DmDevice::new_crypt(id, mapper_name, lower, &key)
             .map_err(|_| ComponentInitError::Unknown)?;
+        mapper.self_test_ext2_magic().map_err(|error| {
+            ostd::early_println!(
+                "[dm-test] FAIL AES-256-XTS did not reveal a valid ext2 superblock: {:?}",
+                error
+            );
+            ComponentInitError::Unknown
+        })?;
+        ostd::early_println!(
+            "[dm-test] PASS AES-256-XTS decrypted a valid ext2 superblock through dm-crypt"
+        );
         info!("registering AES-256-XTS device {}", mapper.name());
         aster_block::register(Arc::new(mapper)).map_err(|_| ComponentInitError::Unknown)?;
         ostd::early_println!("[dm] registered AES-256-XTS mapper");

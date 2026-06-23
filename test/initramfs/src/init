@@ -38,14 +38,21 @@ echo "[init] mounts complete"
 # registration, on-disk hash verification and filesystem I/O together.
 if [ -b /dev/vdc ]; then
     echo "[dm-test] lower device detected: /dev/vdc"
-    if [ ! -b /dev/dm-verity0 ]; then
-        echo "[dm-test] FAIL mapper device /dev/dm-verity0 is missing"
+    if [ -b /dev/dm-verity0 ]; then
+        DM_MAPPER=/dev/dm-verity0
+    elif [ -b /dev/dm-crypt0 ]; then
+        DM_MAPPER=/dev/dm-crypt0
+    else
+        DM_MAPPER=
+    fi
+    if [ -z "$DM_MAPPER" ]; then
+        echo "[dm-test] FAIL mapper device is missing"
     else
         mkdir -p /dm-verity
-        if mount -t ext2 -o ro /dev/dm-verity0 /dm-verity; then
+        if mount -t ext2 -o ro "$DM_MAPPER" /dm-verity; then
             if [ -f /dm-verity/etc/dm-verity-proof ]; then
                 echo "[dm-test] proof: $(cat /dm-verity/etc/dm-verity-proof)"
-                echo "[dm-test] PASS protected ext2 mounted through dm-verity"
+                echo "[dm-test] PASS protected ext2 mounted through $DM_MAPPER"
             else
                 echo "[dm-test] FAIL proof file is missing"
             fi
