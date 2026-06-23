@@ -148,7 +148,9 @@ impl GptEntry {
 }
 
 pub(super) fn parse(device: &Arc<dyn BlockDevice>) -> Option<Vec<Option<PartitionInfo>>> {
-    let mbr = device.read_val::<MbrHeader>(0).unwrap();
+    let Ok(mbr) = device.read_val::<MbrHeader>(0) else {
+        return None;
+    };
 
     // 0xEE indicates a GPT Protective MBR, a fake partition covering the entire disk.
     let partitions = if mbr.check_signature() && mbr.entries[0].type_ != 0xEE {
@@ -211,7 +213,9 @@ fn parse_gpt(device: &Arc<dyn BlockDevice>) -> Vec<Option<PartitionInfo>> {
     let mut partitions = Vec::new();
 
     // The primary GPT Header must be located in LBA 1.
-    let gpt = device.read_val::<GptHeader>(SECTOR_SIZE).unwrap();
+    let Ok(gpt) = device.read_val::<GptHeader>(SECTOR_SIZE) else {
+        return partitions;
+    };
 
     if !gpt.check_signature() {
         return partitions;
@@ -225,7 +229,9 @@ fn parse_gpt(device: &Arc<dyn BlockDevice>) -> Vec<Option<PartitionInfo>> {
     for i in 0..total_sectors {
         let mut buf = [0u8; SECTOR_SIZE];
         let offset = (gpt.partition_entry_lba as usize + i) * SECTOR_SIZE;
-        device.read_bytes(offset, buf.as_mut_slice()).unwrap();
+        if device.read_bytes(offset, buf.as_mut_slice()).is_err() {
+            return Vec::new();
+        }
 
         for j in 0..entries_per_sector {
             let entry_offset = j * gpt.size_of_partition_entry as usize;

@@ -10,6 +10,7 @@ align_ext.workspace = true
 aster-bigtcp.workspace = true
 aster-block.workspace = true
 aster-cmdline.workspace = true
+aster-dm.workspace = true
 aster-console.workspace = true
 aster-framebuffer.workspace = true
 aster-fuse.workspace = true

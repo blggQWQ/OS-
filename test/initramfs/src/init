@@ -19,12 +19,42 @@ if [ "$#" -eq 0 ]; then
     set -- /bin/sh
 fi
 
+echo "[init] mounting sysfs"
 mount -t sysfs none /sys
+echo "[init] mounting proc"
 mount -t proc none /proc
+echo "[init] mounting cgroup2"
 mount -t cgroup2 none /sys/fs/cgroup
+echo "[init] mounting configfs"
 mount -t configfs none /sys/kernel/config
+echo "[init] mounting ext2"
 mount -t ext2 /dev/vda /ext2
+echo "[init] mounting exfat"
 mount -t exfat /dev/vdb /exfat
+echo "[init] mounts complete"
+
+# The optional third disk is used by tools/run_dm_verity.sh.  Treat the
+# mapper—not the raw disk—as the proof surface so a successful test exercises
+# registration, on-disk hash verification and filesystem I/O together.
+if [ -b /dev/vdc ]; then
+    echo "[dm-test] lower device detected: /dev/vdc"
+    if [ ! -b /dev/dm-verity0 ]; then
+        echo "[dm-test] FAIL mapper device /dev/dm-verity0 is missing"
+    else
+        mkdir -p /dm-verity
+        if mount -t ext2 -o ro /dev/dm-verity0 /dm-verity; then
+            if [ -f /dm-verity/etc/dm-verity-proof ]; then
+                echo "[dm-test] proof: $(cat /dm-verity/etc/dm-verity-proof)"
+                echo "[dm-test] PASS protected ext2 mounted through dm-verity"
+            else
+                echo "[dm-test] FAIL proof file is missing"
+            fi
+            umount /dm-verity
+        else
+            echo "[dm-test] FAIL protected ext2 mount rejected"
+        fi
+    fi
+fi
 
 # When the init process starts,
 # it does not have a process group, session, or controlling terminal.

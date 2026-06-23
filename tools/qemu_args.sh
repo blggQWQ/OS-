@@ -20,6 +20,7 @@
 #  - MEM: amount of memory, e.g. "8G";
 #  - VNC_PORT: VNC port, default is "42";
 #  - ATTACH_XFSTESTS_IMAGES: "true" or "false", whether to attach xfstests images (xfstests_test.img and xfstests_scratch.img) to the VM. Defaults to auto-detection from ENABLE_CONFORMANCE_TEST + CONFORMANCE_TEST_SUITE.
+#  - DM_IMAGE: optional raw image attached as an extra VirtIO block device.
 
 OVMF=${OVMF:-"on"}
 VHOST=${VHOST:-"off"}
@@ -144,6 +145,12 @@ COMMON_QEMU_ARGS="\
     -drive if=none,format=raw,id=x1,file=./test/initramfs/build/exfat.img \
 "
 
+if [ -n "${DM_IMAGE:-}" ]; then
+    COMMON_QEMU_ARGS="$COMMON_QEMU_ARGS \
+        -drive if=none,format=raw,id=dmtest,file=$DM_IMAGE \
+    "
+fi
+
 # Add xfstests drives when the selected conformance suite is `xfstests`.
 if [ "$ATTACH_XFSTESTS_IMAGES" = "true" ]; then
     COMMON_QEMU_ARGS="$COMMON_QEMU_ARGS \
@@ -173,6 +180,7 @@ if [ "$1" = "microvm" ]; then
         -no-user-config \
         -device virtio-blk-device,drive=x0,serial=vext2 \
         -device virtio-blk-device,drive=x1,serial=vexfat \
+        ${DM_IMAGE:+-device virtio-blk-device,drive=dmtest,serial=vdmtest} \
         -device virtio-keyboard-device \
         -device virtio-net-device,netdev=net01 \
         -device virtio-serial-device \
@@ -184,6 +192,7 @@ else
         -machine q35,kernel-irqchip=split \
         -device virtio-blk-pci,bus=pcie.0,addr=0x6,drive=x0,serial=vext2,disable-legacy=on,disable-modern=off,queue-size=64,num-queues=1,request-merging=off,backend_defaults=off,discard=off,write-zeroes=off,event_idx=off,indirect_desc=off,queue_reset=off$IOMMU_DEV_EXTRA \
         -device virtio-blk-pci,bus=pcie.0,addr=0x7,drive=x1,serial=vexfat,disable-legacy=on,disable-modern=off,queue-size=64,num-queues=1,request-merging=off,backend_defaults=off,discard=off,write-zeroes=off,event_idx=off,indirect_desc=off,queue_reset=off$IOMMU_DEV_EXTRA \
+        ${DM_IMAGE:+-device virtio-blk-pci,bus=pcie.0,addr=0x9,drive=dmtest,serial=vdmtest,disable-legacy=on,disable-modern=off,queue-size=64,num-queues=1,request-merging=off,backend_defaults=off,discard=off,write-zeroes=off,event_idx=off,indirect_desc=off,queue_reset=off$IOMMU_DEV_EXTRA} \
         -object rng-random,id=rng0,filename=/dev/urandom \
         -device virtio-rng-pci,bus=pcie.0,addr=0x8,disable-legacy=on,disable-modern=off,rng=rng0,event_idx=off,indirect_desc=off,queue_reset=off$IOMMU_DEV_EXTRA \
         -device virtio-net-pci,netdev=net01,disable-legacy=on,disable-modern=off$VIRTIO_NET_FEATURES$IOMMU_DEV_EXTRA \

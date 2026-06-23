@@ -74,6 +74,11 @@ pub trait BlockDevice: Send + Sync + Any + Debug {
     /// Returns the device ID of the block device.
     fn id(&self) -> DeviceId;
 
+    /// Returns whether the device may contain a partition table.
+    fn supports_partition_scan(&self) -> bool {
+        true
+    }
+
     /// Returns whether the block device is a partition.
     fn is_partition(&self) -> bool {
         false
@@ -162,6 +167,9 @@ fn init() -> Result<(), ComponentInitError> {
 fn init_in_first_process() -> Result<(), ComponentInitError> {
     let devices = collect_all();
     for device in devices {
+        if !device.supports_partition_scan() {
+            continue;
+        }
         let Some(partition_info) = partition::parse(&device) else {
             continue;
         };

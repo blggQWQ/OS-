@@ -22,6 +22,7 @@
 
 extern crate alloc;
 extern crate lru;
+use aster_dm as _;
 #[macro_use]
 extern crate controlled;
 #[macro_use]

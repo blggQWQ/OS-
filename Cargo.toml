@@ -29,6 +29,7 @@ members = [
     "kernel",
     "kernel/comps/block",
     "kernel/comps/cmdline",
+    "kernel/comps/dm",
     "kernel/comps/console",
     "kernel/comps/framebuffer",
     "kernel/comps/i8042",
@@ -149,6 +150,7 @@ ostd-test = { version = "0.18.0", path = "ostd/libs/ostd-test" }
 # Crates under kernel/comps
 aster-block = { path = "kernel/comps/block" }
 aster-cmdline = { path = "kernel/comps/cmdline" }
+aster-dm = { path = "kernel/comps/dm" }
 aster-console = { path = "kernel/comps/console" }
 aster-framebuffer = { path = "kernel/comps/framebuffer" }
 aster-i8042 = { path = "kernel/comps/i8042" }
@@ -209,6 +211,7 @@ volatile = "0.6.1"
 # This suggests that `Asterinas` should support saving and restoring the `FPU` state within the kernel context,
 # a capability it currently lacks.
 aes-gcm = { version = "0.9.4", features = ["force-soft"] }
+aes = { version = "0.7.5", features = ["force-soft"] }
 bittle = "0.5.6"
 const_format = "0.2.35"
 ctr = "0.8.0"

@@ -2,6 +2,7 @@
 [components]
 block = { name = "aster-block" }
 cmdline = { name = "aster-cmdline" }
+dm = { name = "aster-dm" }
 console = { name = "aster-console" }
 framebuffer = { name = "aster-framebuffer" }
 i8042 = { name = "aster-i8042" }
