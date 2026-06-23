@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-MOUNT_POINT="${1:-/mnt/dm-test}"
-SIZE="${2:-128M}"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+OUTPUT="${1:-$ROOT_DIR/target/benchmark/rust.csv}"
+BLOCKS="${BLOCKS:-4096}"
+ITERATIONS="${ITERATIONS:-5}"
 
-if ! command -v fio >/dev/null 2>&1; then
-  echo "fio is required for performance tests" >&2
-  exit 1
-fi
+mkdir -p "$(dirname "$OUTPUT")"
+cargo run --release --quiet --manifest-path "$ROOT_DIR/Cargo.toml" -p dmctl -- \
+  benchmark "$BLOCKS" "$ITERATIONS" | tee "$OUTPUT"
 
-fio --name=dm-crypt-rw --filename="$MOUNT_POINT/testfile" --size="$SIZE" --rw=readwrite --bs=4k
-fio --name=dm-verity-read --filename="$MOUNT_POINT/testfile" --size="$SIZE" --rw=read --bs=4k
-
+echo "benchmark_csv=$OUTPUT" >&2
+echo "Run on a quiet machine and repeat at least three times for defense-grade results." >&2

@@ -1,5 +1,9 @@
 # rootfs 加密与完整性保护方案
 
+> 当前状态（2026-06-23）：镜像格式化命令、启动参数骨架和用户态 mapper
+> 核心已具备；Asterinas 的真实 virtio-blk 适配与 mount 切换尚未完成。因此下面是
+> 实施顺序，不是“已经完成启动”的声明。
+
 正式题目要求同时覆盖 rootfs 加密和 dm-verity 启动校验。本项目推荐按下面顺序接入，避免一开始直接改 rootfs 导致调试困难。
 
 ## 阶段 1：普通 rootfs 启动
@@ -91,4 +95,3 @@ verity-protected image -> DmVerityDevice -> DmCryptDevice -> rootfs
 ```
 
 答辩时应说明选择哪种顺序，以及威胁模型是什么。
-

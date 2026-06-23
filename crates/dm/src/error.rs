@@ -8,6 +8,8 @@ pub enum DmError {
     InvalidBlockId { block_id: u64, blocks: u64 },
     InvalidImageSize { image_size: u64, block_size: usize },
     InvalidKey,
+    InvalidTable(String),
+    UnsupportedCipher(String),
     IntegrityViolation { block_id: u64 },
     ReadOnlyDevice,
     EmptyDevice,
@@ -31,6 +33,8 @@ impl fmt::Display for DmError {
                 "invalid image size {image_size}; not divisible by block size {block_size}"
             ),
             Self::InvalidKey => write!(f, "invalid encryption key"),
+            Self::InvalidTable(message) => write!(f, "invalid device-mapper table: {message}"),
+            Self::UnsupportedCipher(cipher) => write!(f, "unsupported cipher: {cipher}"),
             Self::IntegrityViolation { block_id } => {
                 write!(f, "integrity verification failed for block {block_id}")
             }

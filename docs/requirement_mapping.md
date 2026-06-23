@@ -52,16 +52,17 @@ rootfs_verity.scheme=dm-verity rootfs_verity.hash=<hash>
 当前对应：
 
 - `crates/dm/src/dm_crypt.rs`: 透明加解密 I/O wrapper；
+- `DmCryptTable`: Linux dm-crypt table 参数解析；
+- `aes-xts-plain64`: AES-256-XTS 与 plain64 IV；
+- `scripts/verify_linux_xts_compat.sh`: 与 Linux 内核 dm-crypt 逐字节互操作验证；
 - `dmctl crypt-write`: 明文经 mapper 加密写入；
 - `dmctl raw-read-hex`: 直接查看底层密文；
 - `dmctl crypt-read`: 通过 mapper 恢复明文。
 
 待 Asterinas 环境补齐：
 
-- 将当前演示加密替换为 AES-XTS；
-- 支持 Linux dm-crypt table 参数格式；
 - 提供内核侧控制接口，使 `cryptsetup` 能创建和管理 dm-crypt 设备；
-- 可选支持 LUKS header 解析。
+- 将 cryptsetup 解析出的 volume key 与 table 安全传给内核；LUKS metadata 与 PBKDF 保持在用户态。
 
 ## 指标 3：根文件系统加密
 
@@ -90,7 +91,7 @@ rootfs_verity.scheme=dm-verity rootfs_verity.hash=<hash>
 当前对应：
 
 - [performance.md](performance.md) 给出 fio/filebench/SQLite 测试方案；
-- `scripts/benchmark.sh` 提供 fio 测试入口；
+- `scripts/benchmark.sh` 提供 plain/AES-XTS/verity 的 CSV 微基准入口；
 - `scripts/linux_cryptsetup_baseline.sh` 提供 Linux 对照实验入口。
 
 待 Asterinas 环境补齐：
@@ -117,4 +118,3 @@ rootfs_verity.scheme=dm-verity rootfs_verity.hash=<hash>
 2. verity hash cache 减少重复计算；
 3. crypt 使用硬件 AES 或批量加密降低开销；
 4. rootfs 启动阶段只验证读取路径，减少 boot time 影响。
-

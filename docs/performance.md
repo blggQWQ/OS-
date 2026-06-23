@@ -1,6 +1,6 @@
-# Performance Plan
+# Performance Protocol
 
-The current crate provides the correctness baseline and reusable mapper logic. Final performance testing should be done after the wrappers are connected to Asterinas block I/O.
+The project now has a reproducible Rust microbenchmark. Final Linux/Asterinas comparison must still be run on the same QEMU configuration and disk image.
 
 ## Metrics
 
@@ -10,7 +10,17 @@ The current crate provides the correctness baseline and reusable mapper logic. F
 - read latency with and without `dm-verity`;
 - boot time with and without protected rootfs.
 
-## Suggested Commands
+## Rust Baseline
+
+```bash
+BLOCKS=16384 ITERATIONS=7 bash scripts/benchmark.sh target/benchmark/rust.csv
+```
+
+The CSV contains plain memory block I/O, AES-256-XTS read/write, and verity read throughput. The benchmark runs mapper construction outside the timed region and includes a read checksum to keep the work observable.
+
+Do not present the memory result as a Linux comparison. It is a stable regression baseline for optimization work.
+
+## Linux/Asterinas Comparison
 
 On a Linux userspace test image:
 
@@ -19,11 +29,16 @@ fio --name=crypt-test --filename=/mnt/testfile --size=128M --rw=readwrite --bs=4
 fio --name=verity-read --filename=/mnt/testfile --size=128M --rw=read --bs=4k
 ```
 
-Or use:
+Use identical virtual CPU count, memory, QEMU cache/AIO mode, image, block size, queue depth, runtime and fio version. Record the full command beside every result.
 
-```bash
-scripts/benchmark.sh /mnt/dm-test 128M
-```
+Required matrix:
+
+| OS | Target | Workload | Block size | Queue depth |
+| --- | --- | --- | ---: | ---: |
+| Linux | plain / dm-crypt / dm-verity | seq read/write, rand read/write | 4KiB | 1 and 32 |
+| Asterinas | plain / dm-crypt / dm-verity | same | 4KiB | 1 and 32 |
+
+Report median and spread from at least five measured runs after one warm-up run. Throughput alone is insufficient: retain p50/p95/p99 latency and CPU utilization.
 
 For boot timing, record the elapsed time from QEMU launch to first userspace prompt in two modes:
 
@@ -37,7 +52,8 @@ dm-verity protected rootfs
 - cache hash blocks in the verity path;
 - avoid repeated allocation in block transforms;
 - batch adjacent block reads when building the verity tree;
-- replace the demo cipher with hardware-accelerated AES-XTS when available.
+- retain AES-NI in production builds and measure software fallback separately;
+- reuse per-I/O scratch buffers instead of allocating a `Vec` on every request.
 
 ## Report Table Template
 

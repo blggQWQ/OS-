@@ -1,7 +1,12 @@
-use dm::{BlockDevice, DmCryptDevice, DmError, DmVerityDevice, FileBlockDevice, Result};
+use dm::{
+    BlockDevice, DmCryptDevice, DmCryptTable, DmError, DmVerityDevice, FileBlockDevice,
+    MemoryBlockDevice, Result,
+};
 use std::env;
 use std::fs::{self, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
+use std::str::FromStr;
+use std::time::Instant;
 
 fn main() {
     if let Err(err) = run() {
@@ -60,6 +65,24 @@ fn run() -> Result<()> {
             let raw = lower.snapshot_block(block_id)?;
             println!("{}", hex_encode(&raw));
         }
+        "crypt-table-fill" => {
+            require_len(&args, 8)?;
+            let image = &args[2];
+            let block_size = parse_usize(&args[3])?;
+            let table = DmCryptTable::from_str(&args[4])?;
+            let block_id = parse_u64(&args[5])?;
+            let byte = parse_hex_byte(&args[6])?;
+            let count = parse_usize(&args[7])?;
+            let lower = FileBlockDevice::open(image, block_size, true)?;
+            let crypt = DmCryptDevice::from_table(lower, &table)?;
+            let block = vec![byte; block_size];
+            for index in 0..count {
+                crypt.write_block(block_id + index as u64, &block)?;
+            }
+            println!(
+                "aes-xts write ok: image={image} first_block={block_id} blocks={count} byte=0x{byte:02x}"
+            );
+        }
         "verity-root" => {
             require_len(&args, 4)?;
             let image = &args[2];
@@ -116,6 +139,11 @@ fn run() -> Result<()> {
         }
         "demo-crypt" => demo_crypt()?,
         "demo-verity" => demo_verity()?,
+        "benchmark" => {
+            let blocks = args.get(2).map(|v| parse_u64(v)).transpose()?.unwrap_or(4096);
+            let iterations = args.get(3).map(|v| parse_usize(v)).transpose()?.unwrap_or(3);
+            benchmark(blocks, iterations)?;
+        }
         _ => print_help(),
     }
 
@@ -183,12 +211,114 @@ fn print_help() {
   dmctl crypt-write <image> <block-size> <key> <block-id> <text>
   dmctl crypt-read <image> <block-size> <key> <block-id>
   dmctl raw-read-hex <image> <block-size> <block-id>
+  dmctl crypt-table-fill <image> <block-size> <quoted-table> <block-id> <byte-hex> <count>
   dmctl verity-root <image> <block-size>
   dmctl verity-verify <image> <block-size> <root-hash-hex>
   dmctl verity-format-dm <image> <data-blocks>
   dmctl tamper <image> <block-size> <block-id> <offset> <byte-hex>
   dmctl demo-crypt
-  dmctl demo-verity"
+  dmctl demo-verity
+  dmctl benchmark [blocks] [iterations]"
+    );
+}
+
+fn benchmark(blocks: u64, iterations: usize) -> Result<()> {
+    const BLOCK_SIZE: usize = 4096;
+    if blocks == 0 || iterations == 0 {
+        return Err(DmError::Io("blocks and iterations must be non-zero".into()));
+    }
+    let plain = MemoryBlockDevice::new(blocks, BLOCK_SIZE)?;
+    let key_hex: String = (0u8..64).map(|byte| format!("{byte:02x}")).collect();
+    let table = DmCryptTable::from_str(&format!(
+        "aes-xts-plain64 {key_hex} 0 memory 0"
+    ))?;
+    let crypt = DmCryptDevice::from_table(plain.clone(), &table)?;
+    let block = vec![0x5a; BLOCK_SIZE];
+    let mut out = vec![0; BLOCK_SIZE];
+
+    println!("implementation,operation,block_size,bytes,seconds,mib_per_second,checksum");
+    let (elapsed, checksum) = timed_io(blocks, iterations, || {
+        for block_id in 0..blocks {
+            plain.write_block(block_id, &block)?;
+        }
+        Ok(0)
+    })?;
+    print_bench("rust-plain", "write", blocks, iterations, elapsed, checksum);
+
+    let (elapsed, checksum) = timed_io(blocks, iterations, || {
+        let mut sum = 0u64;
+        for block_id in 0..blocks {
+            plain.read_block(block_id, &mut out)?;
+            sum = sum.wrapping_add(out[0] as u64);
+        }
+        Ok(sum)
+    })?;
+    print_bench("rust-plain", "read", blocks, iterations, elapsed, checksum);
+
+    let (elapsed, checksum) = timed_io(blocks, iterations, || {
+        for block_id in 0..blocks {
+            crypt.write_block(block_id, &block)?;
+        }
+        Ok(0)
+    })?;
+    print_bench("rust-aes-xts", "write", blocks, iterations, elapsed, checksum);
+
+    let (elapsed, checksum) = timed_io(blocks, iterations, || {
+        let mut sum = 0u64;
+        for block_id in 0..blocks {
+            crypt.read_block(block_id, &mut out)?;
+            sum = sum.wrapping_add(out[0] as u64);
+        }
+        Ok(sum)
+    })?;
+    print_bench("rust-aes-xts", "read", blocks, iterations, elapsed, checksum);
+
+    for block_id in 0..blocks {
+        plain.write_block(block_id, &block)?;
+    }
+    let verity = DmVerityDevice::build(plain)?;
+    let (elapsed, checksum) = timed_io(blocks, iterations, || {
+        let mut sum = 0u64;
+        for block_id in 0..blocks {
+            verity.read_block(block_id, &mut out)?;
+            sum = sum.wrapping_add(out[0] as u64);
+        }
+        Ok(sum)
+    })?;
+    print_bench("rust-verity", "read", blocks, iterations, elapsed, checksum);
+    Ok(())
+}
+
+fn timed_io<F>(blocks: u64, iterations: usize, mut operation: F) -> Result<(f64, u64)>
+where
+    F: FnMut() -> Result<u64>,
+{
+    let start = Instant::now();
+    let mut checksum = 0u64;
+    for _ in 0..iterations {
+        checksum = checksum.wrapping_add(operation()?);
+    }
+    let elapsed = start.elapsed().as_secs_f64();
+    if elapsed == 0.0 || blocks == 0 {
+        return Err(DmError::Io("benchmark timer resolution too low".into()));
+    }
+    Ok((elapsed, checksum))
+}
+
+fn print_bench(
+    implementation: &str,
+    operation: &str,
+    blocks: u64,
+    iterations: usize,
+    seconds: f64,
+    checksum: u64,
+) {
+    const BLOCK_SIZE: usize = 4096;
+    let bytes = blocks as f64 * iterations as f64 * BLOCK_SIZE as f64;
+    let mib_per_second = bytes / (1024.0 * 1024.0) / seconds;
+    println!(
+        "{implementation},{operation},{BLOCK_SIZE},{},{seconds:.6},{mib_per_second:.2},{checksum}",
+        bytes as u64
     );
 }
 

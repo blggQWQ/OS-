@@ -4,8 +4,8 @@
 
 当前版本完成了：
 
-1. 简化 Device Mapper 框架；
-2. `dm-crypt` 透明块加密读写；
+1. 基于 `BlockDevice` trait 的可组合 Device Mapper 框架；
+2. Linux 兼容的 `aes-xts-plain64` 加密路径与 dm-crypt table 解析；
 3. `dm-verity` 只读完整性校验；
 4. 文件镜像后端，可直接演示密文落盘与篡改检测；
 5. 命令行工具 `dmctl`；
@@ -42,7 +42,8 @@ scripts/
   demo_verity.ps1             Windows dm-verity 演示
   build_image.sh              Linux 测试镜像创建
   run_qemu.sh                 QEMU 启动模板
-  benchmark.sh                fio 性能测试模板
+  benchmark.sh                Rust plain/crypt/verity CSV 基准
+  verify_linux_xts_compat.sh  与 Linux dm-crypt 逐字节兼容验证
   linux_cryptsetup_baseline.sh Linux cryptsetup 对照基线
 artifacts/
   asterinas-kernel.iso        已成功构建的 Asterinas 内核 ISO
@@ -119,9 +120,23 @@ pub trait BlockDevice {
 
 ## 当前实现边界
 
-- `dm-crypt` 当前使用 SHA-256 派生流的演示加密变换，适合展示透明加解密闭环。正式接入内核时，建议替换为 AES-XTS 或 AES-CBC-ESSIV。
+- `dm-crypt` 已支持 Linux `aes-xts-plain64`、64 字节 AES-256-XTS key、`iv_offset` 和 data offset；旧的 SHA-256 流变换仅保留给最小演示命令。
+- `scripts/verify_linux_xts_compat.sh` 会让 Linux dm-crypt 与 Rust 实现加密同一扇区，并执行逐字节比较。当前固定向量的两端 SHA-256 均为 `4334c17f4b0380b3c1f902509cce0c0f98d9fa77aa93f6407ec940215d77921d`。
 - `dm-verity` 已实现 Merkle tree root hash 校验和篡改检测，当前 tree 保存在内存中。正式版本可把 hash tree 落到镜像尾部。
 - `FileBlockDevice` 用于用户态演示；Asterinas 中应实现 `VirtioBlkAdapter`，把真实 `virtio-blk` 接入同一个 trait。
+
+## 决赛级验证入口
+
+```bash
+# 正确性测试
+cargo test --workspace
+
+# Rust plain / AES-XTS / verity，输出 CSV
+bash scripts/benchmark.sh
+
+# 需要 root；与 Linux 内核 dm-crypt 逐字节对照
+sudo bash scripts/verify_linux_xts_compat.sh
+```
 
 ## 国赛提交建议
 

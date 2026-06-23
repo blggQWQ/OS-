@@ -1,0 +1,1222 @@
+From be47b1606903269e6f5497ba5c7e112edbae05e6 Mon Sep 17 00:00:00 2001
+From: scnu202421326914 <2787304139@qq.com>
+Date: Tue, 23 Jun 2026 22:34:56 +0800
+Subject: [PATCH] feat(dm): integrate crypt and verity targets
+
+---
+ Cargo.toml                                |   3 +
+ Components.toml                           |   1 +
+ kernel/Cargo.toml                         |   1 +
+ kernel/comps/block/src/lib.rs             |   8 +
+ kernel/comps/block/src/partition.rs       |  12 +-
+ kernel/comps/dm/Cargo.toml                |  16 ++
+ kernel/comps/dm/src/crypto.rs             | 104 ++++++++
+ kernel/comps/dm/src/device.rs             | 287 ++++++++++++++++++++++
+ kernel/comps/dm/src/lib.rs                | 194 +++++++++++++++
+ kernel/comps/dm/src/sha256.rs             | 121 +++++++++
+ kernel/comps/dm/src/verity.rs             | 134 ++++++++++
+ kernel/src/lib.rs                         |   1 +
+ test/initramfs/src/init                   |  30 +++
+ tools/qemu_args.sh                        |   9 +
+ tools/run_dm_verity.sh                    |  42 ++++
+ tools/trace_asterinas_syscall_returns.gdb |  26 ++
+ 16 files changed, 986 insertions(+), 3 deletions(-)
+ create mode 100644 kernel/comps/dm/Cargo.toml
+ create mode 100644 kernel/comps/dm/src/crypto.rs
+ create mode 100644 kernel/comps/dm/src/device.rs
+ create mode 100644 kernel/comps/dm/src/lib.rs
+ create mode 100644 kernel/comps/dm/src/sha256.rs
+ create mode 100644 kernel/comps/dm/src/verity.rs
+ create mode 100644 tools/run_dm_verity.sh
+ create mode 100644 tools/trace_asterinas_syscall_returns.gdb
+
+diff --git a/Cargo.toml b/Cargo.toml
+index 0f4bfd8..24205ec 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -29,6 +29,7 @@ members = [
+     "kernel",
+     "kernel/comps/block",
+     "kernel/comps/cmdline",
++    "kernel/comps/dm",
+     "kernel/comps/console",
+     "kernel/comps/framebuffer",
+     "kernel/comps/i8042",
+@@ -149,6 +150,7 @@ ostd-test = { version = "0.18.0", path = "ostd/libs/ostd-test" }
+ # Crates under kernel/comps
+ aster-block = { path = "kernel/comps/block" }
+ aster-cmdline = { path = "kernel/comps/cmdline" }
++aster-dm = { path = "kernel/comps/dm" }
+ aster-console = { path = "kernel/comps/console" }
+ aster-framebuffer = { path = "kernel/comps/framebuffer" }
+ aster-i8042 = { path = "kernel/comps/i8042" }
+@@ -209,6 +211,7 @@ volatile = "0.6.1"
+ # This suggests that `Asterinas` should support saving and restoring the `FPU` state within the kernel context,
+ # a capability it currently lacks.
+ aes-gcm = { version = "0.9.4", features = ["force-soft"] }
++aes = { version = "0.7.5", features = ["force-soft"] }
+ bittle = "0.5.6"
+ const_format = "0.2.35"
+ ctr = "0.8.0"
+diff --git a/Components.toml b/Components.toml
+index 8292564..c11f128 100644
+--- a/Components.toml
++++ b/Components.toml
+@@ -2,6 +2,7 @@
+ [components]
+ block = { name = "aster-block" }
+ cmdline = { name = "aster-cmdline" }
++dm = { name = "aster-dm" }
+ console = { name = "aster-console" }
+ framebuffer = { name = "aster-framebuffer" }
+ i8042 = { name = "aster-i8042" }
+diff --git a/kernel/Cargo.toml b/kernel/Cargo.toml
+index d15ebd1..4899396 100644
+--- a/kernel/Cargo.toml
++++ b/kernel/Cargo.toml
+@@ -10,6 +10,7 @@ align_ext.workspace = true
+ aster-bigtcp.workspace = true
+ aster-block.workspace = true
+ aster-cmdline.workspace = true
++aster-dm.workspace = true
+ aster-console.workspace = true
+ aster-framebuffer.workspace = true
+ aster-fuse.workspace = true
+diff --git a/kernel/comps/block/src/lib.rs b/kernel/comps/block/src/lib.rs
+index d17193f..08607fd 100644
+--- a/kernel/comps/block/src/lib.rs
++++ b/kernel/comps/block/src/lib.rs
+@@ -74,6 +74,11 @@ pub trait BlockDevice: Send + Sync + Any + Debug {
+     /// Returns the device ID of the block device.
+     fn id(&self) -> DeviceId;
+ 
++    /// Returns whether the device may contain a partition table.
++    fn supports_partition_scan(&self) -> bool {
++        true
++    }
++
+     /// Returns whether the block device is a partition.
+     fn is_partition(&self) -> bool {
+         false
+@@ -162,6 +167,9 @@ fn init() -> Result<(), ComponentInitError> {
+ fn init_in_first_process() -> Result<(), ComponentInitError> {
+     let devices = collect_all();
+     for device in devices {
++        if !device.supports_partition_scan() {
++            continue;
++        }
+         let Some(partition_info) = partition::parse(&device) else {
+             continue;
+         };
+diff --git a/kernel/comps/block/src/partition.rs b/kernel/comps/block/src/partition.rs
+index c4d576f..061ee4a 100644
+--- a/kernel/comps/block/src/partition.rs
++++ b/kernel/comps/block/src/partition.rs
+@@ -148,7 +148,9 @@ impl GptEntry {
+ }
+ 
+ pub(super) fn parse(device: &Arc<dyn BlockDevice>) -> Option<Vec<Option<PartitionInfo>>> {
+-    let mbr = device.read_val::<MbrHeader>(0).unwrap();
++    let Ok(mbr) = device.read_val::<MbrHeader>(0) else {
++        return None;
++    };
+ 
+     // 0xEE indicates a GPT Protective MBR, a fake partition covering the entire disk.
+     let partitions = if mbr.check_signature() && mbr.entries[0].type_ != 0xEE {
+@@ -211,7 +213,9 @@ fn parse_gpt(device: &Arc<dyn BlockDevice>) -> Vec<Option<PartitionInfo>> {
+     let mut partitions = Vec::new();
+ 
+     // The primary GPT Header must be located in LBA 1.
+-    let gpt = device.read_val::<GptHeader>(SECTOR_SIZE).unwrap();
++    let Ok(gpt) = device.read_val::<GptHeader>(SECTOR_SIZE) else {
++        return partitions;
++    };
+ 
+     if !gpt.check_signature() {
+         return partitions;
+@@ -225,7 +229,9 @@ fn parse_gpt(device: &Arc<dyn BlockDevice>) -> Vec<Option<PartitionInfo>> {
+     for i in 0..total_sectors {
+         let mut buf = [0u8; SECTOR_SIZE];
+         let offset = (gpt.partition_entry_lba as usize + i) * SECTOR_SIZE;
+-        device.read_bytes(offset, buf.as_mut_slice()).unwrap();
++        if device.read_bytes(offset, buf.as_mut_slice()).is_err() {
++            return Vec::new();
++        }
+ 
+         for j in 0..entries_per_sector {
+             let entry_offset = j * gpt.size_of_partition_entry as usize;
+diff --git a/kernel/comps/dm/Cargo.toml b/kernel/comps/dm/Cargo.toml
+new file mode 100644
+index 0000000..ffe04b8
+--- /dev/null
++++ b/kernel/comps/dm/Cargo.toml
+@@ -0,0 +1,16 @@
++[package]
++name = "aster-dm"
++version = "0.1.0"
++edition.workspace = true
++
++[dependencies]
++aes.workspace = true
++aster-block.workspace = true
++aster-cmdline.workspace = true
++component.workspace = true
++device-id.workspace = true
++ostd.workspace = true
++spin.workspace = true
++
++[lints]
++workspace = true
+diff --git a/kernel/comps/dm/src/crypto.rs b/kernel/comps/dm/src/crypto.rs
+new file mode 100644
+index 0000000..6779d3c
+--- /dev/null
++++ b/kernel/comps/dm/src/crypto.rs
+@@ -0,0 +1,104 @@
++// SPDX-License-Identifier: MPL-2.0
++
++use aes::{
++    Aes256,
++    cipher::{BlockDecrypt, BlockEncrypt, NewBlockCipher, generic_array::GenericArray},
++};
++
++use crate::DmError;
++
++const AES_BLOCK_SIZE: usize = 16;
++const XTS_KEY_SIZE: usize = 64;
++
++/// Encrypts and decrypts sectors with AES-256-XTS.
++pub(crate) struct AesXtsCipher {
++    data_cipher: Aes256,
++    tweak_cipher: Aes256,
++}
++
++impl AesXtsCipher {
++    /// Creates an AES-256-XTS cipher from a 512-bit key.
++    pub(crate) fn new(key: &[u8]) -> Result<Self, DmError> {
++        if key.len() != XTS_KEY_SIZE {
++            return Err(DmError::InvalidKey);
++        }
++
++        let (data_key, tweak_key) = key.split_at(XTS_KEY_SIZE / 2);
++        Ok(Self {
++            data_cipher: Aes256::new(GenericArray::from_slice(data_key)),
++            tweak_cipher: Aes256::new(GenericArray::from_slice(tweak_key)),
++        })
++    }
++
++    /// Encrypts one or more complete 512-byte sectors in place.
++    pub(crate) fn encrypt(&self, first_sector: u64, data: &mut [u8]) -> Result<(), DmError> {
++        self.transform(first_sector, data, XtsDirection::Encrypt)
++    }
++
++    /// Decrypts one or more complete 512-byte sectors in place.
++    pub(crate) fn decrypt(&self, first_sector: u64, data: &mut [u8]) -> Result<(), DmError> {
++        self.transform(first_sector, data, XtsDirection::Decrypt)
++    }
++
++    fn transform(
++        &self,
++        first_sector: u64,
++        data: &mut [u8],
++        direction: XtsDirection,
++    ) -> Result<(), DmError> {
++        if !data.len().is_multiple_of(aster_block::SECTOR_SIZE) {
++            return Err(DmError::UnalignedIo);
++        }
++
++        for (index, sector) in data.chunks_exact_mut(aster_block::SECTOR_SIZE).enumerate() {
++            let sector_id = first_sector
++                .checked_add(index as u64)
++                .ok_or(DmError::OutOfRange)?;
++            self.transform_sector(sector_id, sector, direction);
++        }
++        Ok(())
++    }
++
++    fn transform_sector(&self, sector_id: u64, sector: &mut [u8], direction: XtsDirection) {
++        let mut tweak = [0u8; AES_BLOCK_SIZE];
++        tweak[..size_of::<u64>()].copy_from_slice(&sector_id.to_le_bytes());
++        self.tweak_cipher
++            .encrypt_block(GenericArray::from_mut_slice(&mut tweak));
++
++        for block_bytes in sector.chunks_exact_mut(AES_BLOCK_SIZE) {
++            for (byte, tweak_byte) in block_bytes.iter_mut().zip(tweak) {
++                *byte ^= tweak_byte;
++            }
++
++            let block = GenericArray::from_mut_slice(block_bytes);
++            match direction {
++                XtsDirection::Encrypt => self.data_cipher.encrypt_block(block),
++                XtsDirection::Decrypt => self.data_cipher.decrypt_block(block),
++            }
++
++            for (byte, tweak_byte) in block_bytes.iter_mut().zip(tweak) {
++                *byte ^= tweak_byte;
++            }
++            multiply_tweak_by_x(&mut tweak);
++        }
++    }
++}
++
++#[derive(Clone, Copy)]
++enum XtsDirection {
++    Encrypt,
++    Decrypt,
++}
++
++fn multiply_tweak_by_x(tweak: &mut [u8; AES_BLOCK_SIZE]) {
++    let mut carry = 0u8;
++    for byte in tweak.iter_mut() {
++        let next_carry = *byte >> 7;
++        *byte = (*byte << 1) | carry;
++        carry = next_carry;
++    }
++    if carry != 0 {
++        tweak[0] ^= 0x87;
++    }
++}
++
+diff --git a/kernel/comps/dm/src/device.rs b/kernel/comps/dm/src/device.rs
+new file mode 100644
+index 0000000..43ec411
+--- /dev/null
++++ b/kernel/comps/dm/src/device.rs
+@@ -0,0 +1,287 @@
++// SPDX-License-Identifier: MPL-2.0
++
++use alloc::{string::String, sync::Arc, vec, vec::Vec};
++use core::fmt::Debug;
++
++use aster_block::{
++    BlockDevice, BlockDeviceMeta,
++    bio::{Bio, BioDirection, BioEnqueueError, BioSegment, BioStatus, BioType, SubmittedBio},
++    id::{Bid, Sid},
++};
++use device_id::DeviceId;
++use ostd::mm::VmIo;
++
++use crate::{DmError, crypto::AesXtsCipher, verity::VerityTarget};
++
++/// A block-device mapper backed by another Asterinas block device.
++pub struct DmDevice {
++    id: DeviceId,
++    name: String,
++    lower: Arc<dyn BlockDevice>,
++    target: DmTarget,
++}
++
++impl DmDevice {
++    /// Creates a passthrough mapper.
++    pub fn new_passthrough(id: DeviceId, name: String, lower: Arc<dyn BlockDevice>) -> Self {
++        Self {
++            id,
++            name,
++            lower,
++            target: DmTarget::Passthrough,
++        }
++    }
++
++    /// Creates an AES-256-XTS mapper.
++    pub fn new_crypt(
++        id: DeviceId,
++        name: String,
++        lower: Arc<dyn BlockDevice>,
++        key: &[u8],
++    ) -> Result<Self, DmError> {
++        Ok(Self {
++            id,
++            name,
++            lower,
++            target: DmTarget::Crypt(AesXtsCipher::new(key)?),
++        })
++    }
++
++    /// Creates a read-only dm-verity mapper with an on-disk hash tree.
++    pub fn new_verity(
++        id: DeviceId,
++        name: String,
++        lower: Arc<dyn BlockDevice>,
++        data_blocks: usize,
++        hash_start_block: usize,
++        root_hash: [u8; 32],
++    ) -> Result<Self, DmError> {
++        Ok(Self {
++            id,
++            name,
++            lower,
++            target: DmTarget::Verity(VerityTarget::new(
++                data_blocks,
++                hash_start_block,
++                root_hash,
++            )?),
++        })
++    }
++
++    /// Reads the first data block through this mapper.
++    ///
++    /// This is used as a boot-time smoke test by the dm-verity integration
++    /// path. The read traverses the regular BIO path and therefore exercises
++    /// both the lower device and the on-disk hash-tree verification.
++    pub fn self_test_first_block(&self) -> Result<(), DmError> {
++        let segment = BioSegment::alloc(1, BioDirection::FromDevice);
++        let device: &dyn BlockDevice = self;
++        let status = device
++            .read_blocks(Bid::new(0), segment)
++            .map_err(|_| DmError::Io)?;
++        if status == BioStatus::Complete {
++            Ok(())
++        } else {
++            Err(DmError::IntegrityViolation)
++        }
++    }
++
++    fn process_passthrough(&self, bio: SubmittedBio) -> Result<(), BioEnqueueError> {
++        self.lower.enqueue(bio)
++    }
++
++    fn process_crypt(&self, bio: SubmittedBio, cipher: &AesXtsCipher) {
++        let bio_type = bio.type_();
++        if bio_type == BioType::Flush {
++            let status = self.lower.sync().unwrap_or(BioStatus::IoError);
++            bio.complete(status);
++            return;
++        }
++
++        let first_sector = bio
++            .sid_range()
++            .start
++            .to_raw()
++            .checked_add(bio.sid_offset())
++            .unwrap_or(u64::MAX);
++        let mut sector_cursor = first_sector;
++        let mut plaintext_segments = Vec::with_capacity(bio.segments().len());
++
++        if bio_type == BioType::Write {
++            for segment in bio.segments() {
++                let mut plaintext = vec![0u8; segment.nbytes()];
++                if segment.read_bytes(0, &mut plaintext).is_err() {
++                    bio.complete(BioStatus::IoError);
++                    return;
++                }
++                let mut ciphertext = plaintext.clone();
++                if cipher.encrypt(sector_cursor, &mut ciphertext).is_err()
++                    || segment.inner_dma_slice().write_bytes(0, &ciphertext).is_err()
++                {
++                    bio.complete(BioStatus::IoError);
++                    return;
++                }
++                sector_cursor += segment.nsectors().to_raw();
++                plaintext_segments.push(plaintext);
++            }
++        }
++
++        let lower_bio = Bio::new(
++            bio_type,
++            Sid::from_offset(first_sector as usize * aster_block::SECTOR_SIZE),
++            bio.segments().to_vec(),
++            None,
++        );
++        let lower_status = lower_bio
++            .submit_and_wait(self.lower.as_ref())
++            .unwrap_or(BioStatus::IoError);
++        if lower_status != BioStatus::Complete {
++            restore_plaintext(&bio, &plaintext_segments);
++            bio.complete(lower_status);
++            return;
++        }
++
++        sector_cursor = first_sector;
++        let status = match bio_type {
++            BioType::Read => {
++                let mut status = BioStatus::Complete;
++                for segment in bio.segments() {
++                    let mut plaintext = vec![0u8; segment.nbytes()];
++                    if segment.inner_dma_slice().read_bytes(0, &mut plaintext).is_err()
++                        || cipher.decrypt(sector_cursor, &mut plaintext).is_err()
++                        || segment.write_bytes(0, &plaintext).is_err()
++                    {
++                        status = BioStatus::IoError;
++                        break;
++                    }
++                    sector_cursor += segment.nsectors().to_raw();
++                }
++                status
++            }
++            BioType::Write => {
++                restore_plaintext(&bio, &plaintext_segments);
++                BioStatus::Complete
++            }
++            BioType::Flush => unreachable!(),
++        };
++        bio.complete(status);
++    }
++
++    fn process_verity(&self, bio: SubmittedBio, target: &VerityTarget) {
++        if bio.type_() == BioType::Write {
++            bio.complete(BioStatus::NotSupported);
++            return;
++        }
++        if bio.type_() == BioType::Flush {
++            bio.complete(BioStatus::Complete);
++            return;
++        }
++
++        let first_sector = bio
++            .sid_range()
++            .start
++            .to_raw()
++            .checked_add(bio.sid_offset())
++            .unwrap_or(u64::MAX);
++        let lower_bio = Bio::new(
++            BioType::Read,
++            Sid::new(first_sector),
++            bio.segments().to_vec(),
++            None,
++        );
++        let lower_status = lower_bio
++            .submit_and_wait(self.lower.as_ref())
++            .unwrap_or(BioStatus::IoError);
++        if lower_status != BioStatus::Complete {
++            bio.complete(lower_status);
++            return;
++        }
++
++        let num_sectors: u64 = bio
++            .segments()
++            .iter()
++            .map(|segment| segment.nsectors().to_raw())
++            .sum();
++        let status = if target
++            .verify_range(self.lower.as_ref(), first_sector, num_sectors)
++            .is_ok()
++        {
++            BioStatus::Complete
++        } else {
++            BioStatus::IoError
++        };
++        bio.complete(status);
++    }
++}
++
++impl BlockDevice for DmDevice {
++    fn enqueue(&self, bio: SubmittedBio) -> Result<(), BioEnqueueError> {
++        match &self.target {
++            DmTarget::Passthrough => self.process_passthrough(bio),
++            DmTarget::Crypt(cipher) => {
++                self.process_crypt(bio, cipher);
++                Ok(())
++            }
++            DmTarget::Verity(target) => {
++                self.process_verity(bio, target);
++                Ok(())
++            }
++        }
++    }
++
++    fn metadata(&self) -> BlockDeviceMeta {
++        match &self.target {
++            DmTarget::Verity(target) => BlockDeviceMeta {
++                max_nr_segments_per_bio: self.lower.metadata().max_nr_segments_per_bio,
++                nr_sectors: target.data_sectors(),
++            },
++            _ => self.lower.metadata(),
++        }
++    }
++
++    fn name(&self) -> &str {
++        &self.name
++    }
++
++    fn id(&self) -> DeviceId {
++        self.id
++    }
++
++    fn supports_partition_scan(&self) -> bool {
++        !matches!(&self.target, DmTarget::Verity(_))
++    }
++}
++
++impl Debug for DmDevice {
++    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
++        formatter
++            .debug_struct("DmDevice")
++            .field("id", &self.id)
++            .field("name", &self.name)
++            .field("lower", &self.lower.name())
++            .field("target", &self.target)
++            .finish()
++    }
++}
++
++enum DmTarget {
++    Passthrough,
++    Crypt(AesXtsCipher),
++    Verity(VerityTarget),
++}
++
++impl Debug for DmTarget {
++    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
++        match self {
++            Self::Passthrough => formatter.write_str("Passthrough"),
++            Self::Crypt(_) => formatter.write_str("Crypt(AES-256-XTS)"),
++            Self::Verity(_) => formatter.write_str("Verity(SHA-256)"),
++        }
++    }
++}
++
++fn restore_plaintext(bio: &SubmittedBio, plaintext_segments: &[Vec<u8>]) {
++    for (segment, plaintext) in bio.segments().iter().zip(plaintext_segments) {
++        let _ = segment.inner_dma_slice().write_bytes(0, plaintext);
++    }
++}
+diff --git a/kernel/comps/dm/src/lib.rs b/kernel/comps/dm/src/lib.rs
+new file mode 100644
+index 0000000..68d15da
+--- /dev/null
++++ b/kernel/comps/dm/src/lib.rs
+@@ -0,0 +1,194 @@
++// SPDX-License-Identifier: MPL-2.0
++
++//! Device Mapper targets for Asterinas block devices.
++
++#![no_std]
++#![deny(unsafe_code)]
++
++extern crate alloc;
++
++macro_rules! __log_prefix {
++    () => {
++        "dm: "
++    };
++}
++
++mod crypto;
++mod device;
++mod sha256;
++mod verity;
++
++use alloc::{string::String, sync::Arc, vec::Vec};
++use core::sync::atomic::{AtomicU32, Ordering};
++
++use aster_block::{BlockDevice, MajorIdOwner};
++use component::{ComponentInitError, init_component};
++use device_id::{DeviceId, MinorId};
++pub use device::DmDevice;
++use ostd::{info, warn};
++use spin::Once;
++
++static CRYPT_DEVICE: Once<String> = Once::new();
++static CRYPT_NAME: Once<String> = Once::new();
++static CRYPT_KEY: Once<String> = Once::new();
++static PASSTHROUGH_DEVICE: Once<String> = Once::new();
++static PASSTHROUGH_NAME: Once<String> = Once::new();
++static VERITY_SCHEME: Once<String> = Once::new();
++static VERITY_DEVICE: Once<String> = Once::new();
++static VERITY_NAME: Once<String> = Once::new();
++static VERITY_ROOT_HASH: Once<String> = Once::new();
++static VERITY_DATA_BLOCKS: Once<usize> = Once::new();
++static VERITY_HASH_START_BLOCK: Once<usize> = Once::new();
++static DM_MAJOR: Once<MajorIdOwner> = Once::new();
++static NEXT_DM_MINOR: AtomicU32 = AtomicU32::new(0);
++
++aster_cmdline::define_kv_param!("dm_crypt.device", CRYPT_DEVICE);
++aster_cmdline::define_kv_param!("dm_crypt.name", CRYPT_NAME);
++aster_cmdline::define_kv_param!("dm_crypt.key", CRYPT_KEY);
++aster_cmdline::define_kv_param!("dm_passthrough.device", PASSTHROUGH_DEVICE);
++aster_cmdline::define_kv_param!("dm_passthrough.name", PASSTHROUGH_NAME);
++aster_cmdline::define_kv_param!("rootfs_verity.scheme", VERITY_SCHEME);
++aster_cmdline::define_kv_param!("rootfs_verity.device", VERITY_DEVICE);
++aster_cmdline::define_kv_param!("rootfs_verity.name", VERITY_NAME);
++aster_cmdline::define_kv_param!("rootfs_verity.hash", VERITY_ROOT_HASH);
++aster_cmdline::define_kv_param!("rootfs_verity.data_blocks", VERITY_DATA_BLOCKS);
++aster_cmdline::define_kv_param!("rootfs_verity.hash_start", VERITY_HASH_START_BLOCK);
++
++/// Errors returned while configuring Device Mapper targets.
++#[derive(Clone, Copy, Debug, Eq, PartialEq)]
++pub enum DmError {
++    IntegrityViolation,
++    InvalidHex,
++    InvalidKey,
++    Io,
++    OutOfRange,
++    UnalignedIo,
++}
++
++#[init_component(process)]
++fn init() -> Result<(), ComponentInitError> {
++    ostd::early_println!("[dm] process-stage initialization started");
++    if DM_MAJOR.get().is_none() {
++        let major = aster_block::allocate_major().map_err(|_| ComponentInitError::Unknown)?;
++        DM_MAJOR.call_once(|| major);
++    }
++
++    if let Some(device_name) = PASSTHROUGH_DEVICE.get() {
++        let mapper_name = PASSTHROUGH_NAME
++            .get()
++            .cloned()
++            .unwrap_or_else(|| String::from("dm-pass0"));
++        let Some(lower) = find_device(device_name) else {
++            warn!("cannot find passthrough lower device {device_name}");
++            return Err(ComponentInitError::Unknown);
++        };
++        let id = allocate_mapper_id()?;
++        let mapper = Arc::new(DmDevice::new_passthrough(id, mapper_name, lower));
++        info!("registering passthrough device {}", mapper.name());
++        aster_block::register(mapper).map_err(|_| ComponentInitError::Unknown)?;
++        ostd::early_println!("[dm] registered passthrough mapper");
++    }
++
++    if let Some(device_name) = CRYPT_DEVICE.get() {
++        let Some(key_hex) = CRYPT_KEY.get() else {
++            warn!("dm_crypt.key is required when dm_crypt.device is set");
++            return Err(ComponentInitError::Unknown);
++        };
++        let key = decode_hex(key_hex).map_err(|_| ComponentInitError::Unknown)?;
++        let mapper_name = CRYPT_NAME
++            .get()
++            .cloned()
++            .unwrap_or_else(|| String::from("dm-crypt0"));
++        let Some(lower) = find_device(device_name) else {
++            warn!("cannot find dm-crypt lower device {device_name}");
++            return Err(ComponentInitError::Unknown);
++        };
++        let id = allocate_mapper_id()?;
++        let mapper = DmDevice::new_crypt(id, mapper_name, lower, &key)
++            .map_err(|_| ComponentInitError::Unknown)?;
++        info!("registering AES-256-XTS device {}", mapper.name());
++        aster_block::register(Arc::new(mapper)).map_err(|_| ComponentInitError::Unknown)?;
++        ostd::early_println!("[dm] registered AES-256-XTS mapper");
++    }
++
++    if VERITY_SCHEME.get().is_some_and(|scheme| scheme == "dm-verity") {
++        let device_name = VERITY_DEVICE
++            .get()
++            .ok_or(ComponentInitError::Unknown)?;
++        let root_hash_hex = VERITY_ROOT_HASH
++            .get()
++            .ok_or(ComponentInitError::Unknown)?;
++        let root_hash = decode_hash(root_hash_hex).map_err(|_| ComponentInitError::Unknown)?;
++        let data_blocks = *VERITY_DATA_BLOCKS
++            .get()
++            .ok_or(ComponentInitError::Unknown)?;
++        let hash_start_block = *VERITY_HASH_START_BLOCK
++            .get()
++            .ok_or(ComponentInitError::Unknown)?;
++        let mapper_name = VERITY_NAME
++            .get()
++            .cloned()
++            .unwrap_or_else(|| String::from("dm-verity0"));
++        let Some(lower) = find_device(device_name) else {
++            warn!("cannot find dm-verity lower device {device_name}");
++            return Err(ComponentInitError::Unknown);
++        };
++        let id = allocate_mapper_id()?;
++        let mapper = DmDevice::new_verity(
++            id,
++            mapper_name,
++            lower,
++            data_blocks,
++            hash_start_block,
++            root_hash,
++        )
++        .map_err(|_| ComponentInitError::Unknown)?;
++        mapper.self_test_first_block().map_err(|error| {
++            ostd::early_println!("[dm-test] FAIL dm-verity rejected first data block: {:?}", error);
++            ComponentInitError::Unknown
++        })?;
++        ostd::early_println!("[dm-test] PASS first data block verified through dm-verity");
++        info!("registering dm-verity device {}", mapper.name());
++        aster_block::register(Arc::new(mapper)).map_err(|_| ComponentInitError::Unknown)?;
++        ostd::early_println!("[dm] registered dm-verity mapper");
++    }
++
++    ostd::early_println!("[dm] process-stage initialization complete");
++    Ok(())
++}
++
++fn allocate_mapper_id() -> Result<DeviceId, ComponentInitError> {
++    let major = DM_MAJOR.get().ok_or(ComponentInitError::Unknown)?.get();
++    let minor = NEXT_DM_MINOR.fetch_add(1, Ordering::Relaxed);
++    Ok(DeviceId::new(major, MinorId::new(minor)))
++}
++
++fn find_device(name: &str) -> Option<Arc<dyn BlockDevice>> {
++    aster_block::collect_all()
++        .into_iter()
++        .find(|device| device.name() == name)
++}
++
++fn decode_hash(input: &str) -> Result<[u8; 32], DmError> {
++    let bytes = decode_hex(input)?;
++    if bytes.len() != 32 {
++        return Err(DmError::InvalidHex);
++    }
++    let mut hash = [0u8; 32];
++    hash.copy_from_slice(&bytes);
++    Ok(hash)
++}
++
++fn decode_hex(input: &str) -> Result<Vec<u8>, DmError> {
++    if !input.len().is_multiple_of(2) {
++        return Err(DmError::InvalidHex);
++    }
++
++    let mut output = Vec::with_capacity(input.len() / 2);
++    for index in (0..input.len()).step_by(2) {
++        let byte = u8::from_str_radix(&input[index..index + 2], 16)
++            .map_err(|_| DmError::InvalidHex)?;
++        output.push(byte);
++    }
++    Ok(output)
++}
+diff --git a/kernel/comps/dm/src/sha256.rs b/kernel/comps/dm/src/sha256.rs
+new file mode 100644
+index 0000000..b9b1b43
+--- /dev/null
++++ b/kernel/comps/dm/src/sha256.rs
+@@ -0,0 +1,121 @@
++// SPDX-License-Identifier: MPL-2.0
++
++const INITIAL_STATE: [u32; 8] = [
++    0x6a09e667,
++    0xbb67ae85,
++    0x3c6ef372,
++    0xa54ff53a,
++    0x510e527f,
++    0x9b05688c,
++    0x1f83d9ab,
++    0x5be0cd19,
++];
++
++const ROUND_CONSTANTS: [u32; 64] = [
++    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4,
++    0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe,
++    0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f,
++    0x4a7484aa, 0x5cb0a9dc, 0x76f988da, 0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7,
++    0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 0x4d2c6dfc,
++    0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b,
++    0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070, 0x19a4c116,
++    0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
++    0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7,
++    0xc67178f2,
++];
++
++/// Calculates a SHA-256 digest.
++pub(crate) fn sha256(input: &[u8]) -> [u8; 32] {
++    let mut state = INITIAL_STATE;
++    let full_chunks = input.len() / 64;
++    for chunk in input[..full_chunks * 64].chunks_exact(64) {
++        compress(&mut state, chunk);
++    }
++
++    let remainder = &input[full_chunks * 64..];
++    let mut tail = [0u8; 128];
++    tail[..remainder.len()].copy_from_slice(remainder);
++    tail[remainder.len()] = 0x80;
++    let padded_len = if remainder.len() < 56 { 64 } else { 128 };
++    let bit_len = (input.len() as u64).wrapping_mul(8);
++    tail[padded_len - 8..padded_len].copy_from_slice(&bit_len.to_be_bytes());
++    for chunk in tail[..padded_len].chunks_exact(64) {
++        compress(&mut state, chunk);
++    }
++
++    let mut output = [0u8; 32];
++    for (index, word) in state.iter().enumerate() {
++        output[index * 4..index * 4 + 4].copy_from_slice(&word.to_be_bytes());
++    }
++    output
++}
++
++fn compress(state: &mut [u32; 8], chunk: &[u8]) {
++    let mut schedule = [0u32; 64];
++    for (index, word) in schedule.iter_mut().take(16).enumerate() {
++        let start = index * 4;
++        *word = u32::from_be_bytes([
++            chunk[start],
++            chunk[start + 1],
++            chunk[start + 2],
++            chunk[start + 3],
++        ]);
++    }
++    for index in 16..64 {
++        let s0 = schedule[index - 15].rotate_right(7)
++            ^ schedule[index - 15].rotate_right(18)
++            ^ (schedule[index - 15] >> 3);
++        let s1 = schedule[index - 2].rotate_right(17)
++            ^ schedule[index - 2].rotate_right(19)
++            ^ (schedule[index - 2] >> 10);
++        schedule[index] = schedule[index - 16]
++            .wrapping_add(s0)
++            .wrapping_add(schedule[index - 7])
++            .wrapping_add(s1);
++    }
++
++    let mut working = *state;
++    for index in 0..64 {
++        let big_sigma1 = working[4].rotate_right(6)
++            ^ working[4].rotate_right(11)
++            ^ working[4].rotate_right(25);
++        let choose = (working[4] & working[5]) ^ (!working[4] & working[6]);
++        let temp1 = working[7]
++            .wrapping_add(big_sigma1)
++            .wrapping_add(choose)
++            .wrapping_add(ROUND_CONSTANTS[index])
++            .wrapping_add(schedule[index]);
++        let big_sigma0 = working[0].rotate_right(2)
++            ^ working[0].rotate_right(13)
++            ^ working[0].rotate_right(22);
++        let majority = (working[0] & working[1])
++            ^ (working[0] & working[2])
++            ^ (working[1] & working[2]);
++        let temp2 = big_sigma0.wrapping_add(majority);
++
++        working.copy_within(0..7, 1);
++        working[4] = working[4].wrapping_add(temp1);
++        working[0] = temp1.wrapping_add(temp2);
++    }
++    for index in 0..8 {
++        state[index] = state[index].wrapping_add(working[index]);
++    }
++}
++
++#[cfg(ktest)]
++mod tests {
++    use super::sha256;
++
++    #[ktest]
++    fn known_vector() {
++        assert_eq!(
++            sha256(b"abc"),
++            [
++                0xba, 0x78, 0x16, 0xbf, 0x8f, 0x01, 0xcf, 0xea, 0x41, 0x41, 0x40, 0xde,
++                0x5d, 0xae, 0x22, 0x23, 0xb0, 0x03, 0x61, 0xa3, 0x96, 0x17, 0x7a, 0x9c,
++                0xb4, 0x10, 0xff, 0x61, 0xf2, 0x00, 0x15, 0xad,
++            ]
++        );
++    }
++}
++
+diff --git a/kernel/comps/dm/src/verity.rs b/kernel/comps/dm/src/verity.rs
+new file mode 100644
+index 0000000..4dfe5ec
+--- /dev/null
++++ b/kernel/comps/dm/src/verity.rs
+@@ -0,0 +1,134 @@
++// SPDX-License-Identifier: MPL-2.0
++
++use alloc::{vec, vec::Vec};
++
++use aster_block::{
++    BLOCK_SIZE, BlockDevice, SECTOR_SIZE,
++    bio::{BioDirection, BioSegment, BioStatus},
++    id::Bid,
++};
++use ostd::mm::VmIo;
++
++use crate::{DmError, sha256::sha256};
++
++const HASH_SIZE: usize = 32;
++const HASHES_PER_BLOCK: usize = BLOCK_SIZE / HASH_SIZE;
++
++/// Verifies data blocks against an on-disk SHA-256 Merkle tree.
++pub(crate) struct VerityTarget {
++    data_blocks: usize,
++    root_hash: [u8; HASH_SIZE],
++    levels: Vec<HashLevel>,
++}
++
++impl VerityTarget {
++    /// Creates the level layout for a packed on-disk hash tree.
++    pub(crate) fn new(
++        data_blocks: usize,
++        hash_start_block: usize,
++        root_hash: [u8; HASH_SIZE],
++    ) -> Result<Self, DmError> {
++        if data_blocks == 0 {
++            return Err(DmError::OutOfRange);
++        }
++
++        let mut levels = Vec::new();
++        let mut digest_count = data_blocks;
++        let mut block_offset = hash_start_block;
++        loop {
++            let block_count = digest_count.div_ceil(HASHES_PER_BLOCK);
++            levels.push(HashLevel {
++                block_offset,
++                digest_count,
++            });
++            block_offset = block_offset
++                .checked_add(block_count)
++                .ok_or(DmError::OutOfRange)?;
++            if block_count == 1 {
++                break;
++            }
++            digest_count = block_count;
++        }
++
++        Ok(Self {
++            data_blocks,
++            root_hash,
++            levels,
++        })
++    }
++
++    pub(crate) fn data_sectors(&self) -> usize {
++        self.data_blocks * (BLOCK_SIZE / SECTOR_SIZE)
++    }
++
++    pub(crate) fn verify_range(
++        &self,
++        lower: &dyn BlockDevice,
++        first_sector: u64,
++        num_sectors: u64,
++    ) -> Result<(), DmError> {
++        let start_byte = first_sector
++            .checked_mul(SECTOR_SIZE as u64)
++            .ok_or(DmError::OutOfRange)?;
++        let end_byte = first_sector
++            .checked_add(num_sectors)
++            .and_then(|end| end.checked_mul(SECTOR_SIZE as u64))
++            .ok_or(DmError::OutOfRange)?;
++        let first_block = start_byte / BLOCK_SIZE as u64;
++        let end_block = end_byte.div_ceil(BLOCK_SIZE as u64);
++        if end_block > self.data_blocks as u64 {
++            return Err(DmError::OutOfRange);
++        }
++
++        for block_id in first_block..end_block {
++            self.verify_block(lower, block_id as usize)?;
++        }
++        Ok(())
++    }
++
++    fn verify_block(&self, lower: &dyn BlockDevice, block_id: usize) -> Result<(), DmError> {
++        let data = read_block(lower, block_id)?;
++        let mut digest = sha256(&data);
++        let mut digest_index = block_id;
++
++        for level in &self.levels {
++            if digest_index >= level.digest_count {
++                return Err(DmError::OutOfRange);
++            }
++            let hash_block_index = digest_index / HASHES_PER_BLOCK;
++            let digest_slot = digest_index % HASHES_PER_BLOCK;
++            let hash_block = read_block(lower, level.block_offset + hash_block_index)?;
++            let digest_offset = digest_slot * HASH_SIZE;
++            if hash_block[digest_offset..digest_offset + HASH_SIZE] != digest {
++                return Err(DmError::IntegrityViolation);
++            }
++            digest = sha256(&hash_block);
++            digest_index = hash_block_index;
++        }
++
++        if digest != self.root_hash {
++            return Err(DmError::IntegrityViolation);
++        }
++        Ok(())
++    }
++}
++
++struct HashLevel {
++    block_offset: usize,
++    digest_count: usize,
++}
++
++fn read_block(lower: &dyn BlockDevice, block_id: usize) -> Result<Vec<u8>, DmError> {
++    let segment = BioSegment::alloc(1, BioDirection::FromDevice);
++    let status = lower
++        .read_blocks(Bid::new(block_id as u64), segment.clone())
++        .map_err(|_| DmError::Io)?;
++    if status != BioStatus::Complete {
++        return Err(DmError::Io);
++    }
++    let mut block = vec![0u8; BLOCK_SIZE];
++    segment
++        .read_bytes(0, &mut block)
++        .map_err(|_| DmError::Io)?;
++    Ok(block)
++}
+diff --git a/kernel/src/lib.rs b/kernel/src/lib.rs
+index a601227..c8a1986 100644
+--- a/kernel/src/lib.rs
++++ b/kernel/src/lib.rs
+@@ -22,6 +22,7 @@
+ 
+ extern crate alloc;
+ extern crate lru;
++use aster_dm as _;
+ #[macro_use]
+ extern crate controlled;
+ #[macro_use]
+diff --git a/test/initramfs/src/init b/test/initramfs/src/init
+index 9275338..65f8398 100755
+--- a/test/initramfs/src/init
++++ b/test/initramfs/src/init
+@@ -19,12 +19,42 @@ if [ "$#" -eq 0 ]; then
+     set -- /bin/sh
+ fi
+ 
++echo "[init] mounting sysfs"
+ mount -t sysfs none /sys
++echo "[init] mounting proc"
+ mount -t proc none /proc
++echo "[init] mounting cgroup2"
+ mount -t cgroup2 none /sys/fs/cgroup
++echo "[init] mounting configfs"
+ mount -t configfs none /sys/kernel/config
++echo "[init] mounting ext2"
+ mount -t ext2 /dev/vda /ext2
++echo "[init] mounting exfat"
+ mount -t exfat /dev/vdb /exfat
++echo "[init] mounts complete"
++
++# The optional third disk is used by tools/run_dm_verity.sh.  Treat the
++# mapper—not the raw disk—as the proof surface so a successful test exercises
++# registration, on-disk hash verification and filesystem I/O together.
++if [ -b /dev/vdc ]; then
++    echo "[dm-test] lower device detected: /dev/vdc"
++    if [ ! -b /dev/dm-verity0 ]; then
++        echo "[dm-test] FAIL mapper device /dev/dm-verity0 is missing"
++    else
++        mkdir -p /dm-verity
++        if mount -t ext2 -o ro /dev/dm-verity0 /dm-verity; then
++            if [ -f /dm-verity/etc/dm-verity-proof ]; then
++                echo "[dm-test] proof: $(cat /dm-verity/etc/dm-verity-proof)"
++                echo "[dm-test] PASS protected ext2 mounted through dm-verity"
++            else
++                echo "[dm-test] FAIL proof file is missing"
++            fi
++            umount /dm-verity
++        else
++            echo "[dm-test] FAIL protected ext2 mount rejected"
++        fi
++    fi
++fi
+ 
+ # When the init process starts,
+ # it does not have a process group, session, or controlling terminal.
+diff --git a/tools/qemu_args.sh b/tools/qemu_args.sh
+index ffdb965..8290cac 100755
+--- a/tools/qemu_args.sh
++++ b/tools/qemu_args.sh
+@@ -20,6 +20,7 @@
+ #  - MEM: amount of memory, e.g. "8G";
+ #  - VNC_PORT: VNC port, default is "42";
+ #  - ATTACH_XFSTESTS_IMAGES: "true" or "false", whether to attach xfstests images (xfstests_test.img and xfstests_scratch.img) to the VM. Defaults to auto-detection from ENABLE_CONFORMANCE_TEST + CONFORMANCE_TEST_SUITE.
++#  - DM_IMAGE: optional raw image attached as an extra VirtIO block device.
+ 
+ OVMF=${OVMF:-"on"}
+ VHOST=${VHOST:-"off"}
+@@ -144,6 +145,12 @@ COMMON_QEMU_ARGS="\
+     -drive if=none,format=raw,id=x1,file=./test/initramfs/build/exfat.img \
+ "
+ 
++if [ -n "${DM_IMAGE:-}" ]; then
++    COMMON_QEMU_ARGS="$COMMON_QEMU_ARGS \
++        -drive if=none,format=raw,id=dmtest,file=$DM_IMAGE \
++    "
++fi
++
+ # Add xfstests drives when the selected conformance suite is `xfstests`.
+ if [ "$ATTACH_XFSTESTS_IMAGES" = "true" ]; then
+     COMMON_QEMU_ARGS="$COMMON_QEMU_ARGS \
+@@ -173,6 +180,7 @@ if [ "$1" = "microvm" ]; then
+         -no-user-config \
+         -device virtio-blk-device,drive=x0,serial=vext2 \
+         -device virtio-blk-device,drive=x1,serial=vexfat \
++        ${DM_IMAGE:+-device virtio-blk-device,drive=dmtest,serial=vdmtest} \
+         -device virtio-keyboard-device \
+         -device virtio-net-device,netdev=net01 \
+         -device virtio-serial-device \
+@@ -184,6 +192,7 @@ else
+         -machine q35,kernel-irqchip=split \
+         -device virtio-blk-pci,bus=pcie.0,addr=0x6,drive=x0,serial=vext2,disable-legacy=on,disable-modern=off,queue-size=64,num-queues=1,request-merging=off,backend_defaults=off,discard=off,write-zeroes=off,event_idx=off,indirect_desc=off,queue_reset=off$IOMMU_DEV_EXTRA \
+         -device virtio-blk-pci,bus=pcie.0,addr=0x7,drive=x1,serial=vexfat,disable-legacy=on,disable-modern=off,queue-size=64,num-queues=1,request-merging=off,backend_defaults=off,discard=off,write-zeroes=off,event_idx=off,indirect_desc=off,queue_reset=off$IOMMU_DEV_EXTRA \
++        ${DM_IMAGE:+-device virtio-blk-pci,bus=pcie.0,addr=0x9,drive=dmtest,serial=vdmtest,disable-legacy=on,disable-modern=off,queue-size=64,num-queues=1,request-merging=off,backend_defaults=off,discard=off,write-zeroes=off,event_idx=off,indirect_desc=off,queue_reset=off$IOMMU_DEV_EXTRA} \
+         -object rng-random,id=rng0,filename=/dev/urandom \
+         -device virtio-rng-pci,bus=pcie.0,addr=0x8,disable-legacy=on,disable-modern=off,rng=rng0,event_idx=off,indirect_desc=off,queue_reset=off$IOMMU_DEV_EXTRA \
+         -device virtio-net-pci,netdev=net01,disable-legacy=on,disable-modern=off$VIRTIO_NET_FEATURES$IOMMU_DEV_EXTRA \
+diff --git a/tools/run_dm_verity.sh b/tools/run_dm_verity.sh
+new file mode 100644
+index 0000000..f4ef15f
+--- /dev/null
++++ b/tools/run_dm_verity.sh
+@@ -0,0 +1,42 @@
++#!/bin/bash
++
++# SPDX-License-Identifier: MPL-2.0
++
++set -euo pipefail
++
++DM_IMAGE=${DM_IMAGE:-./dm-test.img}
++DM_DEVICE=${DM_DEVICE:-vdc}
++DM_NAME=${DM_NAME:-dm-verity0}
++DM_ROOT_HASH=${DM_ROOT_HASH:-6db653b69a094065756dc2770d3af8880ec9beed29df41b5bb2fb2e11b2d49f3}
++DM_DATA_BLOCKS=${DM_DATA_BLOCKS:-16}
++DM_HASH_START=${DM_HASH_START:-16}
++
++if [ ! -f "${DM_IMAGE}" ]; then
++    echo "dm-verity image not found: ${DM_IMAGE}" >&2
++    exit 1
++fi
++
++KCMD_ARGS="rootfs_verity.scheme=dm-verity \
++rootfs_verity.device=${DM_DEVICE} \
++rootfs_verity.name=${DM_NAME} \
++rootfs_verity.hash=${DM_ROOT_HASH} \
++rootfs_verity.data_blocks=${DM_DATA_BLOCKS} \
++rootfs_verity.hash_start=${DM_HASH_START}"
++
++export DM_IMAGE
++OSDK_ARGS="--kcmd-args=\"${KCMD_ARGS}\""
++QEMU_ARGS=""
++if [ "${ENABLE_KVM:-0}" = "1" ]; then
++    QEMU_ARGS="-accel kvm"
++fi
++if [ "${DM_GDB:-0}" = "1" ]; then
++    QEMU_ARGS="${QEMU_ARGS} -s"
++fi
++if [ "${DM_GDB_WAIT:-0}" = "1" ]; then
++    QEMU_ARGS="${QEMU_ARGS} -S"
++fi
++if [ -n "${QEMU_ARGS}" ]; then
++    OSDK_ARGS="${OSDK_ARGS} --qemu-args=\"${QEMU_ARGS}\""
++fi
++
++exec make run_kernel CARGO_OSDK_BUILD_ARGS="${OSDK_ARGS}"
+diff --git a/tools/trace_asterinas_syscall_returns.gdb b/tools/trace_asterinas_syscall_returns.gdb
+new file mode 100644
+index 0000000..785dff1
+--- /dev/null
++++ b/tools/trace_asterinas_syscall_returns.gdb
+@@ -0,0 +1,26 @@
++set pagination off
++set confirm off
++set breakpoint pending on
++set $calls = 0
++
++target remote :1234
++hbreak *0xffffffff886aeccb
++commands
++  silent
++  set $calls = $calls + 1
++  printf "ENTER %u nr=%llu a0=%#llx a1=%#llx a2=%#llx a3=%#llx a4=%#llx a5=%#llx\n", $calls, *(unsigned long long *)($rsp+0x40), *(unsigned long long *)($rsp+0x48), *(unsigned long long *)($rsp+0x50), *(unsigned long long *)($rsp+0x58), *(unsigned long long *)($rsp+0x60), *(unsigned long long *)($rsp+0x68), *(unsigned long long *)($rsp+0x70)
++  continue
++end
++
++hbreak *0xffffffff886aed3a
++commands
++  silent
++  printf "RETURN %u result_tag=%#llx value=%#llx error=%#llx\n", $calls, *(unsigned long long *)($rsp+0x88), *(unsigned long long *)($rsp+0x78), *(unsigned long long *)($rsp+0x80)
++  if $calls >= 80
++    detach
++    quit
++  end
++  continue
++end
++
++continue
+-- 
+2.50.1.windows.1
+
