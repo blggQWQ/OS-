@@ -1,65 +1,64 @@
-# Design
+# 设计说明
 
-## Goal
+## 目标
 
-Provide a compact Rust Device Mapper model that can be moved into Asterinas after the block-device path is available.
+提供一个紧凑的 Rust Device Mapper 模型，并在块设备路径可用后接入 Asterinas。
 
-## Core Interface
+## 核心接口
 
-`BlockDevice` is the only required abstraction:
+唯一必需的抽象是 `BlockDevice`：
 
 ```rust
 fn read_block(&self, block_id: u64, buf: &mut [u8]) -> Result<()>;
 fn write_block(&self, block_id: u64, buf: &[u8]) -> Result<()>;
 ```
 
-Every mapper wraps a lower device and implements the same trait:
+每个 mapper 包装一个下层设备，并实现相同的 trait：
 
 ```text
-application / filesystem
-        -> DmCryptDevice or DmVerityDevice
-        -> BlockDevice implementation
-        -> virtio-blk or disk image
+应用程序 / 文件系统
+        -> DmCryptDevice 或 DmVerityDevice
+        -> BlockDevice 实现
+        -> virtio-blk 或磁盘镜像
 ```
 
-## Modules
+## 模块组成
 
-- `block_device`: trait plus `MemoryBlockDevice` for tests.
-- `device_mapper`: passthrough wrapper used to validate the forwarding path.
-- `dm_crypt`: transparent block encryption wrapper.
-- `dm_verity`: read-only integrity wrapper.
-- `hash_tree`: Merkle tree construction and verification.
-- `sha256`: dependency-free SHA-256 implementation for verity hashing and the legacy minimal demo.
+- `block_device`：trait 以及用于测试的 `MemoryBlockDevice`；
+- `device_mapper`：用于验证转发路径的透传包装器；
+- `dm_crypt`：透明块加密包装器；
+- `dm_verity`：只读完整性校验包装器；
+- `hash_tree`：Merkle tree 的构建与验证；
+- `sha256`：用于 verity 哈希及旧版最小演示的无外部依赖 SHA-256 实现。
 
-## dm-crypt Flow
+## dm-crypt 流程
 
-Write:
+写入路径：
 
 ```text
-plaintext sectors -> AES-256-XTS(plain64 sector IV) -> ciphertext -> lower device
+明文扇区 -> AES-256-XTS（plain64 扇区 IV）-> 密文 -> 下层设备
 ```
 
-Read:
+读取路径：
 
 ```text
-ciphertext sectors -> AES-256-XTS decrypt -> plaintext -> caller
+密文扇区 -> AES-256-XTS 解密 -> 明文 -> 调用方
 ```
 
-The Linux-compatible path uses AES-256-XTS with plain64 sector numbering and
-supports dm-crypt table IV/data offsets. The older dependency-free transform is
-kept only for the smallest demonstration command.
+Linux 兼容路径使用 AES-256-XTS 和 plain64 扇区编号，支持 dm-crypt table
+中的 IV offset 与 data offset。旧版无外部依赖变换只保留给最小演示命令。
 
-## dm-verity Flow
+## dm-verity 流程
 
-1. Read all data blocks from the lower read-only image.
-2. Build leaf hashes with SHA-256.
-3. Build parent levels by hashing adjacent child hashes.
-4. Store the root hash as the trusted value.
-5. On read, verify the block against the tree and root hash before returning it.
+1. 从下层只读镜像读取全部数据块；
+2. 使用 SHA-256 生成叶子哈希；
+3. 对相邻子哈希进行哈希运算，逐层构建父节点；
+4. 将 root hash 保存为可信值；
+5. 读取时先根据 tree 和 root hash 验证数据块，再将数据返回调用方。
 
-## Asterinas Wiring
+## Asterinas 接入
 
-The OS-specific work should be isolated to one adapter:
+操作系统相关代码应隔离在单个适配器内：
 
 ```rust
 struct VirtioBlkAdapter {
@@ -67,8 +66,8 @@ struct VirtioBlkAdapter {
 }
 
 impl BlockDevice for VirtioBlkAdapter {
-    // forward to the real Asterinas block I/O API
+    // 转发到真实的 Asterinas 块 I/O 接口
 }
 ```
 
-Once this adapter works, the mapper code can wrap it without changing the crypto or verity logic.
+适配器完成后，mapper 即可包装真实设备，无需修改加密或 verity 核心逻辑。

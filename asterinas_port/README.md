@@ -1,4 +1,4 @@
-# Asterinas Port Notes
+# Asterinas 移植说明
 
 这里放的是接入 Asterinas 时需要迁移到内核树中的骨架代码。
 

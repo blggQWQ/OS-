@@ -1,64 +1,68 @@
-# Performance Protocol
+# 性能测试方案
 
-The project now has a reproducible Rust microbenchmark. Final Linux/Asterinas comparison must still be run on the same QEMU configuration and disk image.
+项目现已提供可复现的 Rust 微基准测试。最终的 Linux/Asterinas 对比仍需在
+相同的 QEMU 配置和磁盘镜像下执行。
 
-## Metrics
+## 测试指标
 
-- sequential read throughput;
-- sequential write throughput for `dm-crypt`;
-- random 4 KiB read/write IOPS;
-- read latency with and without `dm-verity`;
-- boot time with and without protected rootfs.
+- 顺序读取吞吐量；
+- `dm-crypt` 顺序写入吞吐量；
+- 随机 4 KiB 读写 IOPS；
+- 启用和未启用 `dm-verity` 时的读取延迟；
+- 启用和未启用受保护 rootfs 时的启动时间。
 
-## Rust Baseline
+## Rust 基准
 
 ```bash
 BLOCKS=16384 ITERATIONS=7 bash scripts/benchmark.sh target/benchmark/rust.csv
 ```
 
-The CSV contains plain memory block I/O, AES-256-XTS read/write, and verity read throughput. The benchmark runs mapper construction outside the timed region and includes a read checksum to keep the work observable.
+CSV 包含普通内存块 I/O、AES-256-XTS 读写和 verity 读取吞吐量。计时区域
+不包含 mapper 构造过程，并加入读取校验和，防止相关操作被优化掉。
 
-Do not present the memory result as a Linux comparison. It is a stable regression baseline for optimization work.
+内存测试结果不能作为 Linux 性能对比数据，它只用于提供稳定的性能回归基线。
 
-## Linux/Asterinas Comparison
+## Linux/Asterinas 对比
 
-On a Linux userspace test image:
+在 Linux 用户态测试镜像上运行：
 
 ```bash
 fio --name=crypt-test --filename=/mnt/testfile --size=128M --rw=readwrite --bs=4k
 fio --name=verity-read --filename=/mnt/testfile --size=128M --rw=read --bs=4k
 ```
 
-Use identical virtual CPU count, memory, QEMU cache/AIO mode, image, block size, queue depth, runtime and fio version. Record the full command beside every result.
+两端必须使用相同的虚拟 CPU 数量、内存、QEMU 缓存与 AIO 模式、镜像、块大小、
+队列深度、运行时间和 fio 版本。每项结果旁应记录完整命令。
 
-Required matrix:
+必测矩阵：
 
-| OS | Target | Workload | Block size | Queue depth |
+| 操作系统 | 目标 | 负载 | 块大小 | 队列深度 |
 | --- | --- | --- | ---: | ---: |
-| Linux | plain / dm-crypt / dm-verity | seq read/write, rand read/write | 4KiB | 1 and 32 |
-| Asterinas | plain / dm-crypt / dm-verity | same | 4KiB | 1 and 32 |
+| Linux | 普通 / dm-crypt / dm-verity | 顺序读写、随机读写 | 4 KiB | 1 和 32 |
+| Asterinas | 普通 / dm-crypt / dm-verity | 同上 | 4 KiB | 1 和 32 |
 
-Report median and spread from at least five measured runs after one warm-up run. Throughput alone is insufficient: retain p50/p95/p99 latency and CPU utilization.
+预热一次后至少正式运行五次，报告中位数及离散程度。不能只记录吞吐量，还应保留
+p50、p95、p99 延迟和 CPU 利用率。
 
-For boot timing, record the elapsed time from QEMU launch to first userspace prompt in two modes:
+启动时间从 QEMU 启动开始计时，到首次出现用户态提示符为止，分别记录：
 
 ```text
-plain rootfs
-dm-verity protected rootfs
+普通 rootfs
+dm-verity 保护的 rootfs
 ```
 
-## Optimization Ideas
+## 优化方向
 
-- cache hash blocks in the verity path;
-- avoid repeated allocation in block transforms;
-- batch adjacent block reads when building the verity tree;
-- retain AES-NI in production builds and measure software fallback separately;
-- reuse per-I/O scratch buffers instead of allocating a `Vec` on every request.
+- 缓存 verity 路径中的哈希块；
+- 避免块转换过程中的重复内存分配；
+- 构建 verity tree 时批量读取相邻块；
+- 生产构建保留 AES-NI，并单独测试软件回退路径；
+- 复用每次 I/O 的临时缓冲区，避免反复分配 `Vec`。
 
-## Report Table Template
+## 报告表格模板
 
-| Mode | Read MB/s | Write MB/s | IOPS | Avg Latency | Boot Time |
+| 模式 | 读取 MB/s | 写入 MB/s | IOPS | 平均延迟 | 启动时间 |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| plain virtio-blk | TBD | TBD | TBD | TBD | TBD |
-| dm-crypt | TBD | TBD | TBD | TBD | N/A |
-| dm-verity | TBD | N/A | TBD | TBD | TBD |
+| 普通 virtio-blk | 待测试 | 待测试 | 待测试 | 待测试 | 待测试 |
+| dm-crypt | 待测试 | 待测试 | 待测试 | 待测试 | 不适用 |
+| dm-verity | 待测试 | 不适用 | 待测试 | 待测试 | 待测试 |

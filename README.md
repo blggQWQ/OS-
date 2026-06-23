@@ -134,7 +134,7 @@ pub trait BlockDevice {
 # 正确性测试
 cargo test --workspace
 
-# Rust plain / AES-XTS / verity，输出 CSV
+# Rust 普通 / AES-XTS / verity，输出 CSV
 bash scripts/benchmark.sh
 
 # 需要 root；与 Linux 内核 dm-crypt 逐字节对照
