@@ -17,9 +17,8 @@ fi
 KCMD_ARGS="dm_crypt.device=${DM_DEVICE} \
 dm_crypt.name=${DM_NAME} \
 dm_crypt.key=${DM_KEY}"
-
 export DM_IMAGE
-OSDK_ARGS="--kcmd-args=\"${KCMD_ARGS}\""
+OSDK_ARGS="--kcmd-args=\"${KCMD_ARGS}\" --init-args=\"dm-root /dev/${DM_NAME} /.initramfs/bin/true\""
 QEMU_ARGS=""
 if [ "${ENABLE_KVM:-0}" = "1" ]; then
     QEMU_ARGS="-accel kvm"

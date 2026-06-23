@@ -24,7 +24,7 @@ rootfs_verity.data_blocks=${DM_DATA_BLOCKS} \
 rootfs_verity.hash_start=${DM_HASH_START}"
 
 export DM_IMAGE
-OSDK_ARGS="--kcmd-args=\"${KCMD_ARGS}\""
+OSDK_ARGS="--kcmd-args=\"${KCMD_ARGS}\" --init-args=\"dm-root /dev/${DM_NAME} /.initramfs/bin/true\""
 QEMU_ARGS=""
 if [ "${ENABLE_KVM:-0}" = "1" ]; then
     QEMU_ARGS="-accel kvm"
