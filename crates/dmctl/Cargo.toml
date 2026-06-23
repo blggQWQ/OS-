@@ -1,0 +1,13 @@
+[package]
+name = "dmctl"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[dependencies]
+dm = { path = "../dm" }
+
+[[bin]]
+name = "dmctl"
+path = "src/main.rs"
+

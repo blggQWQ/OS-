@@ -1,0 +1,11 @@
+[package]
+name = "dm"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+aes = { version = "0.8", default-features = false }

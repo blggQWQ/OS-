@@ -1,0 +1,119 @@
+From ebf59b0c82504d86d8e1792fd42fe19357d35eab Mon Sep 17 00:00:00 2001
+From: scnu202421326914 <2787304139@qq.com>
+Date: Wed, 24 Jun 2026 00:54:21 +0800
+Subject: [PATCH] =?UTF-8?q?=E6=8E=A5=E5=85=A5=E5=8F=97=E4=BF=9D=E6=8A=A4?=
+ =?UTF-8?q?=E6=A0=B9=E6=96=87=E4=BB=B6=E7=B3=BB=E7=BB=9F=E5=88=87=E6=8D=A2?=
+ =?UTF-8?q?=E6=B5=81=E7=A8=8B?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ test/initramfs/src/init | 51 ++++++++++++++++++++++++++++++++++++++++-
+ tools/run_dm_crypt.sh   |  3 +--
+ tools/run_dm_verity.sh  |  2 +-
+ 3 files changed, 52 insertions(+), 4 deletions(-)
+
+diff --git a/test/initramfs/src/init b/test/initramfs/src/init
+index 23825d5..f87f870 100755
+--- a/test/initramfs/src/init
++++ b/test/initramfs/src/init
+@@ -13,6 +13,22 @@
+ # as performed by a generic init process.
+ # It should later be replaced by the actual init process.
+ 
++DM_ROOT_DEVICE=
++DM_ROOT_REQUESTED=0
++for arg in "$@"; do
++    if [ "$arg" = "dm-root" ]; then
++        DM_ROOT_REQUESTED=1
++        break
++    fi
++done
++if [ "$DM_ROOT_REQUESTED" -eq 1 ]; then
++    while [ "$#" -gt 0 ] && [ "$1" != "dm-root" ]; do
++        shift
++    done
++    DM_ROOT_DEVICE="${2:-}"
++    shift 2
++fi
++
+ if [ "$#" -eq 0 ]; then
+     echo "No arguments were provided to the init process. Spawn a shell by default."
+     echo "Usage: $0 <prog> [args...]"
+@@ -33,10 +49,43 @@ echo "[init] mounting exfat"
+ mount -t exfat /dev/vdb /exfat
+ echo "[init] mounts complete"
+ 
++# The dm-root mode performs a real root transition instead of merely mounting
++# the mapper as a side volume.  The protected image keeps /etc and application
++# data, while symlinks prepared by the image builder expose the initramfs tools
++# below /.initramfs so this deliberately small test root remains bootable.
++if [ -n "$DM_ROOT_DEVICE" ]; then
++    echo "[dm-root] mounting protected root from $DM_ROOT_DEVICE"
++    if [ ! -b "$DM_ROOT_DEVICE" ]; then
++        echo "[dm-root] FAIL mapper device is missing: $DM_ROOT_DEVICE"
++        poweroff -f
++    fi
++    mkdir -p /newroot
++    if ! mount -t ext2 -o ro "$DM_ROOT_DEVICE" /newroot; then
++        echo "[dm-root] FAIL protected root mount rejected"
++        poweroff -f
++    fi
++    if [ ! -f /newroot/etc/dm-verity-proof ]; then
++        echo "[dm-root] FAIL proof file is missing before root switch"
++        poweroff -f
++    fi
++    mkdir -p /newroot/.initramfs
++    if ! pivot_root /newroot /newroot/.initramfs; then
++        echo "[dm-root] FAIL pivot_root rejected"
++        poweroff -f
++    fi
++    cd /
++    if [ -f /etc/dm-verity-proof ] && [ -d /.initramfs ]; then
++        echo "[dm-root] PASS system root switched to protected mapper"
++    else
++        echo "[dm-root] FAIL protected root is not active"
++        /.initramfs/bin/poweroff -f
++    fi
++fi
++
+ # The optional third disk is used by tools/run_dm_verity.sh.  Treat the
+ # mapper—not the raw disk—as the proof surface so a successful test exercises
+ # registration, on-disk hash verification and filesystem I/O together.
+-if [ -b /dev/vdc ]; then
++if [ -z "$DM_ROOT_DEVICE" ] && [ -b /dev/vdc ]; then
+     echo "[dm-test] lower device detected: /dev/vdc"
+     if [ -b /dev/dm-verity0 ]; then
+         DM_MAPPER=/dev/dm-verity0
+diff --git a/tools/run_dm_crypt.sh b/tools/run_dm_crypt.sh
+index dd96a04..2b1dcce 100644
+--- a/tools/run_dm_crypt.sh
++++ b/tools/run_dm_crypt.sh
+@@ -17,9 +17,8 @@ fi
+ KCMD_ARGS="dm_crypt.device=${DM_DEVICE} \
+ dm_crypt.name=${DM_NAME} \
+ dm_crypt.key=${DM_KEY}"
+-
+ export DM_IMAGE
+-OSDK_ARGS="--kcmd-args=\"${KCMD_ARGS}\""
++OSDK_ARGS="--kcmd-args=\"${KCMD_ARGS}\" --init-args=\"dm-root /dev/${DM_NAME} /.initramfs/bin/true\""
+ QEMU_ARGS=""
+ if [ "${ENABLE_KVM:-0}" = "1" ]; then
+     QEMU_ARGS="-accel kvm"
+diff --git a/tools/run_dm_verity.sh b/tools/run_dm_verity.sh
+index f4ef15f..b49cf12 100644
+--- a/tools/run_dm_verity.sh
++++ b/tools/run_dm_verity.sh
+@@ -24,7 +24,7 @@ rootfs_verity.data_blocks=${DM_DATA_BLOCKS} \
+ rootfs_verity.hash_start=${DM_HASH_START}"
+ 
+ export DM_IMAGE
+-OSDK_ARGS="--kcmd-args=\"${KCMD_ARGS}\""
++OSDK_ARGS="--kcmd-args=\"${KCMD_ARGS}\" --init-args=\"dm-root /dev/${DM_NAME} /.initramfs/bin/true\""
+ QEMU_ARGS=""
+ if [ "${ENABLE_KVM:-0}" = "1" ]; then
+     QEMU_ARGS="-accel kvm"
+-- 
+2.43.0
+
