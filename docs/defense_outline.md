@@ -65,13 +65,16 @@ cargo run -p dmctl -- demo-verity
 
 ### Q: 当前加密算法和 Linux cryptsetup 兼容吗？
 
-当前演示版本不兼容，使用 dependency-free 的演示变换来证明 I/O 路径。后续可替换为 AES-XTS 并支持 LUKS header。
+当前核心 I/O 已支持 Linux `aes-xts-plain64`、64 字节 AES-256-XTS key、
+plain64 IV 与 data offset，并已通过 Linux 内核逐字节对照。标准
+`cryptsetup open` 仍需要 Asterinas 的用户态 mapper 控制接口与设备节点管理。
 
 更完整回答：本项目已完成 dm-crypt 核心 I/O 语义，`cryptsetup` 完整兼容还需要 table 参数解析、LUKS metadata 和用户态控制接口，路线见 `docs/cryptsetup_compatibility.md`。
 
 ### Q: dm-verity 的 hash tree 是否落盘？
 
-当前版本保存在内存中，用于先验证校验逻辑。正式接入 rootfs 时，应把 hash tree 写到镜像尾部，并从启动参数传入 root hash。
+用户态 `dm` crate 为便于单元测试将 tree 保存在内存中；Asterinas
+`aster-dm` 已使用镜像尾部的 on-disk hash tree，并从启动参数接收 root hash。
 
 ### Q: Rust 相比 C 内核模块的优势是什么？
 

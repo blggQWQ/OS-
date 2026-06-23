@@ -16,6 +16,11 @@ done
 mkdir -p "$STAGING/etc" "$(dirname "$IMAGE")"
 printf 'ASTERINAS_DM_VERITY_OK\n' > "$STAGING/etc/dm-verity-proof"
 printf 'Generated for the Asterinas dm-verity rootfs integration test.\n' > "$STAGING/README"
+for path in bin sbin lib lib64 usr dev proc sys; do
+  if [[ ! -e "$STAGING/$path" && ! -L "$STAGING/$path" ]]; then
+    ln -s "/.initramfs/$path" "$STAGING/$path"
+  fi
+done
 
 truncate -s "$((SIZE_MIB * 1024 * 1024))" "$IMAGE"
 mke2fs -q -F -t ext2 -b "$BLOCK_SIZE" -d "$STAGING" "$IMAGE"

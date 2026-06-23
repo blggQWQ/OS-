@@ -124,7 +124,9 @@ pub trait BlockDevice {
 - `scripts/verify_linux_xts_compat.sh` 会让 Linux dm-crypt 与 Rust 实现加密同一扇区，并执行逐字节比较。当前固定向量的两端 SHA-256 均为 `4334c17f4b0380b3c1f902509cce0c0f98d9fa77aa93f6407ec940215d77921d`。
 - 用户态 `dm` crate 的 verity tree 保存在内存中；Asterinas `aster-dm` 使用镜像尾部的 on-disk hash tree。
 - Asterinas 补丁中的 `aster-dm` 已接入真实 VirtIO BIO：dm-crypt 能解密 Linux `aes-xts-plain64` 生成的 ext2；dm-verity 使用 on-disk hash tree，正常镜像通过且篡改镜像返回 `IntegrityViolation`。
-- 尚未完成的是把 mapper 切换成系统 `/` 的正式根挂载目标；当前验证对象是额外 VirtIO 测试盘。
+- 已新增 `dm-root` init 模式：从 crypt/verity mapper 挂载 ext2 后通过
+  `pivot_root` 切换系统 `/`。当前提交已通过完整内核构建和 mapper BIO
+  启动验证；根切换最终串口 PASS 日志仍需在后续提交中补录。
 
 ## 决赛级验证入口
 

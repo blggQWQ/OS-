@@ -46,16 +46,18 @@ pub trait BlockDevice {
 写路径：
 
 ```text
-plaintext -> generate keystream(block_id, key) -> ciphertext -> lower device
+plaintext sectors -> AES-256-XTS(plain64 sector IV) -> ciphertext -> lower device
 ```
 
 读路径：
 
 ```text
-ciphertext -> generate same keystream -> plaintext -> caller
+ciphertext sectors -> AES-256-XTS decrypt -> plaintext -> caller
 ```
 
-当前版本使用 SHA-256 派生的演示流变换，便于无外部依赖运行。接入 Asterinas 后，可替换为 AES-XTS 或 AES-CBC-ESSIV。
+当前兼容路径使用 AES-256-XTS 与 Linux `plain64` IV 语义，支持 Linux
+dm-crypt table 的 IV offset 和 data offset；固定向量已与 Linux 内核输出
+完成逐字节比较。旧 SHA-256 演示变换只保留给最小示例命令。
 
 ### 3.3 dm-verity
 
@@ -139,16 +141,15 @@ fio --name=verity-read --filename=/mnt/testfile --size=128M --rw=read --bs=4k
 
 当前限制：
 
-- 演示加密算法尚非 Linux `cryptsetup` 兼容格式；
-- hash tree 当前由内存结构保存，尚未以 dm-verity 标准布局写入镜像；
-- Asterinas 接入需要根据实际源码版本补齐 `virtio-blk` API 调用。
+- 标准 `cryptsetup open` 尚缺用户态到 Asterinas mapper 的完整控制接口；
+- 用户态测试 tree 仍在内存中，Asterinas 内核路径已使用 on-disk hash tree；
+- Linux/Asterinas 同配置的完整 fio 与启动耗时对照仍待采集。
 
 这些限制与正式题面的关系见 [requirement_mapping.md](requirement_mapping.md)。其中 rootfs 加密与验证见 [rootfs_protection.md](rootfs_protection.md)，cryptsetup 兼容路线见 [cryptsetup_compatibility.md](cryptsetup_compatibility.md)。
 
 后续工作：
 
-1. 替换为 AES-XTS；
-2. 支持 LUKS header 或自定义元数据；
-3. 将 verity hash tree 落盘；
-4. 接入 Asterinas rootfs 启动流程；
-5. 增加 hash cache 和 I/O batch 优化。
+1. 补齐标准 `cryptsetup open` 控制接口；
+2. 增加 Linux/Asterinas 同配置 fio 对照；
+3. 优化 verity hash-block cache；
+4. 记录 plain、crypt、verity 的启动耗时。

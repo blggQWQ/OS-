@@ -29,23 +29,25 @@ application / filesystem
 - `dm_crypt`: transparent block encryption wrapper.
 - `dm_verity`: read-only integrity wrapper.
 - `hash_tree`: Merkle tree construction and verification.
-- `sha256`: dependency-free SHA-256 implementation for hashing and demo keystream generation.
+- `sha256`: dependency-free SHA-256 implementation for verity hashing and the legacy minimal demo.
 
 ## dm-crypt Flow
 
 Write:
 
 ```text
-plaintext block -> per-block keystream -> ciphertext -> lower device
+plaintext sectors -> AES-256-XTS(plain64 sector IV) -> ciphertext -> lower device
 ```
 
 Read:
 
 ```text
-ciphertext block -> same per-block keystream -> plaintext -> caller
+ciphertext sectors -> AES-256-XTS decrypt -> plaintext -> caller
 ```
 
-The demo cipher is intentionally simple and dependency-free. For a competition submission integrated into Asterinas, replace it with AES-XTS or AES-CBC-ESSIV from a vetted crypto provider.
+The Linux-compatible path uses AES-256-XTS with plain64 sector numbering and
+supports dm-crypt table IV/data offsets. The older dependency-free transform is
+kept only for the smallest demonstration command.
 
 ## dm-verity Flow
 
@@ -70,4 +72,3 @@ impl BlockDevice for VirtioBlkAdapter {
 ```
 
 Once this adapter works, the mapper code can wrap it without changing the crypto or verity logic.
-

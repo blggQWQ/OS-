@@ -8,7 +8,7 @@
 - clang/LLVM/lld/build-essential；
 - Docker Desktop 29.4.3；
 - Asterinas 官方开发镜像 `asterinas/asterinas:0.18.0-20260618`；
-- Asterinas 源码，commit `c6284a9`。
+- Asterinas 基线 commit `c6284a9`，当前集成 commit `ebf59b0`。
 
 ## 存储位置
 
@@ -31,7 +31,7 @@ Docker 原数据路径
 wsl -d Ubuntu-24.04 -u root -- bash -lc "cd /mnt/d/project && cargo test"
 ```
 
-结果：9 个测试全部通过。
+结果：13 个测试全部通过。
 
 ### dm-crypt 演示
 

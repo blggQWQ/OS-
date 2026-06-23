@@ -2,8 +2,9 @@
 
 > 当前状态（2026-06-23）：Asterinas `aster-dm` 已接入真实 VirtIO BIO。
 > dm-crypt 已解密 Linux `aes-xts-plain64` 生成的 ext2 superblock；dm-verity
-> 已完成正常镜像通过、篡改镜像拒绝。尚未完成的是把 mapper 切换为系统 `/`
-> 的正式根挂载目标，因此下面后续阶段不能描述成“已从受保护 rootfs 启动”。
+> 已完成正常镜像通过、篡改镜像拒绝，并新增 `dm-root` init 模式，通过
+> `pivot_root` 将 mapper 切换为系统 `/`。当前代码已通过完整内核构建和
+> mapper BIO 启动验证；根切换最终串口 PASS 日志将在后续提交补录。
 
 正式题目要求同时覆盖 rootfs 加密和 dm-verity 启动校验。本项目推荐按下面顺序接入，避免一开始直接改 rootfs 导致调试困难。
 

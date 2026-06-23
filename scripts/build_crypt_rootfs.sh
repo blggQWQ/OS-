@@ -20,6 +20,11 @@ fi
 mkdir -p "$STAGING/etc" "$(dirname "$IMAGE")"
 printf 'ASTERINAS_DM_CRYPT_OK\n' > "$STAGING/etc/dm-verity-proof"
 printf 'Linux dm-crypt aes-xts-plain64 compatibility image.\n' > "$STAGING/README"
+for path in bin sbin lib lib64 usr dev proc sys; do
+  if [[ ! -e "$STAGING/$path" && ! -L "$STAGING/$path" ]]; then
+    ln -s "/.initramfs/$path" "$STAGING/$path"
+  fi
+done
 
 truncate -s "$((SIZE_MIB * 1024 * 1024))" "$IMAGE"
 LOOP_DEV="$(losetup --find --show "$IMAGE")"
