@@ -1,5 +1,7 @@
 # 星绽操作系统 dm-crypt / dm-verity 设计与实现
 
+> **演示视频**：[Go_Go_Go队演示视频.mp4](https://pan.baidu.com/s/1yg7C7fdbD5cTkvr44VQ0aQ?pwd=oscp)（[百度网盘](https://pan.baidu.com/s/1yg7C7fdbD5cTkvr44VQ0aQ) · 提取码：`oscp`）
+
 **全国操作系统设计赛——功能挑战赛道**
 
 | 项目 | 信息 |
