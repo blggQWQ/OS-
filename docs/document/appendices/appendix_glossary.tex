@@ -1,0 +1,34 @@
+% appendices/appendix_glossary.tex
+\chapter*{附录A：术语表}
+\addcontentsline{toc}{chapter}{附录A：术语表}
+
+\begin{longtable}{|p{0.20\textwidth}|p{0.45\textwidth}|p{0.25\textwidth}|}
+\hline
+\textbf{术语} & \textbf{定义} & \textbf{代码位置} \\
+\hline
+\endhead
+BlockDevice & 表示任何可以读写固定大小块的存储介质的 trait 抽象 & src/block\_device.rs \\
+dm-crypt & 提供透明磁盘加密的设备映射器目标 & src/dm\_crypt.rs \\
+dm-verity & 提供透明完整性校验的设备映射器目标 & src/dm\_verity.rs \\
+HashTree & dm-verity 使用的默克尔树结构 & src/hash\_tree.rs \\
+AES-256-XTS & 磁盘加密的标准密码模式 & src/crypto.rs \\
+plain64 IV & 使用 64 位扇区号作为 IV 的策略 & src/crypto.rs \\
+IntegrityViolation & 哈希不匹配时返回的错误 & src/error.rs \\
+Root Hash & 默克尔树的顶层哈希，信任锚 & src/hash\_tree.rs \\
+Tweak Key & XTS 密钥的后半部分，用于加密 IV & src/crypto.rs \\
+IV Offset & 用于计算初始化向量的偏移值 & src/dm\_crypt.rs \\
+Data Offset & 物理设备开头用于元数据的扇区数 & src/dm\_crypt.rs \\
+DM\_SECTOR\_SIZE & 设备映射器的原子 I/O 单位（512 字节） & src/dm\_crypt.rs \\
+VirtioBlkAdapter & 星绽内核中适配 virtio-blk 的组件 & adapter\_skeleton.rs \\
+DmBootConfig & 存储启动参数的结构体 & cmdline\_skeleton.rs \\
+PassthroughDevice & 直接转发调用的包装器 & device\_mapper.rs \\
+aster-dm & 星绽内核中的 Device Mapper 组件 & asterinas\_port/ \\
+DmDevice & 星绽内核中的设备映射器结构 & 补丁 0001 \\
+DmTarget & 封装 Crypt 或 Verity 逻辑的枚举 & 补丁 0001 \\
+self\_test\_ext2\_magic & 启动时自检函数 & 补丁 0002 \\
+pivot\_root & 切换根文件系统的机制 & 补丁 0003 \\
+dmctl & 用户态命令行工具 & dmctl/src/main.rs \\
+MemoryBlockDevice & 基于内存的后端 & src/block\_device.rs \\
+FileBlockDevice & 基于文件的后端 & src/block\_device.rs \\
+\hline
+\end{longtable}

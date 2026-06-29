@@ -1,0 +1,115 @@
+% chapters/09_development.tex
+\chapter{研发过程与问题解决记录}
+
+\section{概述}
+
+本章记录项目开发过程中遇到的核心技术难题及解决方案，并详细说明将 dm-crypt 和 dm-verity 集成到星绽内核的三个 Git 补丁。
+
+\section{核心技术难题及解决方法}
+
+\subsection{Rust 所有权与 I/O 队列管理}
+
+\textbf{问题描述}：在实现 DmCryptDevice 的 I/O 路径时，需要同时处理多个扇区的加解密操作。Rust 的所有权模型要求每个扇区的数据缓冲区有明确的所有者，导致借用检查器报错。
+
+\textbf{解决方案}：
+\begin{itemize}
+    \item 采用 Arc<Mutex<Vec<u8>>> 在多个扇区操作之间共享缓冲区。
+    \item 利用 try\_borrow\_mut 避免死锁。
+    \item 对于热路径，使用 Cell 或 RefCell 实现内部可变性。
+\end{itemize}
+
+\subsection{星绽 OSTD 框架 API 适配}
+
+\textbf{问题描述}：星绽 OSTD 框架的块设备接口与预期不符，特别是 DMA 切片的访问方式。
+
+\textbf{解决方案}：
+\begin{itemize}
+    \item 重构 VirtioBlkAdapter，直接调用 DMA 切片接口。
+    \item 添加边界检查和对齐验证。
+    \item 严格遵循 Rust 安全准则使用 unsafe 代码块。
+\end{itemize}
+
+\subsection{DMA 切片与 BIO 路径验证}
+
+\textbf{问题描述}：加密逻辑操作的是 BIO 段的虚拟地址，而非实际的 DMA 物理缓冲区。
+
+\textbf{解决方案}：
+\begin{enumerate}
+    \item 使用 DMA 切片接口访问 BIO 段。
+    \item 确保加密操作直接读写 DMA 缓冲区。
+    \item 引入自检机制验证解密路径。
+\end{enumerate}
+
+\section{内核集成补丁说明}
+
+\subsection{补丁 0001：组件集成与目标定义}
+
+\textbf{目的}：将 aster-dm 组件引入星绽构建系统。
+
+\textbf{实现细节}：
+\begin{itemize}
+    \item \textbf{组件注册}：将 aster-dm 添加到构建系统。
+    \item \textbf{分区扫描抑制}：允许设备选择退出自动分区扫描。
+    \item \textbf{目标抽象}：定义 DmTarget 枚举，封装 Crypt 和 Verity 逻辑。
+    \item \textbf{设备结构}：实现 DmDevice，持有下层设备引用和目标。
+\end{itemize}
+
+\subsection{补丁 0002：BIO 路径验证与自检}
+
+\textbf{目的}：确保 DMA 切片在加密过程中被正确处理。
+
+\textbf{实现细节}：
+\begin{itemize}
+    \item \textbf{DMA 切片访问}：使用 DMA 切片接口。
+    \item \textbf{Ext2 超级块自检}：检查 EXT2 魔数值（0x53EF）验证解密路径。
+    \item \textbf{启动集成}：内核 init 函数在注册映射器后调用自检。
+\end{itemize}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.85\textwidth]{figures/ext2_superblock_validation.png}
+    \caption{Ext2 超级块验证路径图}
+    \label{fig:ext2_validation}
+\end{figure}
+
+\subsection{补丁 0003：根文件系统 Pivot\_root 切换}
+
+\textbf{目的}：修改 initramfs 脚本，支持切换到受保护的根文件系统。
+
+\textbf{实现细节}：
+\begin{itemize}
+    \item \textbf{参数解析}：解析 dm-root 命令行参数。
+    \item \textbf{挂载映射器}：将映射器设备挂载到 /newroot。
+    \item \textbf{执行切换}：使用 pivot\_root 交换文件系统。
+    \item \textbf{切换后验证}：验证证明文件是否存在。
+\end{itemize}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\textwidth]{figures/root_switch_sequence.png}
+    \caption{根切换序列图}
+    \label{fig:root_switch}
+\end{figure}
+
+\section{五阶段渐进式保护路径}
+
+\begin{table}[H]
+    \centering
+    \caption{五阶段渐进式保护路径}
+    \label{tab:five_stages}
+    \begin{tabular}{p{0.08\textwidth}p{0.15\textwidth}p{0.40\textwidth}p{0.25\textwidth}}
+        \toprule
+        \textbf{阶段} & \textbf{名称} & \textbf{数据流} & \textbf{用途} \\
+        \midrule
+        1 & Plain & virtio-blk -> ext2 & 基线性能和功能检查 \\
+        2 & Passthrough & virtio-blk -> PassthroughDevice -> ext2 & 验证抽象层不引入数据损坏 \\
+        3 & dm-verity & virtio-blk -> DmVerityDevice -> ext2 & 只读完整性校验 \\
+        4 & dm-crypt & virtio-blk -> DmCryptDevice -> ext2 & 透明解密 \\
+        5 & Combined & virtio-blk -> DmCryptDevice -> DmVerityDevice -> ext2 & 全面保护 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\section{小结}
+
+本章详细记录了项目研发过程中遇到的四大核心技术难题及其解决方案，深入阐述了三个内核集成补丁的设计思路和实现细节，并展示了五阶段渐进式保护路径。通过补丁 0002 的 Ext2 超级块自检机制和补丁 0003 的 pivot\_root 切换，系统能够在启动时验证加解密路径的正确性，并安全地切换到受保护的根文件系统。

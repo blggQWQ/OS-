@@ -1,0 +1,108 @@
+% chapters/02_architecture.tex
+\chapter{系统架构设计}
+
+\section{设计原则}
+
+本项目的基本设计原则是使用统一的抽象来表示任何能够进行块级 I/O 的实体。这种抽象允许采用“分层”或“可组合”的架构，使得加密和校验逻辑与底层存储介质完全解耦，从而在用户态命令行工具和星绽内核中实现相同的核心逻辑。
+
+\subsection{核心抽象：BlockDevice Trait}
+
+\texttt{BlockDevice} trait 是库中所有存储操作的基础接口。它定义了用于读写固定大小数据块的同步接口。为了支持跨线程的并发访问，并安全地集成到星绽内核或用户态工具中，该 trait 要求实现 \texttt{Send} 和 \texttt{Sync} 标记。
+
+该 trait 要求实现四个主要方法：
+\begin{itemize}
+    \item \texttt{block\_size()}：返回单个块的大小（以字节为单位）。
+    \item \texttt{num\_blocks()}：返回设备的总容量（以块为单位）。
+    \item \texttt{read\_block(block\_id, buf)}：将特定块的内容读取到提供的缓冲区中。
+    \item \texttt{write\_block(block\_id, buf)}：将缓冲区的内容写入特定块。
+\end{itemize}
+
+所有 I/O 方法均返回 \texttt{Result<()>}，其中错误被封装在 \texttt{DmError} 枚举中。
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\textwidth]{figures/blockdevice_trait_uml.png}
+    \caption{BlockDevice Trait 与后端实现关系图}
+    \label{fig:blockdevice_trait}
+\end{figure}
+
+\subsection{可组合的映射器链模式}
+
+该架构采用类似装饰器（Decorator）的设计模式。其中“映射器”（如 \texttt{DmCryptDevice} 和 \texttt{DmVerityDevice}）既实现了 \texttt{BlockDevice} trait，又在其内部消费（包装）另一个实现了 \texttt{BlockDevice} 的对象。这允许功能的任意堆叠与组合。
+
+例如，一个典型的栈可能是：
+\begin{lstlisting}[basicstyle=\ttfamily\small]
+let file = FileBlockDevice::open("disk.img")?;
+let crypt = DmCryptDevice::new(file, key)?;
+let verity = DmVerityDevice::new(crypt, root_hash)?;
+\end{lstlisting}
+
+\section{核心模块分解}
+
+项目被结构化为离散的模块，以清晰地分离密码学原语、数据结构和设备逻辑。
+
+\begin{table}[H]
+    \centering
+    \caption{核心模块职责划分}
+    \label{tab:modules}
+    \begin{tabular}{p{0.25\textwidth}p{0.45\textwidth}p{0.25\textwidth}}
+        \toprule
+        \textbf{模块} & \textbf{主要职责} & \textbf{关键实体} \\
+        \midrule
+        \texttt{block\_device} & 基础 I/O 抽象与物理/内存后端 & \texttt{BlockDevice}, \texttt{FileBlockDevice} \\
+        \texttt{dm\_crypt} & 使用 AES-XTS 的透明加密逻辑 & \texttt{DmCryptDevice}, \texttt{DmCryptTable} \\
+        \texttt{dm\_verity} & 只读完整性校验逻辑 & \texttt{DmVerityDevice} \\
+        \texttt{hash\_tree} & 默克尔树的构建与管理 & \texttt{HashTree} \\
+        \texttt{sha256} & 纯 Rust 实现的 SHA-256（无外部依赖） & \texttt{sha256::update}, \texttt{sha256::finalize} \\
+        \texttt{device\_mapper} & 设备链接（chaining）的基础设施 & \texttt{PassthroughDevice} \\
+        \texttt{error} & 统一错误处理 & \texttt{DmError}, \texttt{Result} \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\texttt{BlockDevice} 实现涵盖了多种后端场景：
+\begin{itemize}
+    \item \texttt{MemoryBlockDevice}：基于内存向量的设备，主要用于单元测试和易失性存储。
+    \item \texttt{FileBlockDevice}：由宿主机文件系统上的文件支持的持久化设备，由 \texttt{dmctl} 工具使用。
+    \item \texttt{PassthroughDevice}：将调用直接转发给内部设备的包装器，用于验证映射器链。
+    \item \texttt{VirtioBlkAdapter}：（星绽移植版）将内核特定的块句柄适配到 \texttt{BlockDevice} 接口。
+\end{itemize}
+
+\section{跨环境可移植性}
+
+一个核心设计目标是：相同的逻辑同时服务于用户态演示和星绽内核。这是通过严格隔离环境特定代码来实现的。
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\textwidth]{figures/code_entity_mapping_userspace_kernel.png}
+    \caption{代码实体映射图（用户态 vs 星绽内核）}
+    \label{fig:code_entity_mapping}
+\end{figure}
+
+\textbf{用户态}：\texttt{dmctl} 工具实例化一个 \texttt{FileBlockDevice}，并根据命令行参数将其包装在 \texttt{DmCryptDevice} 或 \texttt{DmVerityDevice} 中。\\
+\textbf{内核态}：在星绽中，\texttt{VirtioBlkAdapter} 包装了内核内部的块设备句柄。由于该适配器实现了 \texttt{BlockDevice}，\texttt{DmCryptDevice} 可以无需任何修改地直接包装它。\\
+\texttt{No-Std} 兼容性：核心 \texttt{dm} 库设计为最小化依赖（例如，\texttt{aes} crate 设置 \texttt{default-features = false}），以促进在可能限制标准库的内核环境中执行。
+
+\section{数据流架构}
+
+下图展示了应用程序的 I/O 请求如何穿过该分层栈：
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\textwidth]{figures/block_io_layered_stack.png}
+    \caption{块 I/O 分层栈数据流图}
+    \label{fig:io_stack}
+\end{figure}
+
+在此模型中，\texttt{DmCryptDevice} 在执行 AES-256-XTS 转换后，将生成的密文传递给链中的下一个设备。类似地，\texttt{DmVerityDevice} 拦截读请求，以根据默克尔树校验数据的完整性。
+
+\section{线程安全保证}
+
+所有后端均实现了 \texttt{Sync}，这意味着它们可以跨线程共享。\\
+\texttt{MemoryBlockDevice}：在整个块向量周围使用 \texttt{Mutex}。虽然这确保了安全性，但它将设备上的所有 I/O 串行化。\\
+\texttt{FileBlockDevice}：在 \texttt{File} 对象周围使用 \texttt{Mutex}。这是必要的，因为文件指针（偏移量）是共享状态。锁在 seek、read/write 和 flush 序列的整个持续时间内被持有。\\
+\texttt{PassthroughDevice}：依赖于底层设备实现了 \texttt{Sync}。
+
+\section{小结}
+
+本章详细阐述了系统的核心架构，包括统一的 \texttt{BlockDevice} 抽象、可组合的映射器链模式、模块分解以及跨环境可移植性。通过将核心逻辑与平台细节解耦，该项目为后续的加密、完整性校验及性能优化奠定了坚实的基础。在接下来的章节中，我们将深入探讨 \texttt{dm-crypt} 和 \texttt{dm-verity} 的具体实现细节。
