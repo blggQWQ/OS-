@@ -25,13 +25,14 @@ impl FromStr for DmCryptTable {
                 "crypt target needs: cipher key iv_offset device offset".into(),
             ));
         }
+        let options = parse_options(&fields[5..])?;
         Ok(Self {
             cipher: fields[0].to_string(),
             key: decode_hex(fields[1])?,
             iv_offset: parse_u64("iv_offset", fields[2])?,
             device: fields[3].to_string(),
             offset: parse_u64("offset", fields[4])?,
-            options: fields[5..].iter().map(|value| (*value).to_string()).collect(),
+            options,
         })
     }
 }
@@ -68,6 +69,7 @@ impl<D: BlockDevice> DmCryptDevice<D> {
         if table.cipher != "aes-xts-plain64" {
             return Err(DmError::UnsupportedCipher(table.cipher.clone()));
         }
+        validate_options(&table.options)?;
         let block_size = lower.block_size();
         if block_size % DM_SECTOR_SIZE != 0 {
             return Err(DmError::InvalidBlockSize {
@@ -175,6 +177,46 @@ fn parse_u64(name: &str, value: &str) -> Result<u64> {
     value
         .parse()
         .map_err(|_| DmError::InvalidTable(format!("invalid {name}: {value}")))
+}
+
+fn parse_options(fields: &[&str]) -> Result<Vec<String>> {
+    if fields.is_empty() {
+        return Ok(Vec::new());
+    }
+    let count = fields[0]
+        .parse::<usize>()
+        .map_err(|_| DmError::InvalidTable("crypt option count is not an integer".into()))?;
+    if fields.len() != count + 1 {
+        return Err(DmError::InvalidTable(format!(
+            "crypt option count says {count}, but {} options follow",
+            fields.len() - 1
+        )));
+    }
+    Ok(fields[1..]
+        .iter()
+        .map(|value| (*value).to_string())
+        .collect())
+}
+
+fn validate_options(options: &[String]) -> Result<()> {
+    for option in options {
+        let supported = matches!(
+            option.as_str(),
+            "allow_discards"
+                | "same_cpu_crypt"
+                | "submit_from_crypt_cpus"
+                | "no_read_workqueue"
+                | "no_write_workqueue"
+                | "iv_large_sectors"
+                | "sector_size:512"
+        );
+        if !supported {
+            return Err(DmError::InvalidTable(format!(
+                "unsupported crypt option: {option}"
+            )));
+        }
+    }
+    Ok(())
 }
 
 fn decode_hex(value: &str) -> Result<Vec<u8>> {

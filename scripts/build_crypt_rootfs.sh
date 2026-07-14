@@ -17,10 +17,12 @@ if [[ "${EUID}" -ne 0 ]]; then
   exit 1
 fi
 
-mkdir -p "$STAGING/etc" "$(dirname "$IMAGE")"
+# Pre-create pivot_root's put_old directory inside the protected image.  This
+# keeps crypt and verity root images on the same boot contract.
+mkdir -p "$STAGING/etc" "$STAGING/.initramfs" "$(dirname "$IMAGE")"
 printf 'ASTERINAS_DM_CRYPT_OK\n' > "$STAGING/etc/dm-verity-proof"
 printf 'Linux dm-crypt aes-xts-plain64 compatibility image.\n' > "$STAGING/README"
-for path in bin sbin lib lib64 usr dev proc sys; do
+for path in bin sbin lib lib64 usr nix dev proc sys; do
   if [[ ! -e "$STAGING/$path" && ! -L "$STAGING/$path" ]]; then
     ln -s "/.initramfs/$path" "$STAGING/$path"
   fi

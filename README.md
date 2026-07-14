@@ -60,7 +60,8 @@ Linux 通过 Device Mapper 提供 `dm-crypt`（透明数据加密）和 `dm-veri
 5. 命令行工具 `dmctl`；
 6. Asterinas `aster-dm` 内核组件、真实 VirtIO BIO 验证、测试与答辩材料。
 
-正式题面逐条对应见 [docs/requirement_mapping.md](docs/requirement_mapping.md)。
+正式题面逐条对应见 [docs/requirement_mapping.md](docs/requirement_mapping.md)，决赛技术
+亮点、性能优化与验收口径见 [docs/innovation.md](docs/innovation.md)。
 
 ---
 
@@ -587,6 +588,7 @@ cargo test
 ```bash
 cargo run -p dmctl -- demo-crypt
 cargo run -p dmctl -- demo-verity
+cargo run -p dmctl -- demo-stack
 ```
 
 `demo-crypt` 展示：上层写入明文 → 底层镜像保存密文 → `DmCryptDevice` 读回明文。

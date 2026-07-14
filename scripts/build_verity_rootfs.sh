@@ -13,10 +13,13 @@ for command in mke2fs cargo; do
   command -v "$command" >/dev/null || { echo "missing command: $command" >&2; exit 1; }
 done
 
-mkdir -p "$STAGING/etc" "$(dirname "$IMAGE")"
+# `pivot_root(2)` requires put_old to exist below the new root.  The verity
+# filesystem is intentionally mounted read-only, so this mount point must be
+# part of the authenticated image rather than created during boot.
+mkdir -p "$STAGING/etc" "$STAGING/.initramfs" "$(dirname "$IMAGE")"
 printf 'ASTERINAS_DM_VERITY_OK\n' > "$STAGING/etc/dm-verity-proof"
 printf 'Generated for the Asterinas dm-verity rootfs integration test.\n' > "$STAGING/README"
-for path in bin sbin lib lib64 usr dev proc sys; do
+for path in bin sbin lib lib64 usr nix dev proc sys; do
   if [[ ! -e "$STAGING/$path" && ! -L "$STAGING/$path" ]]; then
     ln -s "/.initramfs/$path" "$STAGING/$path"
   fi

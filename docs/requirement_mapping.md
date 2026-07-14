@@ -10,9 +10,11 @@
 
 - `crates/dm`: Device Mapper、dm-crypt、dm-verity 核心逻辑；
 - `crates/dmctl`: 用户态镜像演示工具；
-- `asterinas_port`: 接入 Asterinas 的适配层骨架。
+- `asterinas/kernel/comps/dm`: 已接入 Asterinas BIO 与块设备注册框架的内核组件；
+- `asterinas_port`: 可复用补丁和移植说明。
 
-在真实参赛环境中，需要把 `crates/dm/src` 迁移到 Asterinas 内核树，并补齐 `VirtioBlkAdapter`。
+用户态 crate 用于快速验证算法、table 兼容和镜像格式；内核组件使用 Asterinas 原生
+`BlockDevice`/BIO 接口，不依赖额外用户态适配器。
 
 ## 指标 1：dm-verity 基础功能实现
 
@@ -36,11 +38,8 @@ rootfs_verity.scheme=dm-verity rootfs_verity.hash=<hash>
 - `dmctl verity-root`: 生成 root hash；
 - `dmctl verity-verify`: 使用 root hash 验证镜像。
 
-待 Asterinas 环境补齐：
-
-- 在内核启动阶段解析 cmdline；
-- 将 rootfs 块设备包装为 `DmVerityDevice`；
-- 篡改 rootfs 后验证访问失败或启动失败。
+内核侧已完成 cmdline 解析、mapper 注册、on-disk hash tree 验证和篡改拒绝路径；
+最终提交仍需补齐 rootfs 切换成功的完整串口日志与性能数据。
 
 ## 指标 2：dm-crypt 基础功能实现
 
@@ -75,11 +74,9 @@ rootfs_verity.scheme=dm-verity rootfs_verity.hash=<hash>
 - [rootfs_protection.md](rootfs_protection.md) 给出 rootfs 加密和 verity 的接入顺序；
 - `asterinas_port/cmdline_skeleton.rs` 预留 `dm_crypt.device` 和 `dm_crypt.key` 参数解析。
 
-待 Asterinas 环境补齐：
-
-- init 阶段创建 `DmCryptDevice`;
-- 将 rootfs mount 目标切换到加密 mapper；
-- 验证底层 rootfs 镜像不可直接读出明文文件内容。
+内核已经能在 init 阶段创建 dm-crypt mapper，并包含从 mapper 挂载 ext2 后执行
+`pivot_root` 的实现。最终提交需要补录完整根切换 PASS 日志，并保留底层镜像无法读取
+明文的对照证据。
 
 ## 指标 4：性能与启动要求
 
@@ -90,9 +87,10 @@ rootfs_verity.scheme=dm-verity rootfs_verity.hash=<hash>
 
 当前对应：
 
-- [performance.md](performance.md) 给出 fio/filebench/SQLite 测试方案；
+- [performance.md](performance.md) 给出可复现的 Linux/Asterinas 测试矩阵；
 - `scripts/benchmark.sh` 提供 plain/AES-XTS/verity 的 CSV 微基准入口；
-- `scripts/linux_cryptsetup_baseline.sh` 提供 Linux 对照实验入口。
+- `scripts/benchmark_linux_dm.sh` 提供 raw/dm-crypt 同后端五轮配对测试；
+- `scripts/summarize_benchmark.py` 输出中位数、吞吐保留率和 p95 延迟开销。
 
 待 Asterinas 环境补齐：
 
@@ -108,9 +106,11 @@ rootfs_verity.scheme=dm-verity rootfs_verity.hash=<hash>
 
 当前对应：
 
-- hash tree 验证路径清晰，可加入 hash block cache；
+- Asterinas verity 已复用完成 BIO 的数据并加入“认证后缓存”的 hash block cache；
+- 内核输出 BIO 复用、补读与 cache hit/miss 指标，可直接证明优化是否生效；
 - mapper 接口统一，可加入 I/O batch、zero-copy buffer 和异步块 I/O；
-- 文档中已列出优化方向。
+- 用户态 `DmStackBuilder` 支持 target 动态组合与安全能力传播；
+- `InstrumentedDevice` 可插在任意层之间进行分层性能归因。
 
 建议答辩重点：
 
@@ -118,3 +118,16 @@ rootfs_verity.scheme=dm-verity rootfs_verity.hash=<hash>
 2. verity hash cache 减少重复计算；
 3. crypt 使用硬件 AES 或批量加密降低开销；
 4. rootfs 启动阶段只验证读取路径，减少 boot time 影响。
+
+## 2026-07-14 验收补充
+
+| 验收项 | 最终证据 |
+|---|---|
+| cryptsetup 控制面 | `/dev/mapper/control`；真实 cryptsetup 2.7.5 open/read/close PASS |
+| dm-crypt 根文件系统 | `AES backend=AES-NI`；mapper 上 ext2 根切换 PASS |
+| dm-verity 正例 | `status=verified`、`data_rereads=0`、根切换 PASS |
+| dm-verity 篡改反例 | 一字节篡改后 `status=integrity-rejected`；零个 root-switch PASS |
+| 可量化优化 | hash cache=256 相对 cache=0：五轮 dm-verity 中位吞吐 +24.4%，p95 -8.7% |
+
+原始 KVM 串口和逐轮 CSV 位于 `docs/evidence/`，入口索引为
+`docs/evidence/FINAL_VALIDATION.md`。
