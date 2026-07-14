@@ -35,6 +35,7 @@ in rec {
 
   initramfs = pkgs.callPackage ./initramfs.nix {
     inherit busybox;
+    cryptsetup = pkgs.cryptsetup;
     benchmark = if enableBenchmarkTest then benchmark else null;
     conformance = if enableConformanceTest then conformance else null;
     regression = if enableRegressionTest then regression else null;

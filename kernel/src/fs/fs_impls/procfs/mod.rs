@@ -11,6 +11,9 @@ use template::{
 use self::{
     cmdline::CmdLineFileOps,
     cpuinfo::CpuInfoFileOps,
+    devices::DevicesFileOps,
+    dm_crypto_backend::DmCryptoBackendFileOps,
+    dm_verity_stats::DmVerityStatsFileOps,
     loadavg::LoadAvgFileOps,
     meminfo::MemInfoFileOps,
     mounts::MountsSymOps,
@@ -42,6 +45,9 @@ use crate::{
 
 mod cmdline;
 mod cpuinfo;
+mod devices;
+mod dm_crypto_backend;
+mod dm_verity_stats;
 mod filesystems;
 mod loadavg;
 mod meminfo;
@@ -151,6 +157,17 @@ impl RootDirOps {
     const STATIC_ENTRIES: &'static [StaticEntry] = &[
         ("cmdline", InodeType::File, CmdLineFileOps::new_inode),
         ("cpuinfo", InodeType::File, CpuInfoFileOps::new_inode),
+        ("devices", InodeType::File, DevicesFileOps::new_inode),
+        (
+            "dm-crypto-backend",
+            InodeType::File,
+            DmCryptoBackendFileOps::new_inode,
+        ),
+        (
+            "dm-verity-stats",
+            InodeType::File,
+            DmVerityStatsFileOps::new_inode,
+        ),
         (
             "filesystems",
             InodeType::File,

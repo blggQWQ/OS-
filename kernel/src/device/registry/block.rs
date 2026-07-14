@@ -87,6 +87,15 @@ mod ioctl_defs {
     /// ioctl must return that larger value. Otherwise user programs will align
     /// correctly for the device but still hit `EINVAL` at the filesystem.
     pub(super) type BlkGetSectorSize = ioc!(BLKSSZGET, 0x12, 104, NoData);
+
+    /// Returns whether the block device is read-only.
+    pub(super) type BlkReadOnlyGet = ioc!(BLKROGET, 0x12, 94, NoData);
+
+    /// Returns the block-device read-ahead window in sectors.
+    pub(super) type BlkReadAheadGet = ioc!(BLKRAGET, 0x12, 99, NoData);
+
+    /// Returns the zone size in sectors, or zero for a non-zoned device.
+    pub(super) type BlkGetZoneSize = ioc!(BLKGETZONESZ, 0x12, 132, OutData<u32>);
 }
 
 /// Represents a block device inode in the filesystem.
@@ -216,6 +225,18 @@ impl PerOpenFileOps for OpenBlockFile {
                 // alignment.
                 let sector_size = SECTOR_SIZE.max(BLOCK_SIZE) as i32;
                 current_userspace!().write_val(raw_ioctl.arg(), &sector_size)?;
+                Ok(0)
+            }
+            _cmd @ BlkReadOnlyGet => {
+                current_userspace!().write_val(raw_ioctl.arg(), &0i32)?;
+                Ok(0)
+            }
+            _cmd @ BlkReadAheadGet => {
+                current_userspace!().write_val(raw_ioctl.arg(), &256u64)?;
+                Ok(0)
+            }
+            cmd @ BlkGetZoneSize => {
+                cmd.write(&0u32)?;
                 Ok(0)
             }
             cmd @ BlkGetSize64 => {

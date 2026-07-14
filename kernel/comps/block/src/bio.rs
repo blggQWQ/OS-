@@ -397,6 +397,17 @@ impl BioSegment {
         Self::alloc_inner(nblocks, 0, nblocks * BLOCK_SIZE, direction)
     }
 
+    /// Allocates a segment with an exact sector-aligned byte length.
+    ///
+    /// This is useful for transformed I/O bounce buffers, where preserving the
+    /// original BIO length is required even when the request is smaller than a
+    /// page.
+    pub fn alloc_bytes(len: usize, direction: BioDirection) -> Self {
+        assert!(len > 0 && is_sector_aligned(len));
+        let nblocks = len.align_up(BLOCK_SIZE) / BLOCK_SIZE;
+        Self::alloc_inner(nblocks, 0, len, direction)
+    }
+
     /// The inner function that do the real segment allocation.
     ///
     /// Support two extended parameters:

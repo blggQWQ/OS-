@@ -175,6 +175,13 @@ unsafe extern "sysv64" fn trap_handler(f: &mut TrapFrame) {
         }
         Some(CpuException::PageFault(raw_page_fault_info)) => {
             enable_local_if(was_irq_enabled);
+            crate::early_println!(
+                "[kernel-trap] exception=PageFault({:?}) trap={} error={:#x} rip={:#x}",
+                raw_page_fault_info,
+                f.trap_num,
+                f.error_code,
+                f.rip
+            );
             // The actual user space implementation should be responsible
             // for providing mechanism to treat the 0 virtual address.
             if (0..MAX_USERSPACE_VADDR).contains(&raw_page_fault_info.addr) {
@@ -189,6 +196,13 @@ unsafe extern "sysv64" fn trap_handler(f: &mut TrapFrame) {
         }
         Some(exception) => {
             enable_local_if(was_irq_enabled);
+            crate::early_println!(
+                "[kernel-trap] exception={:?} trap={} error={:#x} rip={:#x}",
+                exception,
+                f.trap_num,
+                f.error_code,
+                f.rip
+            );
             panic!(
                 "Cannot handle kernel CPU exception: {:#x?}; trapframe: {:#x?}",
                 exception, f

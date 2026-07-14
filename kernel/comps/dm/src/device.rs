@@ -11,7 +11,11 @@ use aster_block::{
 use device_id::DeviceId;
 use ostd::mm::VmIo;
 
-use crate::{DmError, crypto::AesXtsCipher, verity::VerityTarget};
+use crate::{
+    DmError,
+    crypto::AesXtsCipher,
+    verity::{VerityStats, VerityTarget},
+};
 
 /// A block-device mapper backed by another Asterinas block device.
 pub struct DmDevice {
@@ -39,11 +43,37 @@ impl DmDevice {
         lower: Arc<dyn BlockDevice>,
         key: &[u8],
     ) -> Result<Self, DmError> {
+        let logical_sectors = lower.metadata().nr_sectors;
+        Self::new_crypt_table(id, name, lower, key, 0, 0, logical_sectors)
+    }
+
+    /// Creates an AES-256-XTS mapper from Linux dm-crypt table geometry.
+    pub fn new_crypt_table(
+        id: DeviceId,
+        name: String,
+        lower: Arc<dyn BlockDevice>,
+        key: &[u8],
+        iv_offset: u64,
+        data_offset_sectors: u64,
+        logical_sectors: usize,
+    ) -> Result<Self, DmError> {
+        let lower_sectors = lower.metadata().nr_sectors as u64;
+        let logical_end = data_offset_sectors
+            .checked_add(logical_sectors as u64)
+            .ok_or(DmError::OutOfRange)?;
+        if logical_sectors == 0 || logical_end > lower_sectors {
+            return Err(DmError::OutOfRange);
+        }
         Ok(Self {
             id,
             name,
             lower,
-            target: DmTarget::Crypt(AesXtsCipher::new(key)?),
+            target: DmTarget::Crypt(CryptTarget {
+                cipher: AesXtsCipher::new(key)?,
+                iv_offset,
+                data_offset_sectors,
+                logical_sectors,
+            }),
         })
     }
 
@@ -56,14 +86,36 @@ impl DmDevice {
         hash_start_block: usize,
         root_hash: [u8; 32],
     ) -> Result<Self, DmError> {
+        Self::new_verity_with_cache(
+            id,
+            name,
+            lower,
+            data_blocks,
+            hash_start_block,
+            root_hash,
+            256,
+        )
+    }
+
+    /// Creates a dm-verity mapper with an explicitly sized authenticated cache.
+    pub fn new_verity_with_cache(
+        id: DeviceId,
+        name: String,
+        lower: Arc<dyn BlockDevice>,
+        data_blocks: usize,
+        hash_start_block: usize,
+        root_hash: [u8; 32],
+        hash_cache_blocks: usize,
+    ) -> Result<Self, DmError> {
         Ok(Self {
             id,
             name,
             lower,
-            target: DmTarget::Verity(VerityTarget::new(
+            target: DmTarget::Verity(VerityTarget::new_with_cache(
                 data_blocks,
                 hash_start_block,
                 root_hash,
+                hash_cache_blocks,
             )?),
         })
     }
@@ -84,6 +136,14 @@ impl DmDevice {
         } else {
             Err(DmError::IntegrityViolation)
         }
+    }
+
+    /// Returns dm-verity hot-path counters when this mapper uses that target.
+    pub fn verity_stats(&self) -> Option<VerityStats> {
+        let DmTarget::Verity(target) = &self.target else {
+            return None;
+        };
+        Some(target.stats())
     }
 
     /// Reads and validates the ext2 superblock magic through this mapper.
@@ -119,7 +179,7 @@ impl DmDevice {
         self.lower.enqueue(bio)
     }
 
-    fn process_crypt(&self, bio: SubmittedBio, cipher: &AesXtsCipher) {
+    fn process_crypt(&self, bio: SubmittedBio, target: &CryptTarget) {
         let bio_type = bio.type_();
         if bio_type == BioType::Flush {
             let status = self.lower.sync().unwrap_or(BioStatus::IoError);
@@ -127,61 +187,92 @@ impl DmDevice {
             return;
         }
 
-        let first_sector = bio
+        let logical_first_sector = bio
             .sid_range()
             .start
             .to_raw()
             .checked_add(bio.sid_offset())
             .unwrap_or(u64::MAX);
-        let mut sector_cursor = first_sector;
-        let mut plaintext_segments = Vec::with_capacity(bio.segments().len());
+        let num_sectors = bio.segments().iter().try_fold(0u64, |total, segment| {
+            total.checked_add(segment.nsectors().to_raw())
+        });
+        let Some(logical_end_sector) =
+            num_sectors.and_then(|count| logical_first_sector.checked_add(count))
+        else {
+            bio.complete(BioStatus::IoError);
+            return;
+        };
+        if logical_end_sector > target.logical_sectors as u64 {
+            bio.complete(BioStatus::IoError);
+            return;
+        }
+        let Some(lower_first_sector) = target.data_offset_sectors.checked_add(logical_first_sector)
+        else {
+            bio.complete(BioStatus::IoError);
+            return;
+        };
+        let Some(iv_first_sector) = target.iv_offset.checked_add(logical_first_sector) else {
+            bio.complete(BioStatus::IoError);
+            return;
+        };
 
-        if bio_type == BioType::Write {
+        let lower_segments = if bio_type == BioType::Write {
+            let mut sector_cursor = iv_first_sector;
+            let mut bounce_segments = Vec::with_capacity(bio.segments().len());
             for segment in bio.segments() {
-                let mut plaintext = vec![0u8; segment.nbytes()];
+                let mut ciphertext = vec![0u8; segment.nbytes()];
                 if segment
                     .inner_dma_slice()
-                    .read_bytes(0, &mut plaintext)
+                    .read_bytes(0, &mut ciphertext)
+                    .is_err()
+                    || target
+                        .cipher
+                        .encrypt(sector_cursor, &mut ciphertext)
+                        .is_err()
+                {
+                    bio.complete(BioStatus::IoError);
+                    return;
+                }
+                let bounce = BioSegment::alloc_bytes(segment.nbytes(), BioDirection::ToDevice);
+                if bounce
+                    .inner_dma_slice()
+                    .write_bytes(0, &ciphertext)
                     .is_err()
                 {
                     bio.complete(BioStatus::IoError);
                     return;
                 }
-                let mut ciphertext = plaintext.clone();
-                if cipher.encrypt(sector_cursor, &mut ciphertext).is_err()
-                    || segment.inner_dma_slice().write_bytes(0, &ciphertext).is_err()
-                {
-                    bio.complete(BioStatus::IoError);
-                    return;
-                }
                 sector_cursor += segment.nsectors().to_raw();
-                plaintext_segments.push(plaintext);
+                bounce_segments.push(bounce);
             }
-        }
+            bounce_segments
+        } else {
+            bio.segments().to_vec()
+        };
 
-        let lower_bio = Bio::new(
-            bio_type,
-            Sid::from_offset(first_sector as usize * aster_block::SECTOR_SIZE),
-            bio.segments().to_vec(),
-            None,
-        );
+        let lower_bio = Bio::new(bio_type, Sid::new(lower_first_sector), lower_segments, None);
         let lower_status = lower_bio
             .submit_and_wait(self.lower.as_ref())
             .unwrap_or(BioStatus::IoError);
         if lower_status != BioStatus::Complete {
-            restore_plaintext(&bio, &plaintext_segments);
             bio.complete(lower_status);
             return;
         }
 
-        sector_cursor = first_sector;
         let status = match bio_type {
             BioType::Read => {
+                let mut sector_cursor = iv_first_sector;
                 let mut status = BioStatus::Complete;
                 for segment in bio.segments() {
                     let mut plaintext = vec![0u8; segment.nbytes()];
-                    if segment.inner_dma_slice().read_bytes(0, &mut plaintext).is_err()
-                        || cipher.decrypt(sector_cursor, &mut plaintext).is_err()
+                    if segment
+                        .inner_dma_slice()
+                        .read_bytes(0, &mut plaintext)
+                        .is_err()
+                        || target
+                            .cipher
+                            .decrypt(sector_cursor, &mut plaintext)
+                            .is_err()
                         || segment
                             .inner_dma_slice()
                             .write_bytes(0, &plaintext)
@@ -194,10 +285,7 @@ impl DmDevice {
                 }
                 status
             }
-            BioType::Write => {
-                restore_plaintext(&bio, &plaintext_segments);
-                BioStatus::Complete
-            }
+            BioType::Write => BioStatus::Complete,
             BioType::Flush => unreachable!(),
         };
         bio.complete(status);
@@ -233,13 +321,8 @@ impl DmDevice {
             return;
         }
 
-        let num_sectors: u64 = bio
-            .segments()
-            .iter()
-            .map(|segment| segment.nsectors().to_raw())
-            .sum();
         let status = if target
-            .verify_range(self.lower.as_ref(), first_sector, num_sectors)
+            .verify_segments(self.lower.as_ref(), first_sector, bio.segments())
             .is_ok()
         {
             BioStatus::Complete
@@ -254,8 +337,8 @@ impl BlockDevice for DmDevice {
     fn enqueue(&self, bio: SubmittedBio) -> Result<(), BioEnqueueError> {
         match &self.target {
             DmTarget::Passthrough => self.process_passthrough(bio),
-            DmTarget::Crypt(cipher) => {
-                self.process_crypt(bio, cipher);
+            DmTarget::Crypt(target) => {
+                self.process_crypt(bio, target);
                 Ok(())
             }
             DmTarget::Verity(target) => {
@@ -270,6 +353,10 @@ impl BlockDevice for DmDevice {
             DmTarget::Verity(target) => BlockDeviceMeta {
                 max_nr_segments_per_bio: self.lower.metadata().max_nr_segments_per_bio,
                 nr_sectors: target.data_sectors(),
+            },
+            DmTarget::Crypt(target) => BlockDeviceMeta {
+                max_nr_segments_per_bio: self.lower.metadata().max_nr_segments_per_bio,
+                nr_sectors: target.logical_sectors,
             },
             _ => self.lower.metadata(),
         }
@@ -302,8 +389,15 @@ impl Debug for DmDevice {
 
 enum DmTarget {
     Passthrough,
-    Crypt(AesXtsCipher),
+    Crypt(CryptTarget),
     Verity(VerityTarget),
+}
+
+struct CryptTarget {
+    cipher: AesXtsCipher,
+    iv_offset: u64,
+    data_offset_sectors: u64,
+    logical_sectors: usize,
 }
 
 impl Debug for DmTarget {
@@ -313,11 +407,5 @@ impl Debug for DmTarget {
             Self::Crypt(_) => formatter.write_str("Crypt(AES-256-XTS)"),
             Self::Verity(_) => formatter.write_str("Verity(SHA-256)"),
         }
-    }
-}
-
-fn restore_plaintext(bio: &SubmittedBio, plaintext_segments: &[Vec<u8>]) {
-    for (segment, plaintext) in bio.segments().iter().zip(plaintext_segments) {
-        let _ = segment.inner_dma_slice().write_bytes(0, plaintext);
     }
 }

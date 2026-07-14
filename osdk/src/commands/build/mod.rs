@@ -263,6 +263,17 @@ fn build_kernel_elf(
     );
 
     command.env("RUSTFLAGS", rustflags.join(" "));
+    if std::env::var_os("OSDK_ENABLE_AES_NI").is_some() {
+        // The pinned freestanding LLVM backend cannot compile Rust vector AES
+        // intrinsics reliably.  Enable dm's scalar API to the small OSTD
+        // inline-assembly boundary and its FPU/XMM preservation guard.
+        command.arg("-Z").arg("profile-rustflags");
+        for profile in ["dev", "release", "release-lto"] {
+            command.arg("--config").arg(format!(
+                "profile.{profile}.package.aster-dm.rustflags=['--cfg','dm_aes_ni','--check-cfg=cfg(dm_aes_ni)']"
+            ));
+        }
+    }
     command.arg("build");
     command.arg("--features").arg(features.join(" "));
     if no_default_features {

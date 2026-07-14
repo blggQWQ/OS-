@@ -1,5 +1,5 @@
 { lib, pkgs, stdenvNoCC, fetchFromGitHub, hostPlatform, writeClosure, busybox
-, benchmark, conformance, regression, dnsServer, }:
+, cryptsetup, benchmark, conformance, regression, dnsServer, }:
 let
   boot_hello = builtins.path { path = ./../src/boot_hello.sh; };
   init = builtins.path { path = ./../src/init; };
@@ -18,7 +18,7 @@ let
   # Whether the initramfs should include evtest, a common tool to debug input devices (`/dev/input/eventX`)
   is_evtest_included = false;
 
-  all_pkgs = [ busybox etc resolv_conf ]
+  all_pkgs = [ busybox cryptsetup etc resolv_conf ]
     ++ lib.optionals (benchmark != null) [ benchmark.package ]
     ++ lib.optionals (conformance != null) [ conformance.package ]
     ++ lib.optionals (regression != null) [ regression.package ]
@@ -34,6 +34,7 @@ in stdenvNoCC.mkDerivation {
     ln -sfn usr/lib $out/lib
     ln -sfn usr/lib64 $out/lib64
     cp -r ${busybox}/bin/* $out/bin/
+    cp ${cryptsetup}/bin/cryptsetup $out/bin/cryptsetup
     ${lib.optionalString is_evtest_included ''
       cp -r ${pkgs.evtest}/bin/* $out/bin/
     ''}

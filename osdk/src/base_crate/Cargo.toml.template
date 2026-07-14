@@ -1,5 +1,7 @@
 # An empty workspace table keeps the base crate away from nesting in other
 # workspaces.
+cargo-features = ["profile-rustflags"]
+
 [workspace]
 
 [package]

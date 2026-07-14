@@ -15,16 +15,52 @@
 
 DM_ROOT_DEVICE=
 DM_ROOT_REQUESTED=0
+DM_ROOT_BOOTSTRAPPED=0
+CRYPTSETUP_SMOKE_DEVICE=
+CRYPTSETUP_SMOKE_REQUESTED=0
+DM_BENCH_RAW=
+DM_BENCH_MAPPER=
+DM_BENCH_REQUESTED=0
 for arg in "$@"; do
-    if [ "$arg" = "dm-root" ]; then
+    if [ "$arg" = "dm-bench" ]; then
+        DM_BENCH_REQUESTED=1
+        break
+    fi
+done
+if [ "$DM_BENCH_REQUESTED" -eq 1 ]; then
+    while [ "$#" -gt 0 ] && [ "$1" != "dm-bench" ]; do
+        shift
+    done
+    DM_BENCH_RAW="${2:-}"
+    DM_BENCH_MAPPER="${3:-}"
+    shift 3
+fi
+for arg in "$@"; do
+    if [ "$arg" = "cryptsetup-smoke" ]; then
+        CRYPTSETUP_SMOKE_REQUESTED=1
+        break
+    fi
+done
+if [ "$CRYPTSETUP_SMOKE_REQUESTED" -eq 1 ]; then
+    while [ "$#" -gt 0 ] && [ "$1" != "cryptsetup-smoke" ]; do
+        shift
+    done
+    CRYPTSETUP_SMOKE_DEVICE="${2:-}"
+    shift 2
+fi
+for arg in "$@"; do
+    if [ "$arg" = "dm-root" ] || [ "$arg" = "dm-root-stage2" ]; then
         DM_ROOT_REQUESTED=1
         break
     fi
 done
 if [ "$DM_ROOT_REQUESTED" -eq 1 ]; then
-    while [ "$#" -gt 0 ] && [ "$1" != "dm-root" ]; do
+    while [ "$#" -gt 0 ] && [ "$1" != "dm-root" ] && [ "$1" != "dm-root-stage2" ]; do
         shift
     done
+    if [ "$1" = "dm-root-stage2" ]; then
+        DM_ROOT_BOOTSTRAPPED=1
+    fi
     DM_ROOT_DEVICE="${2:-}"
     shift 2
 fi
@@ -49,14 +85,112 @@ echo "[init] mounting exfat"
 mount -t exfat /dev/vdb /exfat
 echo "[init] mounts complete"
 
+if [ -n "$DM_BENCH_RAW" ] && [ -n "$DM_BENCH_MAPPER" ]; then
+    if [ ! -x /benchmark/bin/fio ]; then
+        echo "[dm-bench] FAIL fio is missing from the benchmark initramfs"
+        poweroff -f
+    fi
+    echo "[dm-bench] matrix=raw,dm-verity runs=5 rw=read bs=4k qd=1 size=8m runtime=2s"
+    RUN=1
+    while [ "$RUN" -le 5 ]; do
+        for LABEL in raw dm-verity; do
+            if [ "$LABEL" = "raw" ]; then
+                DEVICE="$DM_BENCH_RAW"
+            else
+                DEVICE="$DM_BENCH_MAPPER"
+            fi
+            echo "[dm-bench] BEGIN label=$LABEL run=$RUN device=$DEVICE"
+            /benchmark/bin/fio --name="${LABEL}-${RUN}" --filename="$DEVICE" \
+                --rw=read --bs=4k --ioengine=sync --direct=1 --iodepth=1 \
+                --size=8m --time_based=1 --ramp_time=1 --runtime=2 \
+                --numjobs=1 --group_reporting=1 --percentile_list=50:95:99:99.9 \
+                --output-format=json
+            echo "[dm-bench] STATS label=$LABEL run=$RUN $(cat /proc/dm-verity-stats)"
+            echo "[dm-bench] END label=$LABEL run=$RUN"
+        done
+        RUN=$((RUN + 1))
+    done
+    echo "[dm-bench] PASS five-run raw/dm-verity matrix completed"
+    poweroff -f
+    exit 0
+fi
+
+if [ -n "$CRYPTSETUP_SMOKE_DEVICE" ]; then
+    if [ -c /dev/mapper/control ]; then
+        echo "[cryptsetup-test] control node ready: /dev/mapper/control"
+    else
+        echo "[cryptsetup-test] FAIL control node missing: /dev/mapper/control"
+        ls -l /dev /dev/mapper 2>/dev/null
+        poweroff -f
+    fi
+    echo "[cryptsetup-test] opening Linux plain dm-crypt table on $CRYPTSETUP_SMOKE_DEVICE"
+    dd if=/dev/zero of=/tmp/cryptsetup.key bs=64 count=1 2>/dev/null
+    if cryptsetup open --type plain --cipher aes-xts-plain64 --key-size 512 \
+        --key-file /tmp/cryptsetup.key "$CRYPTSETUP_SMOKE_DEVICE" cryptsetup-smoke; then
+        if [ -b /dev/mapper/cryptsetup-smoke ] && \
+            dd if=/dev/mapper/cryptsetup-smoke of=/dev/null bs=4096 count=1 2>/dev/null; then
+            echo "[cryptsetup-test] PASS real cryptsetup open created a readable mapper"
+        else
+            echo "[cryptsetup-test] FAIL mapper node or mapped read"
+            poweroff -f
+        fi
+        if cryptsetup close cryptsetup-smoke 2>/tmp/cryptsetup-close.err; then
+            echo "[cryptsetup-test] PASS real cryptsetup close removed the mapper"
+            poweroff -f
+            exit 0
+        else
+            echo "[cryptsetup-test] FAIL real cryptsetup close"
+            poweroff -f
+        fi
+    else
+        echo "[cryptsetup-test] FAIL real cryptsetup open"
+        poweroff -f
+    fi
+fi
+
 # The dm-root mode performs a real root transition instead of merely mounting
 # the mapper as a side volume.  The protected image keeps /etc and application
 # data, while symlinks prepared by the image builder expose the initramfs tools
 # below /.initramfs so this deliberately small test root remains bootable.
 if [ -n "$DM_ROOT_DEVICE" ]; then
+    # Asterinas intentionally rejects pivot_root when the current root is the
+    # special rootfs mount.  Re-enter init through a bind-mounted bootstrap
+    # root first; its mount has a parent in the namespace, satisfying the same
+    # invariant exercised by Asterinas's pivot_root regression test.
+    if [ "$DM_ROOT_BOOTSTRAPPED" -eq 0 ]; then
+        echo "[dm-root] entering bind-mounted bootstrap root"
+        mkdir -p /bootstrap-root
+        if ! mount --bind / /bootstrap-root; then
+            echo "[dm-root] FAIL bootstrap root bind mount rejected"
+            poweroff -f
+        fi
+        # A plain bind does not recursively carry the devfs submount.  The
+        # second-stage init needs the already registered mapper block node.
+        if ! mount --bind /dev /bootstrap-root/dev; then
+            echo "[dm-root] FAIL bootstrap devfs bind mount rejected"
+            poweroff -f
+        fi
+        exec chroot /bootstrap-root /init dm-root-stage2 "$DM_ROOT_DEVICE" "$@"
+        echo "[dm-root] FAIL bootstrap chroot returned"
+        poweroff -f
+    fi
+    if [ "$DM_ROOT_BOOTSTRAPPED" -eq 1 ] && \
+        [ "${DM_ROOT_DEVICE#*crypt}" != "$DM_ROOT_DEVICE" ] && \
+        [ -r /proc/dm-crypto-backend ]; then
+        echo "[dm-perf] AES backend=$(cat /proc/dm-crypto-backend)"
+    fi
+    if [ "$DM_ROOT_BOOTSTRAPPED" -eq 1 ] && \
+        [ "${DM_ROOT_DEVICE#*verity}" != "$DM_ROOT_DEVICE" ] && \
+        [ -r /proc/dm-verity-stats ]; then
+        echo "[dm-perf] verity $(cat /proc/dm-verity-stats)"
+    fi
     echo "[dm-root] mounting protected root from $DM_ROOT_DEVICE"
     if [ ! -b "$DM_ROOT_DEVICE" ]; then
-        echo "[dm-root] FAIL mapper device is missing: $DM_ROOT_DEVICE"
+        if [ -r /proc/dm-verity-stats ]; then
+            echo "[dm-root] FAIL mapper device is missing: $DM_ROOT_DEVICE ($(cat /proc/dm-verity-stats))"
+        else
+            echo "[dm-root] FAIL mapper device is missing: $DM_ROOT_DEVICE"
+        fi
         poweroff -f
     fi
     mkdir -p /newroot
@@ -76,6 +210,11 @@ if [ -n "$DM_ROOT_DEVICE" ]; then
     cd /
     if [ -f /etc/dm-verity-proof ] && [ -d /.initramfs ]; then
         echo "[dm-root] PASS system root switched to protected mapper"
+        if [ -x /.initramfs/bin/busybox ]; then
+            echo "[dm-root] PASS initramfs runtime retained below /.initramfs"
+            exec /.initramfs/bin/busybox poweroff -f
+        fi
+        echo "[dm-root] FAIL initramfs runtime is unavailable after pivot_root"
     else
         echo "[dm-root] FAIL protected root is not active"
         /.initramfs/bin/poweroff -f
