@@ -67,7 +67,10 @@ cargo run -p dmctl -- demo-verity
 
 当前核心 I/O 已支持 Linux `aes-xts-plain64`、64 字节 AES-256-XTS key、
 plain64 IV 与 data offset，并已通过 Linux 内核逐字节对照。标准
-`cryptsetup open` 仍需要 Asterinas 的用户态 mapper 控制接口与设备节点管理。
+当前版本已提供 `/dev/mapper/control` 的 Linux `dm_ioctl` 控制接口及动态设备节点：
+在 KVM 客体中以 `cryptsetup 2.7.5 open` 创建 mapper，读取验证后再以
+`cryptsetup close` 删除，三步均已留存串口 PASS 证据。LUKS2 的 PBKDF、keyslot
+和 metadata 仍由用户态 cryptsetup 负责，内核只消费其下发的 dm-crypt table。
 
 更完整回答：本项目已完成 dm-crypt 核心 I/O 语义，`cryptsetup` 完整兼容还需要 table 参数解析、LUKS metadata 和用户态控制接口，路线见 `docs/cryptsetup_compatibility.md`。
 

@@ -1,6 +1,6 @@
 use dm::{
-    BlockDevice, DmCryptDevice, DmCryptTable, DmError, DmVerityDevice, FileBlockDevice,
-    MemoryBlockDevice, Result,
+    BlockDevice, DmCryptDevice, DmCryptTable, DmError, DmStackBuilder, DmVerityDevice,
+    FileBlockDevice, MemoryBlockDevice, Result,
 };
 use std::env;
 use std::fs::{self, OpenOptions};
@@ -139,9 +139,18 @@ fn run() -> Result<()> {
         }
         "demo-crypt" => demo_crypt()?,
         "demo-verity" => demo_verity()?,
+        "demo-stack" => demo_stack()?,
         "benchmark" => {
-            let blocks = args.get(2).map(|v| parse_u64(v)).transpose()?.unwrap_or(4096);
-            let iterations = args.get(3).map(|v| parse_usize(v)).transpose()?.unwrap_or(3);
+            let blocks = args
+                .get(2)
+                .map(|v| parse_u64(v))
+                .transpose()?
+                .unwrap_or(4096);
+            let iterations = args
+                .get(3)
+                .map(|v| parse_usize(v))
+                .transpose()?
+                .unwrap_or(3);
             benchmark(blocks, iterations)?;
         }
         _ => print_help(),
@@ -156,7 +165,10 @@ fn demo_crypt() -> Result<()> {
     FileBlockDevice::create(image, 8, 64)?;
     let lower = FileBlockDevice::open(image, 64, true)?;
     let crypt = DmCryptDevice::new(lower, b"national-final-demo-key")?;
-    let plain = padded_block(b"CSCC dm-crypt demo: plaintext visible only above mapper", 64);
+    let plain = padded_block(
+        b"CSCC dm-crypt demo: plaintext visible only above mapper",
+        64,
+    );
     crypt.write_block(2, &plain)?;
 
     let raw = FileBlockDevice::open(image, 64, false)?.snapshot_block(2)?;
@@ -204,6 +216,53 @@ fn demo_verity() -> Result<()> {
     Ok(())
 }
 
+fn demo_stack() -> Result<()> {
+    const BLOCK_SIZE: usize = 512;
+    let raw = MemoryBlockDevice::new(4, BLOCK_SIZE)?;
+    let key_hex: String = (0u8..64).map(|byte| format!("{byte:02x}")).collect();
+    let table = DmCryptTable::from_str(&format!(
+        "aes-xts-plain64 {key_hex} 0 memory 0 2 no_read_workqueue no_write_workqueue"
+    ))?;
+    let crypt = DmStackBuilder::new(raw.clone())
+        .crypt("crypt-root", &table)?
+        .build();
+    let plain = padded_block(
+        b"CSCC composable confidential + verified rootfs",
+        BLOCK_SIZE,
+    );
+    crypt.write_block(0, &plain)?;
+
+    let formatted = DmVerityDevice::build(crypt)?;
+    let stack = DmStackBuilder::new(raw)
+        .crypt("crypt-root", &table)?
+        .verity(
+            "verified-root",
+            formatted.tree().clone(),
+            formatted.root_hash(),
+        )
+        .build();
+    let mut recovered = vec![0; BLOCK_SIZE];
+    stack.read_block(0, &mut recovered)?;
+
+    for (index, layer) in stack.layers().iter().enumerate() {
+        println!(
+            "layer={index} name={} target={} confidentiality={} integrity={} read_only={}",
+            layer.name,
+            layer.target,
+            layer.capabilities.confidentiality,
+            layer.capabilities.integrity,
+            layer.capabilities.read_only
+        );
+    }
+    let capabilities = stack.capabilities();
+    println!(
+        "stack confidentiality={} integrity={} read_only={}",
+        capabilities.confidentiality, capabilities.integrity, capabilities.read_only
+    );
+    println!("read={}", printable_block(&recovered));
+    Ok(())
+}
+
 fn print_help() {
     eprintln!(
         "Usage:
@@ -218,6 +277,7 @@ fn print_help() {
   dmctl tamper <image> <block-size> <block-id> <offset> <byte-hex>
   dmctl demo-crypt
   dmctl demo-verity
+  dmctl demo-stack
   dmctl benchmark [blocks] [iterations]"
     );
 }
@@ -229,14 +289,14 @@ fn benchmark(blocks: u64, iterations: usize) -> Result<()> {
     }
     let plain = MemoryBlockDevice::new(blocks, BLOCK_SIZE)?;
     let key_hex: String = (0u8..64).map(|byte| format!("{byte:02x}")).collect();
-    let table = DmCryptTable::from_str(&format!(
-        "aes-xts-plain64 {key_hex} 0 memory 0"
-    ))?;
+    let table = DmCryptTable::from_str(&format!("aes-xts-plain64 {key_hex} 0 memory 0"))?;
     let crypt = DmCryptDevice::from_table(plain.clone(), &table)?;
     let block = vec![0x5a; BLOCK_SIZE];
     let mut out = vec![0; BLOCK_SIZE];
 
-    println!("implementation,operation,block_size,bytes,seconds,mib_per_second,checksum");
+    println!(
+        "implementation,operation,block_size,bytes,seconds,mib_per_second,microseconds_per_block,checksum"
+    );
     let (elapsed, checksum) = timed_io(blocks, iterations, || {
         for block_id in 0..blocks {
             plain.write_block(block_id, &block)?;
@@ -261,7 +321,14 @@ fn benchmark(blocks: u64, iterations: usize) -> Result<()> {
         }
         Ok(0)
     })?;
-    print_bench("rust-aes-xts", "write", blocks, iterations, elapsed, checksum);
+    print_bench(
+        "rust-aes-xts",
+        "write",
+        blocks,
+        iterations,
+        elapsed,
+        checksum,
+    );
 
     let (elapsed, checksum) = timed_io(blocks, iterations, || {
         let mut sum = 0u64;
@@ -271,7 +338,14 @@ fn benchmark(blocks: u64, iterations: usize) -> Result<()> {
         }
         Ok(sum)
     })?;
-    print_bench("rust-aes-xts", "read", blocks, iterations, elapsed, checksum);
+    print_bench(
+        "rust-aes-xts",
+        "read",
+        blocks,
+        iterations,
+        elapsed,
+        checksum,
+    );
 
     for block_id in 0..blocks {
         plain.write_block(block_id, &block)?;
@@ -316,15 +390,20 @@ fn print_bench(
     const BLOCK_SIZE: usize = 4096;
     let bytes = blocks as f64 * iterations as f64 * BLOCK_SIZE as f64;
     let mib_per_second = bytes / (1024.0 * 1024.0) / seconds;
+    let operations = blocks as f64 * iterations as f64;
+    let microseconds_per_block = seconds * 1_000_000.0 / operations;
     println!(
-        "{implementation},{operation},{BLOCK_SIZE},{},{seconds:.6},{mib_per_second:.2},{checksum}",
+        "{implementation},{operation},{BLOCK_SIZE},{},{seconds:.6},{mib_per_second:.2},{microseconds_per_block:.3},{checksum}",
         bytes as u64
     );
 }
 
 fn require_len(args: &[String], len: usize) -> Result<()> {
     if args.len() != len {
-        return Err(DmError::Io(format!("expected {len} arguments, got {}", args.len())));
+        return Err(DmError::Io(format!(
+            "expected {len} arguments, got {}",
+            args.len()
+        )));
     }
     Ok(())
 }
@@ -349,7 +428,10 @@ fn padded_block(input: &[u8], block_size: usize) -> Vec<u8> {
 }
 
 fn printable_block(input: &[u8]) -> String {
-    let end = input.iter().position(|byte| *byte == 0).unwrap_or(input.len());
+    let end = input
+        .iter()
+        .position(|byte| *byte == 0)
+        .unwrap_or(input.len());
     String::from_utf8_lossy(&input[..end]).into_owned()
 }
 

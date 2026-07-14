@@ -141,15 +141,18 @@ fio --name=verity-read --filename=/mnt/testfile --size=128M --rw=read --bs=4k
 
 当前限制：
 
-- 标准 `cryptsetup open` 尚缺用户态到 Asterinas mapper 的完整控制接口；
-- 用户态测试 tree 仍在内存中，Asterinas 内核路径已使用 on-disk hash tree；
-- Linux/Asterinas 同配置的完整 fio 与启动耗时对照仍待采集。
+- 已实现 `/dev/mapper/control` 的 Linux `dm_ioctl` 控制路径；在 KVM 客体中使用
+  `cryptsetup 2.7.5 open/close` 完成了真实 mapper 的创建、可读验证与销毁验证。
+- 用户态测试 tree 仍在内存中；Asterinas 内核路径使用镜像尾部的 on-disk hash tree。
+- 已完成 Linux dm-crypt/dm-verity 基线与 Asterinas KVM 五轮 dm-verity cache A/B。
+  跨系统绝对吞吐的严格同硬件对照仍是下一阶段工作，当前报告不将不同宿主条件
+  下的绝对数值直接作横向结论。
 
 这些限制与正式题面的关系见 [requirement_mapping.md](requirement_mapping.md)。其中 rootfs 加密与验证见 [rootfs_protection.md](rootfs_protection.md)，cryptsetup 兼容路线见 [cryptsetup_compatibility.md](cryptsetup_compatibility.md)。
 
 后续工作：
 
-1. 补齐标准 `cryptsetup open` 控制接口；
-2. 增加 Linux/Asterinas 同配置 fio 对照；
-3. 优化 verity hash-block cache；
-4. 记录 plain、crypt、verity 的启动耗时。
+1. 在同一物理平台、固定 CPU governor 的条件下补齐 Linux/Asterinas 对照矩阵；
+2. 扩展 `dm_ioctl` table 参数与错误码兼容性覆盖；
+3. 增加 crypt+verity 叠加根文件系统的端到端压力测试；
+4. 记录 plain、crypt、verity 的冷启动与热启动耗时。

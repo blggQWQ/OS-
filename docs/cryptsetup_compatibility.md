@@ -77,7 +77,7 @@ cryptsetup open /dev/vdb secure_data
 
 如果时间有限，建议答辩口径：
 
-> 当前版本已完成 AES-256-XTS 核心 I/O、Linux dm-crypt table 解析，并与 Linux 内核输出完成逐字节互操作验证。标准 `cryptsetup open` 的完整链路仍需 Asterinas 提供 mapper 控制接口；LUKS2 的 PBKDF、keyslot 与 metadata 继续由用户态 cryptsetup 负责，不应在内核重复实现。
+> 当前版本已完成 AES-256-XTS 核心 I/O、Linux dm-crypt table 解析，并与 Linux 内核输出完成逐字节互操作验证。Asterinas 已提供 `/dev/mapper/control` 的 Linux `dm_ioctl` 控制路径；KVM 客体中的 cryptsetup 2.7.5 已完成 `open` 创建可读 mapper 及 `close` 删除 mapper 的真实链路验证。LUKS2 的 PBKDF、keyslot 与 metadata 继续由用户态 cryptsetup 负责，内核只消费其下发的 dm-crypt table，不在内核重复实现。
 
 ## Linux 基准对照
 

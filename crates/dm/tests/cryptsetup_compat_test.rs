@@ -17,17 +17,31 @@ fn parses_linux_dm_crypt_table() {
     assert_eq!(table.iv_offset, 17);
     assert_eq!(table.device, "/dev/vdb");
     assert_eq!(table.offset, 8);
-    assert_eq!(table.options, ["1", "allow_discards"]);
+    assert_eq!(table.options, ["allow_discards"]);
+}
+
+#[test]
+fn validates_linux_crypt_option_count_and_semantics() {
+    let malformed = DmCryptTable::from_str(&format!(
+        "aes-xts-plain64 {} 0 /dev/vdb 0 2 allow_discards",
+        key_hex()
+    ));
+    assert!(malformed.is_err());
+
+    let unsupported = DmCryptTable::from_str(&format!(
+        "aes-xts-plain64 {} 0 /dev/vdb 0 1 sector_size:4096",
+        key_hex()
+    ))
+    .unwrap();
+    let lower = MemoryBlockDevice::new(2, 4096).unwrap();
+    assert!(DmCryptDevice::from_table(lower, &unsupported).is_err());
 }
 
 #[test]
 fn aes_xts_round_trip_uses_offset_and_plain64_sector_number() {
     let lower = MemoryBlockDevice::new(4, 4096).unwrap();
-    let table = DmCryptTable::from_str(&format!(
-        "aes-xts-plain64 {} 9 /dev/vdb 8",
-        key_hex()
-    ))
-    .unwrap();
+    let table =
+        DmCryptTable::from_str(&format!("aes-xts-plain64 {} 9 /dev/vdb 8", key_hex())).unwrap();
     let crypt = DmCryptDevice::from_table(lower.clone(), &table).unwrap();
     assert_eq!(crypt.num_blocks(), 3);
 

@@ -61,7 +61,10 @@ impl BlockDevice for MemoryBlockDevice {
     }
 
     fn num_blocks(&self) -> u64 {
-        self.blocks.lock().expect("memory block lock poisoned").len() as u64
+        self.blocks
+            .lock()
+            .expect("memory block lock poisoned")
+            .len() as u64
     }
 
     fn read_block(&self, block_id: u64, buf: &mut [u8]) -> Result<()> {
@@ -218,5 +221,23 @@ impl BlockDevice for FileBlockDevice {
         file.write_all(buf)?;
         file.flush()?;
         Ok(())
+    }
+}
+
+impl<D: BlockDevice + ?Sized> BlockDevice for Arc<D> {
+    fn block_size(&self) -> usize {
+        (**self).block_size()
+    }
+
+    fn num_blocks(&self) -> u64 {
+        (**self).num_blocks()
+    }
+
+    fn read_block(&self, block_id: u64, buf: &mut [u8]) -> Result<()> {
+        (**self).read_block(block_id, buf)
+    }
+
+    fn write_block(&self, block_id: u64, buf: &[u8]) -> Result<()> {
+        (**self).write_block(block_id, buf)
     }
 }
