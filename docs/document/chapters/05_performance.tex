@@ -36,7 +36,9 @@
     \item 对于频繁访问的块（如根节点附近的层），缓存命中率显著提升。
 \end{itemize}
 
-初步测试表明，该缓存机制可以将随机读场景下的校验开销降低约 30\%。
+现有 KVM 五轮顺序读 A/B 表明，cache=256 相对 cache=0 的 dm-verity 中位吞吐
+从 0.320 MiB/s 提升到 0.398 MiB/s（+24.4\%），中位 p95 从 15007.744 us
+降到 13697.024 us（-8.7\%）。两组均为 \texttt{data\_rereads=0}。
 
 \subsection{批量读取相邻块}
 
@@ -50,24 +52,27 @@
 
 \section{I/O 吞吐优化}
 
-\subsection{零拷贝技术}
+\subsection{完成 BIO 数据复用}
 
-传统的 I/O 路径中，数据在用户态和内核态之间多次拷贝，造成不必要的 CPU 开销和内存带宽浪费。我们采取以下措施：
+verity 认证路径直接复用下层已经完成的 BIO 数据进行哈希校验，避免为了认证再次读取
+同一数据块。内核计数器 \texttt{data\_rereads} 用于验证这项优化是否生效：
 
 \begin{itemize}
-    \item 在 DmCryptDevice 中直接操作 DMA 缓冲区，避免中间拷贝。
-    \item 利用 Rust 的引用和借用机制，确保数据在转换过程中的安全性。
-    \item 与星绽内核的 BIO 层紧密集成，直接访问 DMA 切片。
+    \item 从完成的 BIO segment 中读取待认证数据。
+    \item 只为 Merkle hash block 发起必要的额外读取。
+    \item cache=0 与 cache=256 的五轮测试均记录 \texttt{data\_rereads=0}。
 \end{itemize}
 
 \subsection{临时缓冲区重用}
 
-在加密/解密过程中，频繁分配和释放临时缓冲区会造成显著的内存分配开销。我们实现了缓冲区池机制：
+在加密/解密过程中复用输出缓冲区，减少热路径中的重复分配。该措施已经进入真实
+Asterinas BIO 路径，但当前没有隔离该变量的五轮 A/B，因此只报告实现状态，
+不单独给出性能收益。
 
 \begin{itemize}
-    \item 预先分配一批固定大小的缓冲区。
-    \item 在 I/O 操作中循环使用这些缓冲区。
-    \item 避免每次操作都触发堆分配，降低延迟波动。
+    \item mapper 在 BIO 路径中管理转换所需的输出缓冲区。
+    \item 完成后将结果写回调用方 BIO segment。
+    \item 后续通过只切换缓冲区复用开关的同条件 A/B 量化收益。
 \end{itemize}
 
 \section{Boot 时间控制}
@@ -87,7 +92,8 @@ dm-verity 的引入不应显著增加内核启动时间。我们采取了以下�
 \begin{itemize}
     \item 在启动阶段，仅验证根哈希的有效性，而不遍历整棵树。
     \item 利用自检机制快速验证解密路径是否正确。
-    \item 该策略确保启动时间增量控制在 5\% 以内。
+    \item 当前串口日志证明受保护 rootfs 可以完成根切换；启动时间增量仍待五轮计时
+    对照，不给出无日志支撑的百分比。
 \end{itemize}
 
 \section{硬件加速}
@@ -102,7 +108,8 @@ AES-256-XTS 加密是 dm-crypt 的核心计算密集型操作。我们确保：
     \item 在不支持 AES-NI 的 CPU 上，自动回退到软件实现。
 \end{itemize}
 
-性能对比显示，启用 AES-NI 后，加密吞吐量提升约 5-8 倍。
+现有五轮 Asterinas dm-crypt 串口日志均确认使用 AES-NI 后端。由于尚无相同
+KVM、镜像和 FIO 参数下的软件 AES 五轮 A/B，本报告不声称 AES-NI 的加速倍数。
 
 \subsection{并行化处理}
 
@@ -175,20 +182,19 @@ AES-256-XTS 加密是 dm-crypt 的核心计算密集型操作。我们确保：
     \label{tab:optimization_mapping}
     \begin{tabular}{p{0.30\textwidth}p{0.30\textwidth}p{0.30\textwidth}}
         \toprule
-        \textbf{优化策略} & \textbf{涉及代码实体} & \textbf{预期效果} \\
+        \textbf{优化策略} & \textbf{涉及代码实体} & \textbf{证据或状态} \\
         \midrule
-        哈希块缓存 & HashTree、DmVerityDevice & 减少 30\% 校验开销 \\
-        零拷贝 I/O & VirtioBlkAdapter、DmCryptDevice & 减少内存拷贝开销 \\
-        缓冲区重用 & DmCryptDevice transform & 降低延迟波动 \\
-        批量读取 & HashTree build & 加速镜像构建 \\
-        AES-NI 加速 & Aes256XtsCipher & 加密吞吐提升 5-8 倍 \\
-        按需校验 & DmVerityDevice read block & 启动时间增量小于 5\% \\
+        认证后 hash cache & aster-dm verity & 五轮中位吞吐 +24.4\%，p95 -8.7\% \\
+        完成 BIO 数据复用 & aster-dm verity & 两组 A/B 均为 data\_rereads=0 \\
+        AES-NI 后端 & aster-dm crypto & 五轮日志确认 AES-NI；软件 AES A/B 待补 \\
+        输出缓冲区复用 & aster-dm device & 已实现；单项收益尚未量化 \\
         \bottomrule
     \end{tabular}
 \end{table}
 
 \section{小结}
 
-本章系统性地阐述了针对 dm-crypt 和 dm-verity 的多层次性能优化策略。通过哈希树缓存、零拷贝 I/O、缓冲区重用、硬件加速（AES-NI）以及启动阶段的延迟校验等手段，我们有效地降低了加密和完整性校验对系统性能的影响。
-
-Rust 微基准测试为每项优化提供了精确的量化依据，确保优化措施的有效性。在下一章中，我们将通过功能正确性测试和性能基准测试，全面验证系统的功能和性能指标。
+本章阐述了 dm-crypt 和 dm-verity 的性能优化策略。当前可量化结论限于
+dm-verity 认证后 hash cache 的五轮 A/B；AES-NI 后端与缓冲区复用已经实现，
+但在形成相同条件的 A/B 前不单独声称其收益。下一章将给出功能正确性和现有
+KVM 五轮基准证据。

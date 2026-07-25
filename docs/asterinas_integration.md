@@ -37,7 +37,9 @@ impl BlockDevice for VirtioBlkAdapter {
 }
 ```
 
-参考 [asterinas_port/adapter_skeleton.rs](../asterinas_port/adapter_skeleton.rs)。
+真实实现见
+[`asterinas/kernel/comps/dm/src/device.rs`](../asterinas/kernel/comps/dm/src/device.rs)，
+它直接实现 Asterinas `BlockDevice` 的 BIO 转发，不再依赖早期适配层骨架。
 
 ## 步骤 3：先跑 passthrough
 
@@ -80,7 +82,8 @@ rootfs_verity.scheme=dm-verity
 rootfs_verity.hash=<root_hash_hex>
 ```
 
-参考 [asterinas_port/cmdline_skeleton.rs](../asterinas_port/cmdline_skeleton.rs)。
+真实启动参数定义、解析和 mapper 注册见
+[`asterinas/kernel/comps/dm/src/lib.rs`](../asterinas/kernel/comps/dm/src/lib.rs)。
 
 ## 步骤 6：rootfs 保护
 
@@ -94,4 +97,3 @@ rootfs_verity.hash=<root_hash_hex>
 ```
 
 这条线是答辩时最容易讲清楚的安全闭环。
-

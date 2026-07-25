@@ -300,14 +300,12 @@ dm-crypt 提供透明块级加密，专注 AES-256-XTS，严格兼容 Linux dm-c
 
 ### 优化措施
 
-| 优化策略 | 涉及代码实体 | 预期效果 |
-|----------|--------------|----------|
-| 哈希块缓存（LRU） | `HashTree`、`DmVerityDevice` | 减少约 30% 校验开销 |
-| 零拷贝 I/O | `VirtioBlkAdapter`、`DmCryptDevice` | 减少内存拷贝 |
-| 缓冲区重用 | `DmCryptDevice::transform` | 降低延迟波动 |
-| 批量读取 | `HashTree::build` | 加速镜像构建 |
-| AES-NI 加速 | `Aes256XtsCipher` | 加密吞吐提升 5–8 倍 |
-| 按需校验 | `DmVerityDevice::read_block` | 启动时间增量 < 5% |
+| 优化策略 | 涉及代码实体 | 已验证结果 / 状态 |
+|----------|--------------|-------------------|
+| 认证后 hash cache | `asterinas/kernel/comps/dm/src/verity.rs` | 五轮中位吞吐 +24.4%，p95 -8.7% |
+| 完成 BIO 数据复用 | `asterinas/kernel/comps/dm/src/verity.rs` | 两组 A/B 均为 `data_rereads=0` |
+| AES-NI 后端 | `asterinas/kernel/comps/dm/src/crypto.rs` | 五轮 dm-crypt 日志均确认 `backend=AES-NI`；尚无同条件软件 AES A/B |
+| 输出缓冲区复用 | `asterinas/kernel/comps/dm/src/device.rs` | 已实现；尚未单独量化 |
 
 ![性能比较逻辑图](docs/document/figures/performance_comparison_logic.png)
 
@@ -356,29 +354,38 @@ bash scripts/benchmark.sh
 
 ### 性能测试结果
 
-**测试环境**：QEMU 8.2.2+、4 vCPU、4 GiB 内存、virtio-blk、cache=none、4 KiB 块
+以下数字只引用仓库中已经版本化的 KVM 日志和 CSV，不把不同客体、不同运行时长的
+Linux/WSL 基线与 Asterinas 绝对吞吐直接比较。
 
-| 模式 | 结果 |
-|------|------|
-| Plain | 星绽与 Linux 性能基本持平 |
-| dm-crypt | 达到 Linux 原生 dm-crypt 的 85%–90% |
-| dm-verity | 读性能开销约 15%–20% |
-| 启动时间 | 引入 dm-verity 后增加约 3%–5% |
+**Asterinas dm-crypt 五轮基准（KVM、CPU=host、AES-NI、4 KiB、QD1、direct、
+1 秒 ramp + 2 秒 runtime、8 MiB、顺序读）：**
 
-**哈希块缓存效果：**
+| 设备 | 五轮中位吞吐（MiB/s） | 中位 p95（us） | 中位 p99（us） | 相对 raw 吞吐 |
+|------|-----------------------:|----------------:|----------------:|---------------:|
+| raw | 3.018 | 1892.352 | 2965.504 | 100.0% |
+| dm-crypt | 1.506 | 3620.864 | 5079.040 | 49.9% |
 
-| 场景 | 无缓存（MiB/s） | 有缓存（MiB/s） |
-|------|-----------------|-----------------|
-| 顺序读 | 95.2 | 112.8 |
-| 随机读（4KiB） | 18.7 | 24.3 |
-| 随机读（64KiB） | 42.1 | 54.6 |
+证据：[逐轮 CSV](docs/evidence/asterinas-dm-crypt-kvm.csv)、
+[汇总 CSV](docs/evidence/asterinas-dm-crypt-kvm-summary.csv)、
+[测试说明](docs/evidence/asterinas-dm-crypt-kvm-2026-07-15.md)。
 
-**AES-NI 加速效果：**
+**Asterinas dm-verity hash cache A/B（同一 16 MiB 受保护镜像、KVM、4 KiB fio
+读；每个配置五轮，只比较 dm-verity 行）：**
 
-| 场景 | 软件模式（MiB/s） | AES-NI 模式（MiB/s） |
-|------|-------------------|----------------------|
-| 加密写入（顺序） | 156.3 | 892.7 |
-| 解密读取（顺序） | 148.9 | 875.2 |
+| hash cache | 五轮中位吞吐（MiB/s） | 中位 p95（us） | 中位 p99（us） | 最终 hits / misses |
+|-----------:|-----------------------:|----------------:|----------------:|---------------------:|
+| 0 blocks | 0.320 | 15007.744 | 18219.008 | 0 / 2420 |
+| 256 blocks | 0.398 | 13697.024 | 18219.008 | 2785 / 5 |
+
+认证后 hash cache 将中位吞吐提高 **24.4%**、p95 降低 **8.7%**；两组均为
+`data_rereads=0`，收益来自减少 Merkle hash block 重读，而不是跳过数据认证。
+证据：[cache=0 CSV](docs/evidence/asterinas-verity-fio-cache0-kvm.csv)、
+[cache=256 CSV](docs/evidence/asterinas-verity-fio-cache256-kvm.csv)、
+[完整验证说明](docs/evidence/FINAL_VALIDATION.md)。
+
+> 严格的 Linux vs Asterinas 绝对吞吐表尚待在相同宿主机、QEMU/KVM 配置、镜像、
+> fio 参数和运行时长下补测。在此之前，本项目不声称 Asterinas 达到 Linux 性能的
+> 某个百分比；现有 Linux/WSL 五轮矩阵仅作为独立参考上限。
 
 ![交叉验证数据流图](docs/document/figures/cross_validation_flow.png)
 
@@ -407,7 +414,7 @@ bash scripts/benchmark.sh
 - 星绽内核完整集成（三个 Git 补丁）
 - 基于 ext2 超级块魔数的启动自检
 - 五阶段渐进式保护路径（Plain → Combined）
-- 哈希块缓存、零拷贝 I/O、缓冲区重用、AES-NI 加速
+- 认证后 hash cache、完成 BIO 数据复用、输出缓冲区复用、AES-NI 后端
 
 ### AI 工具使用声明
 
@@ -429,6 +436,14 @@ bash scripts/benchmark.sh
 | 4 | 06-24 01:33 | `2f8a671` | 接入受保护根文件系统 |
 | 5 | 06-24 01:42 | `a0dbb0f` | 补充 AI 工具使用说明 |
 | 6 | 06-24 01:48 | `84970aa` | 文档中文化 |
+| 7 | 06-29 21:06 | `f587893` | 添加 LaTeX 技术文档、PDF 与答辩 PPT |
+| 8 | 06-29 22:10 | `dabfee4` | 更新答辩 PPT 入口 |
+| 9 | 06-30 17:08 | `c22b8b4` | 添加演示视频入口 |
+| 10 | 07-14 18:44 | `5f345a1` | 完成安全存储性能对照与验收证据 |
+
+当前主仓库历史只能识别两个提交身份：`scnu202421326914` 与 `ZLH`。评审 tag 前，
+需要由张乐桁、陈韵、潘利源分别使用可识别的姓名/邮箱提交本人负责的最终改动；不得
+通过改写 author 或伪造空提交补记录。完成后用 `git shortlog -sne --all` 复核三人均可见。
 
 ![GitLab 仓库提交历史](docs/document/figures/git_commit_history.png)
 
@@ -556,10 +571,13 @@ docs/
   rootfs_protection.md        rootfs 加密与校验方案
   cryptsetup_compatibility.md cryptsetup 兼容路线
   document/                   LaTeX 技术文档、PDF、PPT、插图
+asterinas/kernel/comps/dm/    已接入 Asterinas 的真实 Device Mapper 内核组件
+  src/device.rs               真实块设备映射与 BIO 转发
+  src/lib.rs                  启动参数、设备注册和根文件系统接入
+  src/verity.rs               on-disk Merkle 校验与认证后 hash cache
 asterinas_port/
-  README.md                   内核接入说明
-  adapter_skeleton.rs         virtio-blk 适配层骨架
-  cmdline_skeleton.rs         启动参数解析骨架
+  README.md                   移植历史、补丁与真实实现位置说明
+  patches/                    可审计的 Asterinas 集成补丁
 scripts/
   run_tests.ps1               Windows 测试入口
   demo_crypt.ps1              Windows dm-crypt 演示
@@ -646,9 +664,9 @@ sudo bash scripts/build_crypt_rootfs.sh
 | plain64 IV | 64 位扇区号作为 IV | `src/crypto.rs` |
 | IntegrityViolation | 哈希不匹配错误 | `src/error.rs` |
 | Root Hash | 默克尔树顶层哈希（信任锚） | `src/hash_tree.rs` |
-| VirtioBlkAdapter | virtio-blk 内核适配 | `adapter_skeleton.rs` |
-| DmBootConfig | 启动参数结构体 | `cmdline_skeleton.rs` |
-| aster-dm | 星绽内核 Device Mapper 组件 | `asterinas_port/` |
+| DmDevice | Asterinas BIO 块设备映射 | `asterinas/kernel/comps/dm/src/device.rs` |
+| DM 启动参数 | crypt/verity 启动参数与设备注册 | `asterinas/kernel/comps/dm/src/lib.rs` |
+| aster-dm | 星绽内核 Device Mapper 组件 | `asterinas/kernel/comps/dm/` |
 | self_test_ext2_magic | 启动时自检函数 | 补丁 0002 |
 | pivot_root | 切换根文件系统 | 补丁 0003 |
 | dmctl | 用户态命令行工具 | `dmctl/src/main.rs` |
