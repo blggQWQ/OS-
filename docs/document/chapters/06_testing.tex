@@ -101,7 +101,7 @@
 
 \subsection{测试环境说明}
 
-所有性能测试在统一的 QEMU 虚拟化环境中进行：
+版本化的 Asterinas 五轮基准使用以下实际参数：
 
 \begin{table}[H]
     \centering
@@ -111,13 +111,12 @@
         \toprule
         \textbf{配置项} & \textbf{参数} \\
         \midrule
-        QEMU 版本 & 8.2.2+ \\
-        vCPU 数量 & 4 \\
-        内存 & 4 GiB \\
+        客体构建环境 & asterinas/asterinas:0.18.0-20260618 \\
+        加速与 CPU & KVM，CPU=host \\
+        vCPU / 内存 & 1 / 8 GiB（Asterinas 默认值） \\
         存储接口 & virtio-blk \\
-        缓存模式 & cache=none \\
-        AIO 模式 & native \\
-        块大小 & 4 KiB \\
+        FIO I/O & read，sync，direct=1，QD1，4 KiB \\
+        测试长度 & 8 MiB，ramp 1 秒，runtime 2 秒，每组 5 轮 \\
         \bottomrule
     \end{tabular}
 \end{table}
@@ -126,18 +125,19 @@
 
 我们使用 FIO 对三种配置（Plain、dm-crypt、dm-verity）进行全面的性能评估。
 
-测试结果分析：
-\begin{itemize}
-    \item \textbf{Plain 模式}：星绽与 Linux 性能基本持平。
-    \item \textbf{dm-crypt 模式}：星绽实现达到 Linux 原生 dm-crypt 性能的 85\%-90\%。
-    \item \textbf{dm-verity 模式}：哈希校验引入约 15\%-20\% 的读性能开销。
-\end{itemize}
+当前版本只报告已经由版本化日志和 CSV 支撑的结果。Asterinas KVM 中，
+dm-crypt 在 4 KiB、QD1、direct、2 秒 runtime 的五轮顺序读测试中，中位吞吐为
+1.506 MiB/s，raw 为 3.018 MiB/s。dm-verity 的 hash cache A/B 中，cache=0 与
+cache=256 的五轮中位吞吐分别为 0.320 MiB/s 和 0.398 MiB/s。现有 Linux/WSL
+基线使用不同客体、矩阵和运行时长，因此不得据此宣称跨系统性能百分比；严格的
+Linux/Asterinas 对照必须在相同 QEMU/KVM 配置、镜像和 FIO 参数下补测。
 
 \subsection{启动开销分析}
 
 启动时间测量评估了引入 dm-verity 后对内核启动时间的影响。
 
-测试结果表明，引入 dm-verity 后启动时间增加约 3\%-5\%。
+当前证据只证明 dm-verity 受保护根文件系统可以完成启动和根切换；尚未形成带原始
+启动时间日志的五轮对照，因此不对启动开销给出百分比结论。
 
 \section{Linux 交叉验证}
 
@@ -170,29 +170,19 @@
         \toprule
         \textbf{场景} & \textbf{无缓存（MiB/s）} & \textbf{有缓存（MiB/s）} \\
         \midrule
-        顺序读 & 95.2 & 112.8 \\
-        随机读（4KiB） & 18.7 & 24.3 \\
-        随机读（64KiB） & 42.1 & 54.6 \\
+        顺序读（4 KiB、QD1） & 0.320 & 0.398 \\
         \bottomrule
     \end{tabular}
 \end{table}
 
-\begin{table}[H]
-    \centering
-    \caption{AES-NI 加速效果验证}
-    \label{tab:aesni_validation}
-    \begin{tabular}{p{0.30\textwidth}p{0.30\textwidth}p{0.30\textwidth}}
-        \toprule
-        \textbf{场景} & \textbf{软件模式（MiB/s）} & \textbf{AES-NI 模式（MiB/s）} \\
-        \midrule
-        加密写入（顺序） & 156.3 & 892.7 \\
-        解密读取（顺序） & 148.9 & 875.2 \\
-        \bottomrule
-    \end{tabular}
-\end{table}
+串口日志确认当前 dm-crypt 五轮测试均使用 AES-NI 后端；由于尚无相同条件下的
+软件 AES 五轮数据，本报告不提供 AES-NI 加速倍数或绝对吞吐对照。
 
 \section{小结}
 
-本章全面展示了项目的测试与验证体系。在功能正确性方面，dm-verity 的篡改检测和 dm-crypt 的透明加密均通过了严格测试。在性能方面，星绽实现达到了接近 Linux 的性能水平。在交叉验证方面，与 Linux 内核的逐字节兼容性验证为系统的可信度提供了最强有力的证据。
+本章展示了项目的测试与验证体系。在功能正确性方面，dm-verity 的篡改检测和
+dm-crypt 的透明加密均通过了端到端测试；性能部分只保留可由原始日志和 CSV
+复核的 Asterinas 五轮结果。在交叉验证方面，与 Linux 内核的逐字节兼容性验证
+证明了密码格式兼容，但不替代尚待补齐的同条件跨系统性能对照。
 
 在下一章中，我们将阐述项目的合规性声明，包括代码来源、开源协议和 AI 工具使用的完整披露。

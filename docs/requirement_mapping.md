@@ -34,12 +34,13 @@ rootfs_verity.scheme=dm-verity rootfs_verity.hash=<hash>
 - `crates/dm/src/hash_tree.rs`: Merkle hash tree；
 - `crates/dm/src/sha256.rs`: SHA-256；
 - `crates/dm/src/dm_verity.rs`: 读取时完整性验证；
-- `asterinas_port/cmdline_skeleton.rs`: 启动参数解析骨架；
+- `asterinas/kernel/comps/dm/src/lib.rs`: 真实启动参数解析与 mapper 注册；
 - `dmctl verity-root`: 生成 root hash；
 - `dmctl verity-verify`: 使用 root hash 验证镜像。
 
-内核侧已完成 cmdline 解析、mapper 注册、on-disk hash tree 验证和篡改拒绝路径；
-最终提交仍需补齐 rootfs 切换成功的完整串口日志与性能数据。
+内核侧已完成 cmdline 解析、mapper 注册、on-disk hash tree 验证、篡改拒绝和
+受保护 rootfs 切换；串口证据见 `docs/evidence/asterinas-verity-rootfs-kvm.log` 与
+`docs/evidence/asterinas-verity-rootfs-tampered-kvm.log`。
 
 ## 指标 2：dm-crypt 基础功能实现
 
@@ -58,10 +59,9 @@ rootfs_verity.scheme=dm-verity rootfs_verity.hash=<hash>
 - `dmctl raw-read-hex`: 直接查看底层密文；
 - `dmctl crypt-read`: 通过 mapper 恢复明文。
 
-待 Asterinas 环境补齐：
-
-- 提供内核侧控制接口，使 `cryptsetup` 能创建和管理 dm-crypt 设备；
-- 将 cryptsetup 解析出的 volume key 与 table 安全传给内核；LUKS metadata 与 PBKDF 保持在用户态。
+Asterinas 已提供 `/dev/mapper/control` 的 `dm_ioctl` 控制接口；KVM 客体中的
+cryptsetup 2.7.5 已完成 `open` 创建可读 mapper 和 `close` 删除 mapper 的真实链路。
+LUKS metadata、PBKDF 与 keyslot 仍按 Linux 分层留在用户态。
 
 ## 指标 3：根文件系统加密
 
@@ -72,11 +72,11 @@ rootfs_verity.scheme=dm-verity rootfs_verity.hash=<hash>
 当前对应：
 
 - [rootfs_protection.md](rootfs_protection.md) 给出 rootfs 加密和 verity 的接入顺序；
-- `asterinas_port/cmdline_skeleton.rs` 预留 `dm_crypt.device` 和 `dm_crypt.key` 参数解析。
+- `asterinas/kernel/comps/dm/src/lib.rs` 定义并解析 `dm_crypt.device`、
+  `dm_crypt.name` 和 `dm_crypt.key`。
 
-内核已经能在 init 阶段创建 dm-crypt mapper，并包含从 mapper 挂载 ext2 后执行
-`pivot_root` 的实现。最终提交需要补录完整根切换 PASS 日志，并保留底层镜像无法读取
-明文的对照证据。
+内核已经能在 init 阶段创建 dm-crypt mapper，并从 mapper 挂载 ext2 后执行
+`pivot_root`；完整 PASS 日志见 `docs/evidence/asterinas-crypt-rootfs-aesni-kvm.log`。
 
 ## 指标 4：性能与启动要求
 
@@ -92,11 +92,9 @@ rootfs_verity.scheme=dm-verity rootfs_verity.hash=<hash>
 - `scripts/benchmark_linux_dm.sh` 提供 raw/dm-crypt 同后端五轮配对测试；
 - `scripts/summarize_benchmark.py` 输出中位数、吞吐保留率和 p95 延迟开销。
 
-待 Asterinas 环境补齐：
-
-- 在 QEMU 中分别测试 plain、dm-crypt、dm-verity；
-- 记录 kernel boot 时间；
-- 与 Linux dm-crypt/dm-verity 基线对比。
+当前已经完成 Asterinas KVM 下 dm-crypt raw/AES-NI 五轮配对和 dm-verity hash cache
+A/B 五轮测试。仍需补齐两项：相同 QEMU/KVM、镜像和 fio 参数下的 Linux guest
+直接对照，以及带原始时间戳日志的 kernel boot 五轮对照。
 
 ## 指标 5：技术探索
 
