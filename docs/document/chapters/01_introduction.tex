@@ -53,7 +53,7 @@ Linux 通过 Device Mapper 提供了 \texttt{dm-crypt}（透明数据加密）�
     \item \textbf{第2章 系统架构设计}：详细阐述 \texttt{BlockDevice} trait、可组合映射器链、模块分解及跨环境可移植性。
     \item \textbf{第3章 \texttt{dm-verity} 详细设计}：介绍默克尔树构建、单块校验路径、启动参数解析及只读强制策略。
     \item \textbf{第4章 \texttt{dm-crypt} 详细设计}：说明 \texttt{DmCryptTable}、AES-256-XTS 密码引擎、扇区算术及 Linux 兼容性验证。
-    \item \textbf{第5章 性能优化策略}：涵盖哈希树缓存、零拷贝 I/O、批处理及硬件加速（AES-NI）等优化手段。
+    \item \textbf{第5章 性能优化策略}：涵盖认证后哈希缓存、完成 BIO 数据复用、有界临时缓冲池及硬件加速（AES-NI）等优化手段。
     \item \textbf{第6章 测试与性能分析报告}：包括功能正确性测试（篡改检测、明文/密文验证）、FIO 基准测试、启动开销分析及与 Linux 的交叉验证。
     \item \textbf{第7章 合规、来源与 AI 声明}：独立章节，严格遵循比赛要求，披露代码来源、开源协议及 AI 工具使用情况。
     \item \textbf{第8章 用户手册与部署指南}：提供从环境准备到编译、运行、配置的完整操作步骤。

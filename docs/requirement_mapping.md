@@ -90,6 +90,9 @@ LUKS metadata、PBKDF 与 keyslot 仍按 Linux 分层留在用户态。
 - [performance.md](performance.md) 给出可复现的 Linux/Asterinas 测试矩阵；
 - `scripts/benchmark.sh` 提供 plain/AES-XTS/verity 的 CSV 微基准入口；
 - `scripts/benchmark_linux_dm.sh` 提供 raw/dm-crypt 同后端五轮配对测试；
+- `scripts/benchmark_linux_guest_dm_crypt.sh` 提供 Linux KVM guest 的严格同条件采集；
+- `scripts/compare_cross_guest_dm_crypt.py` 在 metadata 不一致时拒绝生成跨系统表；
+- `scripts/benchmark_boot_time.py` 提供带宿主机时间戳的五轮启动对照；
 - `scripts/summarize_benchmark.py` 输出中位数、吞吐保留率和 p95 延迟开销。
 
 当前已经完成 Asterinas KVM 下 dm-crypt raw/AES-NI 五轮配对和 dm-verity hash cache
@@ -105,8 +108,10 @@ A/B 五轮测试。仍需补齐两项：相同 QEMU/KVM、镜像和 fio 参数�
 当前对应：
 
 - Asterinas verity 已复用完成 BIO 的数据并加入“认证后缓存”的 hash block cache；
+- dm-crypt 已加入可关闭的有界临时缓冲池，支持同条件 A/B；
+- verity 已加入已认证 hash block 的可信后缀捷径与 `auth_shortcuts` 计数；
 - 内核输出 BIO 复用、补读与 cache hit/miss 指标，可直接证明优化是否生效；
-- mapper 接口统一，可加入 I/O batch、zero-copy buffer 和异步块 I/O；
+- mapper 接口统一，后续可继续加入 I/O batch 和异步块 I/O；
 - 用户态 `DmStackBuilder` 支持 target 动态组合与安全能力传播；
 - `InstrumentedDevice` 可插在任意层之间进行分层性能归因。
 

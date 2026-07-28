@@ -1,76 +1,124 @@
-# 性能测试方案
+# 性能测试与优化方案
 
-项目现已提供可复现的 Rust 微基准、Linux raw/dm-crypt 配对基准和结果汇总工具。
-最终 Linux/Asterinas 对比必须在相同的 QEMU 配置和磁盘镜像下执行。
+对外性能数字只允许来自版本化的串口日志和逐轮 CSV。Rust 内存微基准、WSL/Linux
+宿主机基准与 Asterinas KVM 基准属于不同测试层级，不得互相冒充。
 
-## 测试指标
+## 已有可引用证据
 
-- 顺序读取吞吐量；
-- `dm-crypt` 顺序写入吞吐量；
-- 随机 4 KiB 读写 IOPS；
-- 启用和未启用 `dm-verity` 时的读取延迟；
-- 启用和未启用受保护 rootfs 时的启动时间。
+| 项目 | 固定条件 | 五轮中位数 |
+|---|---|---:|
+| Asterinas raw 读取 | KVM、CPU=host、4 KiB、sync、direct=1、QD1、8 MiB、1 s ramp + 2 s runtime | 3.018 MiB/s |
+| Asterinas dm-crypt 读取 | 同上，AES-256-XTS，AES-NI | 1.506 MiB/s |
+| Asterinas dm-verity，cache=0 | 同一 16 MiB 镜像、4 KiB fio 读 | 0.320 MiB/s |
+| Asterinas dm-verity，cache=256 | 同上 | 0.398 MiB/s |
 
-## Rust 基准
+证据位于 `docs/evidence/`。cache=256 相对 cache=0 的吞吐提升为 24.4%，p95
+降低 8.7%；两组 `data_rereads=0`。这只能证明 Asterinas 内部 A/B，不能推出
+Asterinas 达到 Linux 性能的某个百分比。
+
+## Linux guest 与 Asterinas 同条件对照
+
+“Linux guest 镜像”是用于启动 Linux 的系统盘，不是拿 WSL 数据替代 KVM。做法是：
+
+1. 在同一宿主机用 QEMU/KVM 启动 Linux，配置 `-accel kvm -cpu host -smp 1 -m 8G`；
+2. 除 Linux 系统盘外，再挂同一份 raw 数据盘为 virtio-blk；
+3. Asterinas 也把这份数据盘挂为 `/dev/vdc`；
+4. 两端都对该数据盘前 8 MiB 运行相同 fio 合约。
+
+Linux guest 内运行：
 
 ```bash
-BLOCKS=16384 ITERATIONS=7 bash scripts/benchmark.sh target/benchmark/rust.csv
+sudo VCPUS=1 MEMORY=8G ACCELERATOR=kvm CPU_MODEL=host \
+  DEVICE_MODEL=virtio-blk RAW_DEVICE=/dev/vdc RUNS=5 SIZE_MIB=8 \
+  RUNTIME=2 RAMP_TIME=1 \
+  bash scripts/benchmark_linux_guest_dm_crypt.sh \
+  target/benchmark/linux-guest-dm-crypt.csv
 ```
 
-CSV 包含普通内存块 I/O、AES-256-XTS 读写和 verity 读取吞吐量。计时区域
-不包含 mapper 构造过程，并加入读取校验和，防止相关操作被优化掉。
-
-内存测试结果不能作为 Linux 性能对比数据，它只用于提供稳定的性能回归基线。
-
-## Linux/Asterinas 对比
-
-Linux 对照使用一键脚本。脚本以同一个 loop device 为后端创建
-`aes-xts-plain64` mapper，交替运行 raw 与 dm-crypt，减少运行顺序和温度偏差：
+Asterinas 端运行：
 
 ```bash
-sudo SIZE_MIB=512 RUNTIME=20 RUNS=5 \
-  bash scripts/benchmark_linux_dm.sh target/benchmark/linux-dm.csv
-python3 scripts/summarize_benchmark.py target/benchmark/linux-dm.csv
+cd asterinas
+DM_IMAGE=../target/dm-crypt-test.img ENABLE_KVM=1 SMP=1 MEM=8G \
+  DM_BENCH_RW=read DM_BENCH_BS=4k DM_BENCH_QD=1 \
+  DM_BENCH_SIZE=8m DM_BENCH_RUNTIME=2 DM_BENCH_RAMP=1 \
+  DM_BENCH_RUNS=5 bash tools/run_dm_crypt_bench.sh \
+  | tee ../target/benchmark/asterinas-dm-crypt-kvm.log
 ```
 
-原始 CSV 每一行对应一轮 fio，包含 MiB/s、IOPS、平均延迟、p50/p95/p99 和 CPU
-占用。summary CSV 使用中位数，并计算 dm-crypt 相对 raw 的吞吐保留率与 p95 延迟
-开销。原始 JSON 位于 `target/benchmark/linux-work`，答辩后也应保留。
+汇总后生成直接对照：
 
-两端必须使用相同的虚拟 CPU 数量、内存、QEMU 缓存与 AIO 模式、镜像、块大小、
-队列深度、运行时间和 fio 版本。每项结果旁应记录完整命令。
-
-必测矩阵：
-
-| 操作系统 | 目标 | 负载 | 块大小 | 队列深度 |
-| --- | --- | --- | ---: | ---: |
-| Linux | 普通 / dm-crypt / dm-verity | 顺序读写、随机读写 | 4 KiB | 1 和 32 |
-| Asterinas | 普通 / dm-crypt / dm-verity | 同上 | 4 KiB | 1 和 32 |
-
-预热一次后至少正式运行五次，报告中位数及离散程度。不能只记录吞吐量，还应保留
-p50、p95、p99 延迟和 CPU 利用率。
-
-启动时间从 QEMU 启动开始计时，到首次出现用户态提示符为止，分别记录：
-
-```text
-普通 rootfs
-dm-verity 保护的 rootfs
+```bash
+python3 scripts/compare_cross_guest_dm_crypt.py \
+  target/benchmark/linux-guest-dm-crypt.csv \
+  target/benchmark/asterinas-dm-crypt-kvm.csv \
+  docs/evidence/linux-vs-asterinas-dm-crypt.csv \
+  docs/evidence/linux-vs-asterinas-dm-crypt.md \
+  --linux-metadata target/benchmark/linux-guest-dm-crypt.metadata.txt \
+  --asterinas-metadata target/benchmark/asterinas-dm-crypt.metadata.txt
 ```
 
-## 优化方向
+比较器会强制核对 vCPU、内存、加速器、CPU 模型、设备模型、测试区域 SHA-256、
+密码参数和 fio 参数；任一项不同就拒绝出表。Linux guest 的 fio 版本和实际 CPU/
+内存信息也记录在 metadata 中，人工复核时应一并归档。
 
-- 已实现：复用完整对齐 BIO 中的数据，避免 verity 校验重复读取 data block；
-- 已实现：只缓存完成 root hash 认证后的 verity hash block；
-- 已实现：输出 BIO 复用、数据补读、hash cache 命中/缺失计数；
-- 下一步：crypt 写路径使用独立 bounce buffer 池，避免修改并恢复原 BIO；
-- 构建 verity tree 时批量读取相邻块；
-- 生产构建保留 AES-NI，并单独测试软件回退路径；
-- 复用每次 I/O 的临时缓冲区，避免反复分配 `Vec`。
+## 扩展 fio 矩阵
 
-## 报告表格模板
+Asterinas 两个启动器均支持 `DM_BENCH_RW`、`DM_BENCH_BS`、`DM_BENCH_QD`、
+`DM_BENCH_SIZE`、`DM_BENCH_RUNTIME`、`DM_BENCH_RUNS` 和 `DM_BENCH_RAMP`。
+必须至少覆盖：
 
-| 模式 | 读取 MB/s | 写入 MB/s | IOPS | 平均延迟 | 启动时间 |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| 普通 virtio-blk | 待测试 | 待测试 | 待测试 | 待测试 | 待测试 |
-| dm-crypt | 待测试 | 待测试 | 待测试 | 待测试 | 不适用 |
-| dm-verity | 待测试 | 不适用 | 待测试 | 待测试 | 待测试 |
+| 目标 | 负载 | 块大小 | QD |
+|---|---|---:|---:|
+| raw / dm-crypt | read、write、randread、randwrite | 4 KiB | 1、32 |
+| raw / dm-verity | read、randread | 4 KiB | 1、32 |
+
+示例：
+
+```bash
+DM_BENCH_RW=randread DM_BENCH_QD=32 DM_BENCH_RUNS=5 \
+  bash asterinas/tools/run_dm_crypt_bench.sh \
+  | tee target/benchmark/asterinas-crypt-randread-qd32.log
+python3 scripts/summarize_asterinas_dm_matrix.py \
+  target/benchmark/asterinas-crypt-randread-qd32.log \
+  target/benchmark/asterinas-crypt-randread-qd32.csv \
+  target/benchmark/asterinas-crypt-randread-qd32-summary.csv
+```
+
+dm-verity 是只读映射，启动脚本会拒绝 write/randwrite。每个工况至少五轮并报告
+中位数、p50、p95、p99；不要用单次截图代替 CSV。
+
+## 启动时间
+
+`scripts/benchmark_boot_time.py` 交替运行 plain 与 dm-verity，记录每行宿主机单调
+时钟时间戳，并输出五轮原始 CSV 与中位数：
+
+```bash
+python3 scripts/benchmark_boot_time.py \
+  --plain-command "<plain QEMU command>" \
+  --protected-command "<dm-verity QEMU command>" \
+  --plain-marker "rootfs is ready" \
+  --protected-marker "PASS protected mapper root switch" \
+  --runs 5 --output target/benchmark/boot-time.csv
+```
+
+两条命令除了保护参数与对应镜像外必须保持 QEMU 配置一致。没有生成 CSV 前，
+README 和答辩稿继续标注“待测”。
+
+## 本轮代码优化与 A/B 开关
+
+- dm-crypt 使用有界临时缓冲池，`dm_crypt.scratch_pool=32` 默认开启，
+  `dm_crypt.scratch_pool=0` 关闭，便于同镜像五轮 A/B；
+- dm-verity 对已完成 root hash 认证的 hash block 使用可信后缀捷径，新增
+  `auth_shortcuts` 计数；仍先比对当前数据摘要，不跳过数据认证；
+- 完整对齐 BIO 直接复用已读取数据，已有 `data_rereads` 计数；
+- hash cache 容量继续由 `rootfs_verity.cache_blocks` 控制。
+
+这些代码改动在新的 KVM A/B 数据产生前只标为“已实现、待量化”，不能把历史
+cache A/B 数字归因给本轮新代码。
+
+评审 tag 前运行：
+
+```bash
+python3 scripts/review_release_check.py
+```

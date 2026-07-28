@@ -1,0 +1,592 @@
+From a7b566d68b2d4cf7d838eda50f074f3f3b22b73b Mon Sep 17 00:00:00 2001
+From: scnu202421326914 <2787304139@qq.com>
+Date: Tue, 28 Jul 2026 22:41:38 +0800
+Subject: [PATCH] =?UTF-8?q?=E4=BC=98=E5=8C=96=20dm=20=E7=83=AD=E8=B7=AF?=
+ =?UTF-8?q?=E5=BE=84=E5=B9=B6=E6=89=A9=E5=B1=95=E5=8F=AF=E5=A4=8D=E6=A0=B8?=
+ =?UTF-8?q?=E5=9F=BA=E5=87=86?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ kernel/comps/dm/src/device.rs                 | 102 +++++++++++++++++-
+ kernel/comps/dm/src/lib.rs                    |  18 ++--
+ kernel/comps/dm/src/verity.rs                 |  37 +++++--
+ .../src/fs/fs_impls/procfs/dm_verity_stats.rs |   5 +-
+ test/initramfs/src/init                       |  65 +++++++++--
+ tools/run_dm_crypt_bench.sh                   |  77 +++++++++++++
+ tools/run_dm_verity_bench.sh                  |   9 +-
+ 7 files changed, 286 insertions(+), 27 deletions(-)
+ create mode 100644 tools/run_dm_crypt_bench.sh
+
+diff --git a/kernel/comps/dm/src/device.rs b/kernel/comps/dm/src/device.rs
+index 8b53866ac..463340358 100644
+--- a/kernel/comps/dm/src/device.rs
++++ b/kernel/comps/dm/src/device.rs
+@@ -10,6 +10,7 @@ use aster_block::{
+ };
+ use device_id::DeviceId;
+ use ostd::mm::VmIo;
++use spin::Mutex;
+ 
+ use crate::{
+     DmError,
+@@ -42,9 +43,29 @@ impl DmDevice {
+         name: String,
+         lower: Arc<dyn BlockDevice>,
+         key: &[u8],
++    ) -> Result<Self, DmError> {
++        Self::new_crypt_with_pool(id, name, lower, key, 32)
++    }
++
++    /// Creates an AES-256-XTS mapper with a bounded scratch-buffer pool.
++    pub fn new_crypt_with_pool(
++        id: DeviceId,
++        name: String,
++        lower: Arc<dyn BlockDevice>,
++        key: &[u8],
++        scratch_pool_capacity: usize,
+     ) -> Result<Self, DmError> {
+         let logical_sectors = lower.metadata().nr_sectors;
+-        Self::new_crypt_table(id, name, lower, key, 0, 0, logical_sectors)
++        Self::new_crypt_table_with_pool(
++            id,
++            name,
++            lower,
++            key,
++            0,
++            0,
++            logical_sectors,
++            scratch_pool_capacity,
++        )
+     }
+ 
+     /// Creates an AES-256-XTS mapper from Linux dm-crypt table geometry.
+@@ -56,6 +77,29 @@ impl DmDevice {
+         iv_offset: u64,
+         data_offset_sectors: u64,
+         logical_sectors: usize,
++    ) -> Result<Self, DmError> {
++        Self::new_crypt_table_with_pool(
++            id,
++            name,
++            lower,
++            key,
++            iv_offset,
++            data_offset_sectors,
++            logical_sectors,
++            32,
++        )
++    }
++
++    /// Creates an AES-256-XTS mapper with Linux table geometry and scratch pooling.
++    pub fn new_crypt_table_with_pool(
++        id: DeviceId,
++        name: String,
++        lower: Arc<dyn BlockDevice>,
++        key: &[u8],
++        iv_offset: u64,
++        data_offset_sectors: u64,
++        logical_sectors: usize,
++        scratch_pool_capacity: usize,
+     ) -> Result<Self, DmError> {
+         let lower_sectors = lower.metadata().nr_sectors as u64;
+         let logical_end = data_offset_sectors
+@@ -73,6 +117,7 @@ impl DmDevice {
+                 iv_offset,
+                 data_offset_sectors,
+                 logical_sectors,
++                scratch_pool: Mutex::new(CryptScratchPool::new(scratch_pool_capacity)),
+             }),
+         })
+     }
+@@ -220,7 +265,7 @@ impl DmDevice {
+             let mut sector_cursor = iv_first_sector;
+             let mut bounce_segments = Vec::with_capacity(bio.segments().len());
+             for segment in bio.segments() {
+-                let mut ciphertext = vec![0u8; segment.nbytes()];
++                let mut ciphertext = target.take_scratch(segment.nbytes());
+                 if segment
+                     .inner_dma_slice()
+                     .read_bytes(0, &mut ciphertext)
+@@ -230,6 +275,7 @@ impl DmDevice {
+                         .encrypt(sector_cursor, &mut ciphertext)
+                         .is_err()
+                 {
++                    target.recycle_scratch(ciphertext);
+                     bio.complete(BioStatus::IoError);
+                     return;
+                 }
+@@ -239,9 +285,11 @@ impl DmDevice {
+                     .write_bytes(0, &ciphertext)
+                     .is_err()
+                 {
++                    target.recycle_scratch(ciphertext);
+                     bio.complete(BioStatus::IoError);
+                     return;
+                 }
++                target.recycle_scratch(ciphertext);
+                 sector_cursor += segment.nsectors().to_raw();
+                 bounce_segments.push(bounce);
+             }
+@@ -264,7 +312,7 @@ impl DmDevice {
+                 let mut sector_cursor = iv_first_sector;
+                 let mut status = BioStatus::Complete;
+                 for segment in bio.segments() {
+-                    let mut plaintext = vec![0u8; segment.nbytes()];
++                    let mut plaintext = target.take_scratch(segment.nbytes());
+                     if segment
+                         .inner_dma_slice()
+                         .read_bytes(0, &mut plaintext)
+@@ -278,9 +326,11 @@ impl DmDevice {
+                             .write_bytes(0, &plaintext)
+                             .is_err()
+                     {
++                        target.recycle_scratch(plaintext);
+                         status = BioStatus::IoError;
+                         break;
+                     }
++                    target.recycle_scratch(plaintext);
+                     sector_cursor += segment.nsectors().to_raw();
+                 }
+                 status
+@@ -398,6 +448,52 @@ struct CryptTarget {
+     iv_offset: u64,
+     data_offset_sectors: u64,
+     logical_sectors: usize,
++    scratch_pool: Mutex<CryptScratchPool>,
++}
++
++impl CryptTarget {
++    fn take_scratch(&self, len: usize) -> Vec<u8> {
++        self.scratch_pool.lock().take(len)
++    }
++
++    fn recycle_scratch(&self, buffer: Vec<u8>) {
++        self.scratch_pool.lock().recycle(buffer);
++    }
++}
++
++struct CryptScratchPool {
++    buffers: Vec<Vec<u8>>,
++    capacity: usize,
++}
++
++impl CryptScratchPool {
++    fn new(capacity: usize) -> Self {
++        Self {
++            buffers: Vec::with_capacity(capacity),
++            capacity,
++        }
++    }
++
++    fn take(&mut self, len: usize) -> Vec<u8> {
++        let Some(index) = self
++            .buffers
++            .iter()
++            .position(|buffer| buffer.capacity() >= len)
++        else {
++            return vec![0u8; len];
++        };
++        let mut buffer = self.buffers.swap_remove(index);
++        buffer.resize(len, 0);
++        buffer
++    }
++
++    fn recycle(&mut self, mut buffer: Vec<u8>) {
++        if self.capacity == 0 || self.buffers.len() == self.capacity {
++            return;
++        }
++        buffer.clear();
++        self.buffers.push(buffer);
++    }
+ }
+ 
+ impl Debug for DmTarget {
+diff --git a/kernel/comps/dm/src/lib.rs b/kernel/comps/dm/src/lib.rs
+index 967800873..f593a4ff4 100644
+--- a/kernel/comps/dm/src/lib.rs
++++ b/kernel/comps/dm/src/lib.rs
+@@ -37,6 +37,7 @@ pub use verity::VerityStats;
+ static CRYPT_DEVICE: Once<String> = Once::new();
+ static CRYPT_NAME: Once<String> = Once::new();
+ static CRYPT_KEY: Once<String> = Once::new();
++static CRYPT_SCRATCH_POOL: Once<usize> = Once::new();
+ static PASSTHROUGH_DEVICE: Once<String> = Once::new();
+ static PASSTHROUGH_NAME: Once<String> = Once::new();
+ static VERITY_SCHEME: Once<String> = Once::new();
+@@ -88,6 +89,7 @@ static NEXT_DM_MINOR: AtomicU32 = AtomicU32::new(0);
+ aster_cmdline::define_kv_param!("dm_crypt.device", CRYPT_DEVICE);
+ aster_cmdline::define_kv_param!("dm_crypt.name", CRYPT_NAME);
+ aster_cmdline::define_kv_param!("dm_crypt.key", CRYPT_KEY);
++aster_cmdline::define_kv_param!("dm_crypt.scratch_pool", CRYPT_SCRATCH_POOL);
+ aster_cmdline::define_kv_param!("dm_passthrough.device", PASSTHROUGH_DEVICE);
+ aster_cmdline::define_kv_param!("dm_passthrough.name", PASSTHROUGH_NAME);
+ aster_cmdline::define_kv_param!("rootfs_verity.scheme", VERITY_SCHEME);
+@@ -154,16 +156,19 @@ fn init() -> Result<(), ComponentInitError> {
+             return Err(ComponentInitError::Unknown);
+         };
+         let id = allocate_mapper_id().map_err(|_| ComponentInitError::Unknown)?;
++        let scratch_pool_capacity = CRYPT_SCRATCH_POOL.get().copied().unwrap_or(32);
+         ostd::early_println!("[dm] initializing AES-256-XTS mapper");
+-        let mapper = DmDevice::new_crypt(id, mapper_name, lower, &key)
+-            .map_err(|_| ComponentInitError::Unknown)?;
++        let mapper =
++            DmDevice::new_crypt_with_pool(id, mapper_name, lower, &key, scratch_pool_capacity)
++                .map_err(|_| ComponentInitError::Unknown)?;
+         ostd::early_println!(
+-            "[dm-perf] AES backend={}",
++            "[dm-perf] AES backend={} scratch_pool={}",
+             if crypto::hardware_aes_available() {
+                 "AES-NI"
+             } else {
+                 "portable-software"
+-            }
++            },
++            scratch_pool_capacity
+         );
+         mapper.self_test_ext2_magic().map_err(|error| {
+             ostd::early_println!(
+@@ -249,13 +254,14 @@ fn init() -> Result<(), ComponentInitError> {
+         ostd::early_println!("[dm-test] PASS first data block verified through dm-verity");
+         if let Some(stats) = mapper.verity_stats() {
+             ostd::early_println!(
+-                "[dm-perf] verity cache_blocks={} verified={} bio_blocks={} data_rereads={} hash_hits={} hash_misses={}",
++                "[dm-perf] verity cache_blocks={} verified={} bio_blocks={} data_rereads={} hash_hits={} hash_misses={} auth_shortcuts={}",
+                 cache_blocks,
+                 stats.verified_data_blocks,
+                 stats.bio_data_blocks,
+                 stats.data_reread_blocks,
+                 stats.hash_cache_hits,
+-                stats.hash_cache_misses
++                stats.hash_cache_misses,
++                stats.authenticated_cache_shortcuts
+             );
+         }
+         info!("registering dm-verity device {}", mapper.name());
+diff --git a/kernel/comps/dm/src/verity.rs b/kernel/comps/dm/src/verity.rs
+index 6310068ab..31ce51e4c 100644
+--- a/kernel/comps/dm/src/verity.rs
++++ b/kernel/comps/dm/src/verity.rs
+@@ -33,6 +33,8 @@ pub struct VerityStats {
+     pub hash_cache_hits: u64,
+     /// Number of hash blocks fetched from the lower device.
+     pub hash_cache_misses: u64,
++    /// Number of verifications completed through an already authenticated hash block.
++    pub authenticated_cache_shortcuts: u64,
+ }
+ 
+ /// Verifies data blocks against an on-disk SHA-256 Merkle tree.
+@@ -198,9 +200,10 @@ impl VerityTarget {
+             let hash_block_index = digest_index / HASHES_PER_BLOCK;
+             let digest_slot = digest_index % HASHES_PER_BLOCK;
+             let physical_block = level.block_offset + hash_block_index;
+-            let hash_block = if let Some(cached) = self.hash_cache.lock().get(physical_block) {
++            let authenticated_cached_block = self.hash_cache.lock().get(physical_block);
++            let hash_block = if let Some(cached) = authenticated_cached_block.as_ref() {
+                 self.stats.hash_cache_hits.fetch_add(1, Ordering::Relaxed);
+-                cached
++                Arc::clone(cached)
+             } else {
+                 self.stats.hash_cache_misses.fetch_add(1, Ordering::Relaxed);
+                 let fetched = Arc::new(read_block(lower, physical_block)?);
+@@ -211,6 +214,20 @@ impl VerityTarget {
+             if hash_block[digest_offset..digest_offset + HASH_SIZE] != digest {
+                 return Err(DmError::IntegrityViolation);
+             }
++            if authenticated_cached_block.is_some() {
++                // A block enters this cache only after its complete path has
++                // reached the trusted root. Matching the current digest
++                // against that immutable block therefore completes the
++                // authentication without rehashing the already trusted suffix.
++                self.cache_authenticated_blocks(newly_authenticated);
++                self.stats
++                    .authenticated_cache_shortcuts
++                    .fetch_add(1, Ordering::Relaxed);
++                self.stats
++                    .verified_data_blocks
++                    .fetch_add(1, Ordering::Relaxed);
++                return Ok(());
++            }
+             digest = sha256(hash_block.as_ref());
+             digest_index = hash_block_index;
+         }
+@@ -220,15 +237,19 @@ impl VerityTarget {
+         }
+         // Cache insertion happens only after the complete path reaches the
+         // trusted root, so an unauthenticated hash block is never reused.
+-        let mut cache = self.hash_cache.lock();
+-        for (block_id, block) in newly_authenticated {
+-            cache.insert_authenticated(block_id, block);
+-        }
++        self.cache_authenticated_blocks(newly_authenticated);
+         self.stats
+             .verified_data_blocks
+             .fetch_add(1, Ordering::Relaxed);
+         Ok(())
+     }
++
++    fn cache_authenticated_blocks(&self, blocks: Vec<(usize, Arc<[u8; BLOCK_SIZE]>)>) {
++        let mut cache = self.hash_cache.lock();
++        for (block_id, block) in blocks {
++            cache.insert_authenticated(block_id, block);
++        }
++    }
+ }
+ 
+ struct HashLevel {
+@@ -276,6 +297,7 @@ struct VerityAtomicStats {
+     data_reread_blocks: AtomicU64,
+     hash_cache_hits: AtomicU64,
+     hash_cache_misses: AtomicU64,
++    authenticated_cache_shortcuts: AtomicU64,
+ }
+ 
+ impl VerityAtomicStats {
+@@ -286,6 +308,9 @@ impl VerityAtomicStats {
+             data_reread_blocks: self.data_reread_blocks.load(Ordering::Relaxed),
+             hash_cache_hits: self.hash_cache_hits.load(Ordering::Relaxed),
+             hash_cache_misses: self.hash_cache_misses.load(Ordering::Relaxed),
++            authenticated_cache_shortcuts: self
++                .authenticated_cache_shortcuts
++                .load(Ordering::Relaxed),
+         }
+     }
+ }
+diff --git a/kernel/src/fs/fs_impls/procfs/dm_verity_stats.rs b/kernel/src/fs/fs_impls/procfs/dm_verity_stats.rs
+index 8177a6c79..0853a73f4 100644
+--- a/kernel/src/fs/fs_impls/procfs/dm_verity_stats.rs
++++ b/kernel/src/fs/fs_impls/procfs/dm_verity_stats.rs
+@@ -28,13 +28,14 @@ impl ProcFileOps for DmVerityStatsFileOps {
+         if let Some((cache_blocks, stats)) = aster_dm::boot_verity_stats() {
+             writeln!(
+                 printer,
+-                "status=verified cache_blocks={} verified={} bio_blocks={} data_rereads={} hash_hits={} hash_misses={}",
++                "status=verified cache_blocks={} verified={} bio_blocks={} data_rereads={} hash_hits={} hash_misses={} auth_shortcuts={}",
+                 cache_blocks,
+                 stats.verified_data_blocks,
+                 stats.bio_data_blocks,
+                 stats.data_reread_blocks,
+                 stats.hash_cache_hits,
+-                stats.hash_cache_misses
++                stats.hash_cache_misses,
++                stats.authenticated_cache_shortcuts
+             )?;
+         } else {
+             writeln!(printer, "status={}", aster_dm::boot_verity_status())?;
+diff --git a/test/initramfs/src/init b/test/initramfs/src/init
+index 2a9c18935..768cafd98 100755
+--- a/test/initramfs/src/init
++++ b/test/initramfs/src/init
+@@ -21,6 +21,13 @@ CRYPTSETUP_SMOKE_REQUESTED=0
+ DM_BENCH_RAW=
+ DM_BENCH_MAPPER=
+ DM_BENCH_REQUESTED=0
++DM_BENCH_RW=read
++DM_BENCH_BS=4k
++DM_BENCH_QD=1
++DM_BENCH_SIZE=8m
++DM_BENCH_RUNTIME=2
++DM_BENCH_RUNS=5
++DM_BENCH_RAMP=1
+ for arg in "$@"; do
+     if [ "$arg" = "dm-bench" ]; then
+         DM_BENCH_REQUESTED=1
+@@ -33,7 +40,17 @@ if [ "$DM_BENCH_REQUESTED" -eq 1 ]; then
+     done
+     DM_BENCH_RAW="${2:-}"
+     DM_BENCH_MAPPER="${3:-}"
+-    shift 3
++    DM_BENCH_RW="${4:-read}"
++    DM_BENCH_BS="${5:-4k}"
++    DM_BENCH_QD="${6:-1}"
++    DM_BENCH_SIZE="${7:-8m}"
++    DM_BENCH_RUNTIME="${8:-2}"
++    DM_BENCH_RUNS="${9:-5}"
++    DM_BENCH_RAMP="${10:-1}"
++        # Keep the historical argument layout compatible: the extended
++        # benchmark fields are read above, while only the three mode fields
++        # need to be removed before the payload command is inspected.
++        shift 3
+ fi
+ for arg in "$@"; do
+     if [ "$arg" = "cryptsetup-smoke" ]; then
+@@ -90,27 +107,57 @@ if [ -n "$DM_BENCH_RAW" ] && [ -n "$DM_BENCH_MAPPER" ]; then
+         echo "[dm-bench] FAIL fio is missing from the benchmark initramfs"
+         poweroff -f
+     fi
+-    echo "[dm-bench] matrix=raw,dm-verity runs=5 rw=read bs=4k qd=1 size=8m runtime=2s"
++    case "$DM_BENCH_MAPPER" in
++        *crypt*) DM_BENCH_LABEL=dm-crypt ;;
++        *verity*) DM_BENCH_LABEL=dm-verity ;;
++        *)        DM_BENCH_LABEL=mapper ;;
++    esac
++    case "$DM_BENCH_RW" in
++        read|randread) ;;
++        write|randwrite)
++            if [ "$DM_BENCH_LABEL" = "dm-verity" ]; then
++                echo "[dm-bench] FAIL dm-verity is read-only"
++                poweroff -f
++            fi
++            ;;
++        *)
++            echo "[dm-bench] FAIL unsupported rw=$DM_BENCH_RW"
++            poweroff -f
++            ;;
++    esac
++    echo "[dm-bench] fio=$(/benchmark/bin/fio --version)"
++    echo "[dm-bench] matrix=raw,$DM_BENCH_LABEL runs=$DM_BENCH_RUNS rw=$DM_BENCH_RW bs=$DM_BENCH_BS qd=$DM_BENCH_QD size=$DM_BENCH_SIZE runtime=${DM_BENCH_RUNTIME}s ramp=${DM_BENCH_RAMP}s"
+     RUN=1
+-    while [ "$RUN" -le 5 ]; do
+-        for LABEL in raw dm-verity; do
++    while [ "$RUN" -le "$DM_BENCH_RUNS" ]; do
++        if [ $((RUN % 2)) -eq 1 ]; then
++            set -- raw "$DM_BENCH_LABEL"
++        else
++            set -- "$DM_BENCH_LABEL" raw
++        fi
++        for LABEL in "$@"; do
+             if [ "$LABEL" = "raw" ]; then
+                 DEVICE="$DM_BENCH_RAW"
+             else
+                 DEVICE="$DM_BENCH_MAPPER"
+             fi
+-            echo "[dm-bench] BEGIN label=$LABEL run=$RUN device=$DEVICE"
++            echo "[dm-bench] BEGIN label=$LABEL run=$RUN device=$DEVICE operation=$DM_BENCH_RW block_size=$DM_BENCH_BS queue_depth=$DM_BENCH_QD"
+             /benchmark/bin/fio --name="${LABEL}-${RUN}" --filename="$DEVICE" \
+-                --rw=read --bs=4k --ioengine=sync --direct=1 --iodepth=1 \
+-                --size=8m --time_based=1 --ramp_time=1 --runtime=2 \
++                --rw="$DM_BENCH_RW" --bs="$DM_BENCH_BS" --ioengine=sync \
++                --direct=1 --iodepth="$DM_BENCH_QD" \
++                --size="$DM_BENCH_SIZE" --time_based=1 \
++                --ramp_time="$DM_BENCH_RAMP" --runtime="$DM_BENCH_RUNTIME" \
+                 --numjobs=1 --group_reporting=1 --percentile_list=50:95:99:99.9 \
+                 --output-format=json
+-            echo "[dm-bench] STATS label=$LABEL run=$RUN $(cat /proc/dm-verity-stats)"
++            if [ "$DM_BENCH_LABEL" = "dm-verity" ] && [ -r /proc/dm-verity-stats ]; then
++                echo "[dm-bench] STATS label=$LABEL run=$RUN $(cat /proc/dm-verity-stats)"
++            else
++                echo "[dm-bench] STATS label=$LABEL run=$RUN backend=$(cat /proc/dm-crypto-backend 2>/dev/null || echo unavailable)"
++            fi
+             echo "[dm-bench] END label=$LABEL run=$RUN"
+         done
+         RUN=$((RUN + 1))
+     done
+-    echo "[dm-bench] PASS five-run raw/dm-verity matrix completed"
++    echo "[dm-bench] PASS ${DM_BENCH_RUNS}-run raw/$DM_BENCH_LABEL matrix completed"
+     poweroff -f
+     exit 0
+ fi
+diff --git a/tools/run_dm_crypt_bench.sh b/tools/run_dm_crypt_bench.sh
+new file mode 100644
+index 000000000..8b3c95dd5
+--- /dev/null
++++ b/tools/run_dm_crypt_bench.sh
+@@ -0,0 +1,77 @@
++#!/bin/bash
++
++# SPDX-License-Identifier: MPL-2.0
++
++# Run a five-round raw-vs-dm-crypt fio matrix in the Asterinas KVM guest.
++# Keep the I/O contract aligned with run_dm_verity_bench.sh: 4 KiB, QD1,
++# direct reads, five rounds.  Capture stdout to a serial log, then summarize
++# it with scripts/summarize_asterinas_dm_crypt_bench.py.
++set -euo pipefail
++
++if [ "${DM_AES_NI:-1}" = "1" ]; then
++    export OSDK_ENABLE_AES_NI=1
++else
++    unset OSDK_ENABLE_AES_NI
++fi
++
++DM_IMAGE=${DM_IMAGE:-./dm-crypt-test.img}
++DM_DEVICE=${DM_DEVICE:-vdc}
++DM_NAME=${DM_NAME:-dm-crypt0}
++DM_CRYPT_SCRATCH_POOL=${DM_CRYPT_SCRATCH_POOL:-32}
++DM_BENCH_RW=${DM_BENCH_RW:-read}
++DM_BENCH_BS=${DM_BENCH_BS:-4k}
++DM_BENCH_QD=${DM_BENCH_QD:-1}
++DM_BENCH_SIZE=${DM_BENCH_SIZE:-8m}
++DM_BENCH_RUNTIME=${DM_BENCH_RUNTIME:-2}
++DM_BENCH_RUNS=${DM_BENCH_RUNS:-5}
++DM_BENCH_RAMP=${DM_BENCH_RAMP:-1}
++DM_BENCH_METADATA=${DM_BENCH_METADATA:-../target/benchmark/asterinas-dm-crypt.metadata.txt}
++DM_KEY=${DM_KEY:-000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f}
++export CONSOLE=${DM_CONSOLE:-hvc0}
++
++if [ ! -f "${DM_IMAGE}" ]; then
++    echo "dm-crypt image not found: ${DM_IMAGE}" >&2
++    exit 1
++fi
++case "${DM_BENCH_SIZE}" in
++    *m|*M) DM_BENCH_SIZE_MIB=${DM_BENCH_SIZE%[mM]} ;;
++    *)
++        echo "DM_BENCH_SIZE must use an MiB suffix, for example 8m" >&2
++        exit 1
++        ;;
++esac
++
++mkdir -p "$(dirname "${DM_BENCH_METADATA}")"
++{
++    echo "host=$(uname -srmo)"
++    echo "vcpus=${SMP:-1}"
++    echo "memory=${MEM:-8G}"
++    echo "accelerator=$([ "${ENABLE_KVM:-0}" = "1" ] && echo kvm || echo tcg)"
++    echo "cpu_model=$([ "${ENABLE_KVM:-0}" = "1" ] && echo host || echo default)"
++    echo "device_model=virtio-blk"
++    echo "image_region_sha256=$(dd if="${DM_IMAGE}" bs=1M count="${DM_BENCH_SIZE_MIB}" status=none | sha256sum | awk '{print $1}')"
++    echo "cipher=aes-xts-plain64"
++    echo "rw=${DM_BENCH_RW}"
++    echo "block_size=${DM_BENCH_BS}"
++    echo "ioengine=sync"
++    echo "direct=1"
++    echo "queue_depth=${DM_BENCH_QD}"
++    echo "size_mib=${DM_BENCH_SIZE_MIB}"
++    echo "ramp_seconds=${DM_BENCH_RAMP}"
++    echo "runtime_seconds=${DM_BENCH_RUNTIME}"
++    echo "runs=${DM_BENCH_RUNS}"
++    echo "scratch_pool=${DM_CRYPT_SCRATCH_POOL}"
++} >"${DM_BENCH_METADATA}"
++
++KCMD_ARGS="console=${CONSOLE} \
++dm_crypt.device=${DM_DEVICE} \
++dm_crypt.name=${DM_NAME} \
++dm_crypt.key=${DM_KEY} \
++dm_crypt.scratch_pool=${DM_CRYPT_SCRATCH_POOL}"
++export DM_IMAGE
++OSDK_ARGS="--kcmd-args=\"${KCMD_ARGS}\" --init-args=\"dm-bench /dev/${DM_DEVICE} /dev/${DM_NAME} ${DM_BENCH_RW} ${DM_BENCH_BS} ${DM_BENCH_QD} ${DM_BENCH_SIZE} ${DM_BENCH_RUNTIME} ${DM_BENCH_RUNS} ${DM_BENCH_RAMP} /bin/true\""
++if [ "${ENABLE_KVM:-0}" = "1" ]; then
++    OSDK_ARGS="${OSDK_ARGS} --qemu-args=\"-accel kvm -cpu host\""
++fi
++
++exec make run_kernel ENABLE_KVM=0 BENCHMARK=dm-verity CARGO_OSDK_BUILD_ARGS="${OSDK_ARGS}"
+diff --git a/tools/run_dm_verity_bench.sh b/tools/run_dm_verity_bench.sh
+index 6383fd286..ab7e0ea46 100644
+--- a/tools/run_dm_verity_bench.sh
++++ b/tools/run_dm_verity_bench.sh
+@@ -11,6 +11,13 @@ DM_ROOT_HASH=${DM_ROOT_HASH:-6db653b69a094065756dc2770d3af8880ec9beed29df41b5bb2
+ DM_DATA_BLOCKS=${DM_DATA_BLOCKS:-16}
+ DM_HASH_START=${DM_HASH_START:-16}
+ DM_CACHE_BLOCKS=${DM_CACHE_BLOCKS:-256}
++DM_BENCH_RW=${DM_BENCH_RW:-read}
++DM_BENCH_BS=${DM_BENCH_BS:-4k}
++DM_BENCH_QD=${DM_BENCH_QD:-1}
++DM_BENCH_SIZE=${DM_BENCH_SIZE:-8m}
++DM_BENCH_RUNTIME=${DM_BENCH_RUNTIME:-2}
++DM_BENCH_RUNS=${DM_BENCH_RUNS:-5}
++DM_BENCH_RAMP=${DM_BENCH_RAMP:-1}
+ export CONSOLE=${DM_CONSOLE:-hvc0}
+ 
+ if [ ! -f "${DM_IMAGE}" ]; then
+@@ -28,7 +35,7 @@ rootfs_verity.hash_start=${DM_HASH_START} \
+ rootfs_verity.cache_blocks=${DM_CACHE_BLOCKS}"
+ 
+ export DM_IMAGE
+-OSDK_ARGS="--kcmd-args=\"${KCMD_ARGS}\" --init-args=\"dm-bench /dev/${DM_DEVICE} /dev/${DM_NAME} /bin/true\""
++OSDK_ARGS="--kcmd-args=\"${KCMD_ARGS}\" --init-args=\"dm-bench /dev/${DM_DEVICE} /dev/${DM_NAME} ${DM_BENCH_RW} ${DM_BENCH_BS} ${DM_BENCH_QD} ${DM_BENCH_SIZE} ${DM_BENCH_RUNTIME} ${DM_BENCH_RUNS} ${DM_BENCH_RAMP} /bin/true\""
+ if [ "${ENABLE_KVM:-0}" = "1" ]; then
+     OSDK_ARGS="${OSDK_ARGS} --qemu-args=\"-accel kvm -cpu host\""
+ fi
+-- 
+2.50.1.windows.1
+
