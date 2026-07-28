@@ -32,22 +32,26 @@
 
 \begin{itemize}
     \item 将最近访问的哈希树节点缓存在内存中。
-    \item 采用 LRU（Least Recently Used）策略管理缓存空间。
+    \item 采用有界 FIFO 淘汰策略管理缓存空间，容量由启动参数控制。
     \item 对于频繁访问的块（如根节点附近的层），缓存命中率显著提升。
 \end{itemize}
 
 现有 KVM 五轮顺序读 A/B 表明，cache=256 相对 cache=0 的 dm-verity 中位吞吐
 从 0.320 MiB/s 提升到 0.398 MiB/s（+24.4\%），中位 p95 从 15007.744 us
 降到 13697.024 us（-8.7\%）。两组均为 \texttt{data\_rereads=0}。
+本轮又加入已认证 hash block 的可信后缀捷径：当前数据摘要仍必须与缓存块比对，
+只有命中已经完整认证到 root hash 的缓存块后才停止重算上层后缀，并输出
+\texttt{auth\_shortcuts} 计数。该新增捷径的收益仍待独立 KVM A/B。
 
-\subsection{批量读取相邻块}
+\subsection{批量读取相邻块（后续方向）}
 
-在构建默克尔树时，我们采用批量读取策略：
+在构建默克尔树时，批量读取可进一步减少调用开销，但当前版本尚未把该变量做成
+可隔离验证的实现，因此仅列为后续方向：
 
 \begin{itemize}
     \item 将多个相邻数据块一次性读入内存。
     \item 批量计算哈希值，减少 I/O 次数和系统调用开销。
-    \item 该策略在镜像构建阶段（如 dmctl verity-root 命令）效果尤为明显。
+    \item 预期主要作用于镜像构建阶段（如 dmctl verity-root 命令）。
 \end{itemize}
 
 \section{I/O 吞吐优化}
@@ -65,14 +69,16 @@ verity 认证路径直接复用下层已经完成的 BIO 数据进行哈希校�
 
 \subsection{临时缓冲区重用}
 
-在加密/解密过程中复用输出缓冲区，减少热路径中的重复分配。该措施已经进入真实
+在加密/解密过程中复用 CPU 临时 \texttt{Vec}，减少热路径中的重复分配。该措施已经进入真实
 Asterinas BIO 路径，但当前没有隔离该变量的五轮 A/B，因此只报告实现状态，
 不单独给出性能收益。
 
 \begin{itemize}
-    \item mapper 在 BIO 路径中管理转换所需的输出缓冲区。
-    \item 完成后将结果写回调用方 BIO segment。
-    \item 后续通过只切换缓冲区复用开关的同条件 A/B 量化收益。
+    \item mapper 使用容量为 32 的有界池管理加解密临时 \texttt{Vec}。
+    \item 写路径仍为下层 BIO 分配独立 bounce segment，读路径完成后写回调用方 segment；
+    本优化不宣称消除了 DMA/BIO segment 分配。
+    \item 启动参数 \texttt{dm\_crypt.scratch\_pool=0} 可关闭池，
+    与默认值 32 做同镜像、同 fio 参数的五轮 A/B。
 \end{itemize}
 
 \section{Boot 时间控制}
@@ -111,13 +117,11 @@ AES-256-XTS 加密是 dm-crypt 的核心计算密集型操作。我们确保：
 现有五轮 Asterinas dm-crypt 串口日志均确认使用 AES-NI 后端。由于尚无相同
 KVM、镜像和 FIO 参数下的软件 AES 五轮 A/B，本报告不声称 AES-NI 的加速倍数。
 
-\subsection{并行化处理}
+\subsection{并行化处理（后续方向）}
 
-\begin{itemize}
-    \item 对于多扇区块的加解密操作，利用 Rust 的并行迭代器进行扇区级并行处理。
-    \item 多个 I/O 请求可以同时在不同 CPU 核心上处理。
-    \item 该策略在大块 I/O 场景下效果尤为显著。
-\end{itemize}
+当前加解密循环按 segment 和 sector 顺序执行，尚未引入并行迭代器。后续只有在
+QD32 和大块 I/O 的 profile 证明密码计算而非块设备等待占主导后，才考虑请求级
+并行；因此本报告不把并行化列为已完成优化。
 
 \section{Rust 微基准测试}
 
@@ -187,7 +191,8 @@ KVM、镜像和 FIO 参数下的软件 AES 五轮 A/B，本报告不声称 AES-N
         认证后 hash cache & aster-dm verity & 五轮中位吞吐 +24.4\%，p95 -8.7\% \\
         完成 BIO 数据复用 & aster-dm verity & 两组 A/B 均为 data\_rereads=0 \\
         AES-NI 后端 & aster-dm crypto & 五轮日志确认 AES-NI；软件 AES A/B 待补 \\
-        输出缓冲区复用 & aster-dm device & 已实现；单项收益尚未量化 \\
+        dm-crypt 有界临时缓冲池 & aster-dm device & 已实现；scratch\_pool=0/32 A/B 待补 \\
+        已认证路径捷径 & aster-dm verity & 已实现 auth\_shortcuts 计数；新增收益待补 \\
         \bottomrule
     \end{tabular}
 \end{table}
@@ -195,6 +200,7 @@ KVM、镜像和 FIO 参数下的软件 AES 五轮 A/B，本报告不声称 AES-N
 \section{小结}
 
 本章阐述了 dm-crypt 和 dm-verity 的性能优化策略。当前可量化结论限于
-dm-verity 认证后 hash cache 的五轮 A/B；AES-NI 后端与缓冲区复用已经实现，
+dm-verity 认证后 hash cache 的五轮 A/B；AES-NI 后端、有界临时缓冲池和已认证
+路径捷径已经实现，
 但在形成相同条件的 A/B 前不单独声称其收益。下一章将给出功能正确性和现有
 KVM 五轮基准证据。

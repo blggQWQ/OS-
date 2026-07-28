@@ -57,10 +57,10 @@
 \begin{itemize}
     \item \textbf{统一的 BlockDevice Trait 抽象}：设计了与平台无关的块设备抽象层，使得同一套核心代码能够同时运行于用户态和星绽内核态。
     \item \textbf{纯 Rust 实现的 SHA-256}：独立实现了 FIPS 180-4 标准的 SHA-256 哈希算法。
-    \item \textbf{星绽内核完整集成}：通过三个 Git 补丁将 dm-crypt 和 dm-verity 完整集成到星绽内核中。
+    \item \textbf{星绽内核完整集成}：通过可审计 Git 补丁序列将 dm-crypt 和 dm-verity 完整集成到星绽内核中。
     \item \textbf{内核启动自检机制}：实现了基于 ext2 超级块魔数的启动时自检。
     \item \textbf{五阶段渐进式保护路径}：设计并实现了从 Plain 到 Combined 的渐进式安全保护路径。
-    \item \textbf{性能优化}：实现了哈希块缓存、零拷贝 I/O、缓冲区重用和 AES-NI 硬件加速等优化策略。
+    \item \textbf{性能优化}：实现了认证后哈希块缓存、完成 BIO 数据复用、有界临时缓冲池和 AES-NI 硬件加速，并为新优化保留独立 A/B 开关。
 \end{itemize}
 
 \section{AI 工具使用声明}

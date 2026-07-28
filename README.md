@@ -305,7 +305,8 @@ dm-crypt 提供透明块级加密，专注 AES-256-XTS，严格兼容 Linux dm-c
 | 认证后 hash cache | `asterinas/kernel/comps/dm/src/verity.rs` | 五轮中位吞吐 +24.4%，p95 -8.7% |
 | 完成 BIO 数据复用 | `asterinas/kernel/comps/dm/src/verity.rs` | 两组 A/B 均为 `data_rereads=0` |
 | AES-NI 后端 | `asterinas/kernel/comps/dm/src/crypto.rs` | 五轮 dm-crypt 日志均确认 `backend=AES-NI`；尚无同条件软件 AES A/B |
-| 输出缓冲区复用 | `asterinas/kernel/comps/dm/src/device.rs` | 已实现；尚未单独量化 |
+| dm-crypt 有界临时缓冲池 | `asterinas/kernel/comps/dm/src/device.rs` | 已实现；`scratch_pool=0/32` A/B 待 KVM 量化 |
+| verity 已认证路径捷径 | `asterinas/kernel/comps/dm/src/verity.rs` | 已实现并输出 `auth_shortcuts`；新增收益待 KVM 量化 |
 
 ![性能比较逻辑图](docs/document/figures/performance_comparison_logic.png)
 
@@ -386,6 +387,8 @@ Linux/WSL 基线与 Asterinas 绝对吞吐直接比较。
 > 严格的 Linux vs Asterinas 绝对吞吐表尚待在相同宿主机、QEMU/KVM 配置、镜像、
 > fio 参数和运行时长下补测。在此之前，本项目不声称 Asterinas 达到 Linux 性能的
 > 某个百分比；现有 Linux/WSL 五轮矩阵仅作为独立参考上限。
+> 仓库已提供 Linux KVM guest 采集器、metadata 强制核对比较器和启动时间五轮
+> 计时器，见 [性能测试方案](docs/performance.md)；没有原始 CSV 前仍保持“待测”。
 
 ![交叉验证数据流图](docs/document/figures/cross_validation_flow.png)
 
@@ -411,10 +414,10 @@ Linux/WSL 基线与 Asterinas 绝对吞吐直接比较。
 
 - 统一的 `BlockDevice` trait 抽象（用户态与内核态共用）
 - 纯 Rust SHA-256 实现（FIPS 180-4）
-- 星绽内核完整集成（三个 Git 补丁）
+- 星绽内核完整集成（可审计 Git 补丁序列）
 - 基于 ext2 超级块魔数的启动自检
 - 五阶段渐进式保护路径（Plain → Combined）
-- 认证后 hash cache、完成 BIO 数据复用、输出缓冲区复用、AES-NI 后端
+- 认证后 hash cache、完成 BIO 数据复用、crypt 临时缓冲池、AES-NI 后端
 
 ### AI 工具使用声明
 
@@ -540,6 +543,8 @@ dm_crypt.device=/dev/vda dm_crypt.key=<128-char-hex-key>
 | 0001 | 组件集成 | `aster-dm` 注册、`DmTarget` 枚举、`DmDevice` 结构 |
 | 0002 | BIO 路径验证 | DMA 切片访问、ext2 超级块自检（`0x53EF`） |
 | 0003 | 根切换 | `dm-root` 参数解析、`pivot_root` 切换到受保护 rootfs |
+| 0004 | 评审功能固化 | cryptsetup 控制面、KVM 验证链和完整 dm 实现 |
+| 0005 | 性能与基准收尾 | crypt 缓冲池、verity 认证捷径、可配置 fio 矩阵 |
 
 ### 五阶段渐进式保护路径
 

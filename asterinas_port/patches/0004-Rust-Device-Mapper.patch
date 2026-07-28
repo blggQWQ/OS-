@@ -1,0 +1,2990 @@
+From 73cc6d2dd26cb7521d3ed452a2c6871304fa7c5f Mon Sep 17 00:00:00 2001
+From: scnu202421326914 <2787304139@qq.com>
+Date: Tue, 14 Jul 2026 17:09:29 +0800
+Subject: [PATCH] =?UTF-8?q?=E5=AE=9E=E7=8E=B0=20Rust=20Device=20Mapper=20?=
+ =?UTF-8?q?=E5=AE=89=E5=85=A8=E5=AD=98=E5=82=A8=E4=B8=8E=E6=A0=B9=E6=96=87?=
+ =?UTF-8?q?=E4=BB=B6=E7=B3=BB=E7=BB=9F=E9=AA=8C=E8=AF=81?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ Cargo.lock                                    |  15 +
+ Cargo.toml                                    |   5 +-
+ kernel/Cargo.toml                             |   2 +
+ kernel/comps/block/src/bio.rs                 |  11 +
+ kernel/comps/dm/src/crypto.rs                 | 164 +++++-
+ kernel/comps/dm/src/device.rs                 | 176 ++++--
+ kernel/comps/dm/src/lib.rs                    | 157 +++++-
+ kernel/comps/dm/src/runtime.rs                | 262 +++++++++
+ kernel/comps/dm/src/sha256.rs                 |  49 +-
+ kernel/comps/dm/src/verity.rs                 | 208 ++++++-
+ kernel/src/device/misc/dm_control.rs          | 519 ++++++++++++++++++
+ kernel/src/device/misc/mod.rs                 |   2 +
+ kernel/src/device/registry/block.rs           |  21 +
+ kernel/src/fs/fs_impls/procfs/devices.rs      |  42 ++
+ .../fs/fs_impls/procfs/dm_crypto_backend.rs   |  31 ++
+ .../src/fs/fs_impls/procfs/dm_verity_stats.rs |  44 ++
+ kernel/src/fs/fs_impls/procfs/mod.rs          |  17 +
+ osdk/src/base_crate/Cargo.toml.template       |   2 +
+ osdk/src/commands/build/mod.rs                |  11 +
+ ostd/src/arch/x86/cpu/aesni.rs                | 174 ++++++
+ ostd/src/arch/x86/cpu/mod.rs                  |   1 +
+ ostd/src/arch/x86/trap/mod.rs                 |  14 +
+ test/initramfs/nix/default.nix                |   1 +
+ test/initramfs/nix/initramfs.nix              |   5 +-
+ test/initramfs/src/init                       | 145 ++++-
+ tools/run_cryptsetup_compat.sh                |  22 +
+ tools/run_dm_crypt.sh                         |  23 +-
+ tools/run_dm_verity.sh                        |  12 +-
+ tools/run_dm_verity_bench.sh                  |  36 ++
+ 29 files changed, 2023 insertions(+), 148 deletions(-)
+ create mode 100644 kernel/comps/dm/src/runtime.rs
+ create mode 100644 kernel/src/device/misc/dm_control.rs
+ create mode 100644 kernel/src/fs/fs_impls/procfs/devices.rs
+ create mode 100644 kernel/src/fs/fs_impls/procfs/dm_crypto_backend.rs
+ create mode 100644 kernel/src/fs/fs_impls/procfs/dm_verity_stats.rs
+ create mode 100644 ostd/src/arch/x86/cpu/aesni.rs
+ create mode 100644 tools/run_cryptsetup_compat.sh
+ create mode 100644 tools/run_dm_verity_bench.sh
+
+diff --git a/Cargo.lock b/Cargo.lock
+index 150fd8731..3ca218aa5 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -127,6 +127,20 @@ dependencies = [
+  "spin",
+ ]
+ 
++[[package]]
++name = "aster-dm"
++version = "0.1.0"
++dependencies = [
++ "aes",
++ "aster-block",
++ "aster-cmdline",
++ "component",
++ "cpufeatures",
++ "device-id",
++ "ostd",
++ "spin",
++]
++
+ [[package]]
+ name = "aster-framebuffer"
+ version = "0.1.0"
+@@ -186,6 +200,7 @@ dependencies = [
+  "aster-block",
+  "aster-cmdline",
+  "aster-console",
++ "aster-dm",
+  "aster-framebuffer",
+  "aster-fuse",
+  "aster-i8042",
+diff --git a/Cargo.toml b/Cargo.toml
+index 24205ecfd..7da4b863c 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -3,6 +3,8 @@
+ # Most crates in Asterinas are written and built for the kernel space.
+ # The user-space and host-native exceptions are listed in `workspace.exclude`.
+ 
++cargo-features = ["profile-rustflags"]
++
+ [workspace]
+ resolver = "2"
+ # All in-kernel crates.
+@@ -211,7 +213,8 @@ volatile = "0.6.1"
+ # This suggests that `Asterinas` should support saving and restoring the `FPU` state within the kernel context,
+ # a capability it currently lacks.
+ aes-gcm = { version = "0.9.4", features = ["force-soft"] }
+-aes = { version = "0.7.5", features = ["force-soft"] }
++aes = "0.7.5"
++cpufeatures = "0.2.17"
+ bittle = "0.5.6"
+ const_format = "0.2.35"
+ ctr = "0.8.0"
+diff --git a/kernel/Cargo.toml b/kernel/Cargo.toml
+index 489939635..7368e1152 100644
+--- a/kernel/Cargo.toml
++++ b/kernel/Cargo.toml
+@@ -1,3 +1,5 @@
++cargo-features = ["profile-rustflags"]
++
+ [package]
+ name = "aster-kernel"
+ version = "0.1.0"
+diff --git a/kernel/comps/block/src/bio.rs b/kernel/comps/block/src/bio.rs
+index 65ed978a5..93c44c622 100644
+--- a/kernel/comps/block/src/bio.rs
++++ b/kernel/comps/block/src/bio.rs
+@@ -397,6 +397,17 @@ impl BioSegment {
+         Self::alloc_inner(nblocks, 0, nblocks * BLOCK_SIZE, direction)
+     }
+ 
++    /// Allocates a segment with an exact sector-aligned byte length.
++    ///
++    /// This is useful for transformed I/O bounce buffers, where preserving the
++    /// original BIO length is required even when the request is smaller than a
++    /// page.
++    pub fn alloc_bytes(len: usize, direction: BioDirection) -> Self {
++        assert!(len > 0 && is_sector_aligned(len));
++        let nblocks = len.align_up(BLOCK_SIZE) / BLOCK_SIZE;
++        Self::alloc_inner(nblocks, 0, len, direction)
++    }
++
+     /// The inner function that do the real segment allocation.
+     ///
+     /// Support two extended parameters:
+diff --git a/kernel/comps/dm/src/crypto.rs b/kernel/comps/dm/src/crypto.rs
+index 6779d3c5d..169f8563f 100644
+--- a/kernel/comps/dm/src/crypto.rs
++++ b/kernel/comps/dm/src/crypto.rs
+@@ -4,16 +4,136 @@ use aes::{
+     Aes256,
+     cipher::{BlockDecrypt, BlockEncrypt, NewBlockCipher, generic_array::GenericArray},
+ };
++#[cfg(all(target_arch = "x86_64", dm_aes_ni))]
++use ostd::{arch::cpu::context::FpuContext, irq, task::disable_preempt};
+ 
+ use crate::DmError;
+ 
+ const AES_BLOCK_SIZE: usize = 16;
+ const XTS_KEY_SIZE: usize = 64;
+ 
++pub(crate) fn hardware_aes_available() -> bool {
++    #[cfg(all(target_arch = "x86_64", dm_aes_ni))]
++    {
++        ostd::arch::cpu::aesni::is_available()
++    }
++    #[cfg(not(all(target_arch = "x86_64", dm_aes_ni)))]
++    {
++        false
++    }
++}
++
+ /// Encrypts and decrypts sectors with AES-256-XTS.
+ pub(crate) struct AesXtsCipher {
+-    data_cipher: Aes256,
+-    tweak_cipher: Aes256,
++    data_cipher: Aes256Backend,
++    tweak_cipher: Aes256Backend,
++}
++
++enum Aes256Backend {
++    Portable(Aes256),
++    #[cfg(all(target_arch = "x86_64", dm_aes_ni))]
++    Hardware([[u8; AES_BLOCK_SIZE]; 15]),
++}
++
++impl Aes256Backend {
++    fn new(key: &[u8]) -> Self {
++        #[cfg(all(target_arch = "x86_64", dm_aes_ni))]
++        if hardware_aes_available() {
++            let key: &[u8; 32] = key.try_into().unwrap();
++            return Self::Hardware(expand_key_256(key));
++        }
++        Self::Portable(Aes256::new(GenericArray::from_slice(key)))
++    }
++
++    fn encrypt(&self, block: &mut [u8; AES_BLOCK_SIZE]) {
++        match self {
++            Self::Portable(cipher) => cipher.encrypt_block(GenericArray::from_mut_slice(block)),
++            #[cfg(all(target_arch = "x86_64", dm_aes_ni))]
++            Self::Hardware(keys) => ostd::arch::cpu::aesni::encrypt_block_256(block, keys),
++        }
++    }
++
++    fn decrypt(&self, block: &mut [u8; AES_BLOCK_SIZE]) {
++        match self {
++            Self::Portable(cipher) => cipher.decrypt_block(GenericArray::from_mut_slice(block)),
++            #[cfg(all(target_arch = "x86_64", dm_aes_ni))]
++            Self::Hardware(keys) => ostd::arch::cpu::aesni::decrypt_block_256(block, keys),
++        }
++    }
++}
++
++#[cfg(all(target_arch = "x86_64", dm_aes_ni))]
++fn expand_key_256(key: &[u8; 32]) -> [[u8; AES_BLOCK_SIZE]; 15] {
++    let mut words = [[0u8; 4]; 60];
++    for (word, bytes) in words[..8].iter_mut().zip(key.chunks_exact(4)) {
++        word.copy_from_slice(bytes);
++    }
++
++    let mut round_constant = 1u8;
++    for index in 8..words.len() {
++        let mut temporary = words[index - 1];
++        if index % 8 == 0 {
++            temporary.rotate_left(1);
++            temporary
++                .iter_mut()
++                .for_each(|byte| *byte = aes_sbox(*byte));
++            temporary[0] ^= round_constant;
++            round_constant = gf_mul(round_constant, 2);
++        } else if index % 8 == 4 {
++            temporary
++                .iter_mut()
++                .for_each(|byte| *byte = aes_sbox(*byte));
++        }
++        for byte in 0..4 {
++            words[index][byte] = words[index - 8][byte] ^ temporary[byte];
++        }
++    }
++
++    let mut keys = [[0u8; AES_BLOCK_SIZE]; 15];
++    for (round_key, round_words) in keys.iter_mut().zip(words.chunks_exact(4)) {
++        for (destination, word) in round_key.chunks_exact_mut(4).zip(round_words) {
++            destination.copy_from_slice(word);
++        }
++    }
++    keys
++}
++
++#[cfg(all(target_arch = "x86_64", dm_aes_ni))]
++fn aes_sbox(value: u8) -> u8 {
++    let inverse = if value == 0 {
++        0
++    } else {
++        let mut result = 1u8;
++        let mut base = value;
++        let mut exponent = 254u8;
++        while exponent != 0 {
++            if exponent & 1 != 0 {
++                result = gf_mul(result, base);
++            }
++            base = gf_mul(base, base);
++            exponent >>= 1;
++        }
++        result
++    };
++    inverse
++        ^ inverse.rotate_left(1)
++        ^ inverse.rotate_left(2)
++        ^ inverse.rotate_left(3)
++        ^ inverse.rotate_left(4)
++        ^ 0x63
++}
++
++#[cfg(all(target_arch = "x86_64", dm_aes_ni))]
++fn gf_mul(mut left: u8, mut right: u8) -> u8 {
++    let mut product = 0u8;
++    while right != 0 {
++        if right & 1 != 0 {
++            product ^= left;
++        }
++        left = (left << 1) ^ if left & 0x80 != 0 { 0x1b } else { 0 };
++        right >>= 1;
++    }
++    product
+ }
+ 
+ impl AesXtsCipher {
+@@ -25,8 +145,8 @@ impl AesXtsCipher {
+ 
+         let (data_key, tweak_key) = key.split_at(XTS_KEY_SIZE / 2);
+         Ok(Self {
+-            data_cipher: Aes256::new(GenericArray::from_slice(data_key)),
+-            tweak_cipher: Aes256::new(GenericArray::from_slice(tweak_key)),
++            data_cipher: Aes256Backend::new(data_key),
++            tweak_cipher: Aes256Backend::new(tweak_key),
+         })
+     }
+ 
+@@ -49,31 +169,50 @@ impl AesXtsCipher {
+         if !data.len().is_multiple_of(aster_block::SECTOR_SIZE) {
+             return Err(DmError::UnalignedIo);
+         }
++        let sector_count = data.len() / aster_block::SECTOR_SIZE;
++        if sector_count != 0 {
++            first_sector
++                .checked_add((sector_count - 1) as u64)
++                .ok_or(DmError::OutOfRange)?;
++        }
++
++        // AES-NI uses XMM registers. Save the interrupted context, keep the
++        // transform on one CPU, and prevent an interrupt handler from sharing
++        // temporary registers during this short non-blocking section.
++        #[cfg(all(target_arch = "x86_64", dm_aes_ni))]
++        let mut fpu_context = FpuContext::new();
++        #[cfg(all(target_arch = "x86_64", dm_aes_ni))]
++        let _preempt_guard = disable_preempt();
++        #[cfg(all(target_arch = "x86_64", dm_aes_ni))]
++        let _irq_guard = irq::disable_local();
++        #[cfg(all(target_arch = "x86_64", dm_aes_ni))]
++        fpu_context.save();
+ 
+         for (index, sector) in data.chunks_exact_mut(aster_block::SECTOR_SIZE).enumerate() {
+-            let sector_id = first_sector
+-                .checked_add(index as u64)
+-                .ok_or(DmError::OutOfRange)?;
++            let sector_id = first_sector + index as u64;
+             self.transform_sector(sector_id, sector, direction);
+         }
++
++        #[cfg(all(target_arch = "x86_64", dm_aes_ni))]
++        fpu_context.load();
++
+         Ok(())
+     }
+ 
+     fn transform_sector(&self, sector_id: u64, sector: &mut [u8], direction: XtsDirection) {
+         let mut tweak = [0u8; AES_BLOCK_SIZE];
+         tweak[..size_of::<u64>()].copy_from_slice(&sector_id.to_le_bytes());
+-        self.tweak_cipher
+-            .encrypt_block(GenericArray::from_mut_slice(&mut tweak));
++        self.tweak_cipher.encrypt(&mut tweak);
+ 
+         for block_bytes in sector.chunks_exact_mut(AES_BLOCK_SIZE) {
+             for (byte, tweak_byte) in block_bytes.iter_mut().zip(tweak) {
+                 *byte ^= tweak_byte;
+             }
+ 
+-            let block = GenericArray::from_mut_slice(block_bytes);
++            let block: &mut [u8; AES_BLOCK_SIZE] = block_bytes.try_into().unwrap();
+             match direction {
+-                XtsDirection::Encrypt => self.data_cipher.encrypt_block(block),
+-                XtsDirection::Decrypt => self.data_cipher.decrypt_block(block),
++                XtsDirection::Encrypt => self.data_cipher.encrypt(block),
++                XtsDirection::Decrypt => self.data_cipher.decrypt(block),
+             }
+ 
+             for (byte, tweak_byte) in block_bytes.iter_mut().zip(tweak) {
+@@ -101,4 +240,3 @@ fn multiply_tweak_by_x(tweak: &mut [u8; AES_BLOCK_SIZE]) {
+         tweak[0] ^= 0x87;
+     }
+ }
+-
+diff --git a/kernel/comps/dm/src/device.rs b/kernel/comps/dm/src/device.rs
+index 3c1294b23..8b53866ac 100644
+--- a/kernel/comps/dm/src/device.rs
++++ b/kernel/comps/dm/src/device.rs
+@@ -11,7 +11,11 @@ use aster_block::{
+ use device_id::DeviceId;
+ use ostd::mm::VmIo;
+ 
+-use crate::{DmError, crypto::AesXtsCipher, verity::VerityTarget};
++use crate::{
++    DmError,
++    crypto::AesXtsCipher,
++    verity::{VerityStats, VerityTarget},
++};
+ 
+ /// A block-device mapper backed by another Asterinas block device.
+ pub struct DmDevice {
+@@ -39,11 +43,37 @@ impl DmDevice {
+         lower: Arc<dyn BlockDevice>,
+         key: &[u8],
+     ) -> Result<Self, DmError> {
++        let logical_sectors = lower.metadata().nr_sectors;
++        Self::new_crypt_table(id, name, lower, key, 0, 0, logical_sectors)
++    }
++
++    /// Creates an AES-256-XTS mapper from Linux dm-crypt table geometry.
++    pub fn new_crypt_table(
++        id: DeviceId,
++        name: String,
++        lower: Arc<dyn BlockDevice>,
++        key: &[u8],
++        iv_offset: u64,
++        data_offset_sectors: u64,
++        logical_sectors: usize,
++    ) -> Result<Self, DmError> {
++        let lower_sectors = lower.metadata().nr_sectors as u64;
++        let logical_end = data_offset_sectors
++            .checked_add(logical_sectors as u64)
++            .ok_or(DmError::OutOfRange)?;
++        if logical_sectors == 0 || logical_end > lower_sectors {
++            return Err(DmError::OutOfRange);
++        }
+         Ok(Self {
+             id,
+             name,
+             lower,
+-            target: DmTarget::Crypt(AesXtsCipher::new(key)?),
++            target: DmTarget::Crypt(CryptTarget {
++                cipher: AesXtsCipher::new(key)?,
++                iv_offset,
++                data_offset_sectors,
++                logical_sectors,
++            }),
+         })
+     }
+ 
+@@ -55,15 +85,37 @@ impl DmDevice {
+         data_blocks: usize,
+         hash_start_block: usize,
+         root_hash: [u8; 32],
++    ) -> Result<Self, DmError> {
++        Self::new_verity_with_cache(
++            id,
++            name,
++            lower,
++            data_blocks,
++            hash_start_block,
++            root_hash,
++            256,
++        )
++    }
++
++    /// Creates a dm-verity mapper with an explicitly sized authenticated cache.
++    pub fn new_verity_with_cache(
++        id: DeviceId,
++        name: String,
++        lower: Arc<dyn BlockDevice>,
++        data_blocks: usize,
++        hash_start_block: usize,
++        root_hash: [u8; 32],
++        hash_cache_blocks: usize,
+     ) -> Result<Self, DmError> {
+         Ok(Self {
+             id,
+             name,
+             lower,
+-            target: DmTarget::Verity(VerityTarget::new(
++            target: DmTarget::Verity(VerityTarget::new_with_cache(
+                 data_blocks,
+                 hash_start_block,
+                 root_hash,
++                hash_cache_blocks,
+             )?),
+         })
+     }
+@@ -86,6 +138,14 @@ impl DmDevice {
+         }
+     }
+ 
++    /// Returns dm-verity hot-path counters when this mapper uses that target.
++    pub fn verity_stats(&self) -> Option<VerityStats> {
++        let DmTarget::Verity(target) = &self.target else {
++            return None;
++        };
++        Some(target.stats())
++    }
++
+     /// Reads and validates the ext2 superblock magic through this mapper.
+     ///
+     /// The magic is located 56 bytes into the superblock, which starts at
+@@ -119,7 +179,7 @@ impl DmDevice {
+         self.lower.enqueue(bio)
+     }
+ 
+-    fn process_crypt(&self, bio: SubmittedBio, cipher: &AesXtsCipher) {
++    fn process_crypt(&self, bio: SubmittedBio, target: &CryptTarget) {
+         let bio_type = bio.type_();
+         if bio_type == BioType::Flush {
+             let status = self.lower.sync().unwrap_or(BioStatus::IoError);
+@@ -127,61 +187,92 @@ impl DmDevice {
+             return;
+         }
+ 
+-        let first_sector = bio
++        let logical_first_sector = bio
+             .sid_range()
+             .start
+             .to_raw()
+             .checked_add(bio.sid_offset())
+             .unwrap_or(u64::MAX);
+-        let mut sector_cursor = first_sector;
+-        let mut plaintext_segments = Vec::with_capacity(bio.segments().len());
++        let num_sectors = bio.segments().iter().try_fold(0u64, |total, segment| {
++            total.checked_add(segment.nsectors().to_raw())
++        });
++        let Some(logical_end_sector) =
++            num_sectors.and_then(|count| logical_first_sector.checked_add(count))
++        else {
++            bio.complete(BioStatus::IoError);
++            return;
++        };
++        if logical_end_sector > target.logical_sectors as u64 {
++            bio.complete(BioStatus::IoError);
++            return;
++        }
++        let Some(lower_first_sector) = target.data_offset_sectors.checked_add(logical_first_sector)
++        else {
++            bio.complete(BioStatus::IoError);
++            return;
++        };
++        let Some(iv_first_sector) = target.iv_offset.checked_add(logical_first_sector) else {
++            bio.complete(BioStatus::IoError);
++            return;
++        };
+ 
+-        if bio_type == BioType::Write {
++        let lower_segments = if bio_type == BioType::Write {
++            let mut sector_cursor = iv_first_sector;
++            let mut bounce_segments = Vec::with_capacity(bio.segments().len());
+             for segment in bio.segments() {
+-                let mut plaintext = vec![0u8; segment.nbytes()];
++                let mut ciphertext = vec![0u8; segment.nbytes()];
+                 if segment
+                     .inner_dma_slice()
+-                    .read_bytes(0, &mut plaintext)
++                    .read_bytes(0, &mut ciphertext)
+                     .is_err()
++                    || target
++                        .cipher
++                        .encrypt(sector_cursor, &mut ciphertext)
++                        .is_err()
+                 {
+                     bio.complete(BioStatus::IoError);
+                     return;
+                 }
+-                let mut ciphertext = plaintext.clone();
+-                if cipher.encrypt(sector_cursor, &mut ciphertext).is_err()
+-                    || segment.inner_dma_slice().write_bytes(0, &ciphertext).is_err()
++                let bounce = BioSegment::alloc_bytes(segment.nbytes(), BioDirection::ToDevice);
++                if bounce
++                    .inner_dma_slice()
++                    .write_bytes(0, &ciphertext)
++                    .is_err()
+                 {
+                     bio.complete(BioStatus::IoError);
+                     return;
+                 }
+                 sector_cursor += segment.nsectors().to_raw();
+-                plaintext_segments.push(plaintext);
++                bounce_segments.push(bounce);
+             }
+-        }
++            bounce_segments
++        } else {
++            bio.segments().to_vec()
++        };
+ 
+-        let lower_bio = Bio::new(
+-            bio_type,
+-            Sid::from_offset(first_sector as usize * aster_block::SECTOR_SIZE),
+-            bio.segments().to_vec(),
+-            None,
+-        );
++        let lower_bio = Bio::new(bio_type, Sid::new(lower_first_sector), lower_segments, None);
+         let lower_status = lower_bio
+             .submit_and_wait(self.lower.as_ref())
+             .unwrap_or(BioStatus::IoError);
+         if lower_status != BioStatus::Complete {
+-            restore_plaintext(&bio, &plaintext_segments);
+             bio.complete(lower_status);
+             return;
+         }
+ 
+-        sector_cursor = first_sector;
+         let status = match bio_type {
+             BioType::Read => {
++                let mut sector_cursor = iv_first_sector;
+                 let mut status = BioStatus::Complete;
+                 for segment in bio.segments() {
+                     let mut plaintext = vec![0u8; segment.nbytes()];
+-                    if segment.inner_dma_slice().read_bytes(0, &mut plaintext).is_err()
+-                        || cipher.decrypt(sector_cursor, &mut plaintext).is_err()
++                    if segment
++                        .inner_dma_slice()
++                        .read_bytes(0, &mut plaintext)
++                        .is_err()
++                        || target
++                            .cipher
++                            .decrypt(sector_cursor, &mut plaintext)
++                            .is_err()
+                         || segment
+                             .inner_dma_slice()
+                             .write_bytes(0, &plaintext)
+@@ -194,10 +285,7 @@ impl DmDevice {
+                 }
+                 status
+             }
+-            BioType::Write => {
+-                restore_plaintext(&bio, &plaintext_segments);
+-                BioStatus::Complete
+-            }
++            BioType::Write => BioStatus::Complete,
+             BioType::Flush => unreachable!(),
+         };
+         bio.complete(status);
+@@ -233,13 +321,8 @@ impl DmDevice {
+             return;
+         }
+ 
+-        let num_sectors: u64 = bio
+-            .segments()
+-            .iter()
+-            .map(|segment| segment.nsectors().to_raw())
+-            .sum();
+         let status = if target
+-            .verify_range(self.lower.as_ref(), first_sector, num_sectors)
++            .verify_segments(self.lower.as_ref(), first_sector, bio.segments())
+             .is_ok()
+         {
+             BioStatus::Complete
+@@ -254,8 +337,8 @@ impl BlockDevice for DmDevice {
+     fn enqueue(&self, bio: SubmittedBio) -> Result<(), BioEnqueueError> {
+         match &self.target {
+             DmTarget::Passthrough => self.process_passthrough(bio),
+-            DmTarget::Crypt(cipher) => {
+-                self.process_crypt(bio, cipher);
++            DmTarget::Crypt(target) => {
++                self.process_crypt(bio, target);
+                 Ok(())
+             }
+             DmTarget::Verity(target) => {
+@@ -271,6 +354,10 @@ impl BlockDevice for DmDevice {
+                 max_nr_segments_per_bio: self.lower.metadata().max_nr_segments_per_bio,
+                 nr_sectors: target.data_sectors(),
+             },
++            DmTarget::Crypt(target) => BlockDeviceMeta {
++                max_nr_segments_per_bio: self.lower.metadata().max_nr_segments_per_bio,
++                nr_sectors: target.logical_sectors,
++            },
+             _ => self.lower.metadata(),
+         }
+     }
+@@ -302,10 +389,17 @@ impl Debug for DmDevice {
+ 
+ enum DmTarget {
+     Passthrough,
+-    Crypt(AesXtsCipher),
++    Crypt(CryptTarget),
+     Verity(VerityTarget),
+ }
+ 
++struct CryptTarget {
++    cipher: AesXtsCipher,
++    iv_offset: u64,
++    data_offset_sectors: u64,
++    logical_sectors: usize,
++}
++
+ impl Debug for DmTarget {
+     fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+         match self {
+@@ -315,9 +409,3 @@ impl Debug for DmTarget {
+         }
+     }
+ }
+-
+-fn restore_plaintext(bio: &SubmittedBio, plaintext_segments: &[Vec<u8>]) {
+-    for (segment, plaintext) in bio.segments().iter().zip(plaintext_segments) {
+-        let _ = segment.inner_dma_slice().write_bytes(0, plaintext);
+-    }
+-}
+diff --git a/kernel/comps/dm/src/lib.rs b/kernel/comps/dm/src/lib.rs
+index aa9506d43..967800873 100644
+--- a/kernel/comps/dm/src/lib.rs
++++ b/kernel/comps/dm/src/lib.rs
+@@ -15,18 +15,24 @@ macro_rules! __log_prefix {
+ 
+ mod crypto;
+ mod device;
++mod runtime;
+ mod sha256;
+ mod verity;
+ 
+ use alloc::{string::String, sync::Arc, vec::Vec};
+-use core::sync::atomic::{AtomicU32, Ordering};
++use core::sync::atomic::{AtomicU8, AtomicU32, Ordering};
+ 
+ use aster_block::{BlockDevice, MajorIdOwner};
+ use component::{ComponentInitError, init_component};
+-use device_id::{DeviceId, MinorId};
+ pub use device::DmDevice;
++use device_id::{DeviceId, MinorId};
+ use ostd::{info, warn};
++pub use runtime::{
++    RuntimeMapperStatus, activate_runtime_mapper, create_runtime_mapper, load_runtime_crypt_table,
++    remove_runtime_mapper, runtime_mapper_list, runtime_mapper_status,
++};
+ use spin::Once;
++pub use verity::VerityStats;
+ 
+ static CRYPT_DEVICE: Once<String> = Once::new();
+ static CRYPT_NAME: Once<String> = Once::new();
+@@ -39,7 +45,44 @@ static VERITY_NAME: Once<String> = Once::new();
+ static VERITY_ROOT_HASH: Once<String> = Once::new();
+ static VERITY_DATA_BLOCKS: Once<usize> = Once::new();
+ static VERITY_HASH_START_BLOCK: Once<usize> = Once::new();
++static VERITY_CACHE_BLOCKS: Once<usize> = Once::new();
++static VERITY_MAPPER: Once<Arc<DmDevice>> = Once::new();
++static VERITY_BOOT_STATUS: AtomicU8 = AtomicU8::new(0);
+ static DM_MAJOR: Once<MajorIdOwner> = Once::new();
++
++/// Returns the Linux-visible block major allocated to device-mapper.
++pub fn device_mapper_major() -> Option<u16> {
++    DM_MAJOR.get().map(|owner| owner.get().get())
++}
++
++/// Returns the dm-crypt data backend selected by this kernel build and CPU.
++pub fn crypto_backend_name() -> &'static str {
++    if crypto::hardware_aes_available() {
++        "AES-NI"
++    } else {
++        "portable-software"
++    }
++}
++
++/// Returns a live snapshot of the boot-configured dm-verity mapper.
++///
++/// The procfs benchmark surface uses this instead of maintaining a second set
++/// of counters, so the figures describe the exact mapper serving guest I/O.
++pub fn boot_verity_stats() -> Option<(usize, VerityStats)> {
++    let mapper = VERITY_MAPPER.get()?;
++    let stats = mapper.verity_stats()?;
++    Some((VERITY_CACHE_BLOCKS.get().copied().unwrap_or(256), stats))
++}
++
++/// Returns the result of the boot-time dm-verity authenticated read.
++pub fn boot_verity_status() -> &'static str {
++    match VERITY_BOOT_STATUS.load(Ordering::Relaxed) {
++        1 => "verified",
++        2 => "integrity-rejected",
++        3 => "io-error",
++        _ => "unavailable",
++    }
++}
+ static NEXT_DM_MINOR: AtomicU32 = AtomicU32::new(0);
+ 
+ aster_cmdline::define_kv_param!("dm_crypt.device", CRYPT_DEVICE);
+@@ -53,17 +96,23 @@ aster_cmdline::define_kv_param!("rootfs_verity.name", VERITY_NAME);
+ aster_cmdline::define_kv_param!("rootfs_verity.hash", VERITY_ROOT_HASH);
+ aster_cmdline::define_kv_param!("rootfs_verity.data_blocks", VERITY_DATA_BLOCKS);
+ aster_cmdline::define_kv_param!("rootfs_verity.hash_start", VERITY_HASH_START_BLOCK);
++aster_cmdline::define_kv_param!("rootfs_verity.cache_blocks", VERITY_CACHE_BLOCKS);
+ 
+ /// Errors returned while configuring Device Mapper targets.
+ #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+ pub enum DmError {
++    AlreadyExists,
++    Busy,
+     IntegrityViolation,
+     InvalidHex,
+     InvalidKey,
++    InvalidTable,
+     InvalidData,
+     Io,
++    NotFound,
+     OutOfRange,
+     UnalignedIo,
++    UnsupportedTarget,
+ }
+ 
+ #[init_component(process)]
+@@ -83,7 +132,7 @@ fn init() -> Result<(), ComponentInitError> {
+             warn!("cannot find passthrough lower device {device_name}");
+             return Err(ComponentInitError::Unknown);
+         };
+-        let id = allocate_mapper_id()?;
++        let id = allocate_mapper_id().map_err(|_| ComponentInitError::Unknown)?;
+         let mapper = Arc::new(DmDevice::new_passthrough(id, mapper_name, lower));
+         info!("registering passthrough device {}", mapper.name());
+         aster_block::register(mapper).map_err(|_| ComponentInitError::Unknown)?;
+@@ -104,9 +153,18 @@ fn init() -> Result<(), ComponentInitError> {
+             warn!("cannot find dm-crypt lower device {device_name}");
+             return Err(ComponentInitError::Unknown);
+         };
+-        let id = allocate_mapper_id()?;
++        let id = allocate_mapper_id().map_err(|_| ComponentInitError::Unknown)?;
++        ostd::early_println!("[dm] initializing AES-256-XTS mapper");
+         let mapper = DmDevice::new_crypt(id, mapper_name, lower, &key)
+             .map_err(|_| ComponentInitError::Unknown)?;
++        ostd::early_println!(
++            "[dm-perf] AES backend={}",
++            if crypto::hardware_aes_available() {
++                "AES-NI"
++            } else {
++                "portable-software"
++            }
++        );
+         mapper.self_test_ext2_magic().map_err(|error| {
+             ostd::early_println!(
+                 "[dm-test] FAIL AES-256-XTS did not reveal a valid ext2 superblock: {:?}",
+@@ -122,13 +180,12 @@ fn init() -> Result<(), ComponentInitError> {
+         ostd::early_println!("[dm] registered AES-256-XTS mapper");
+     }
+ 
+-    if VERITY_SCHEME.get().is_some_and(|scheme| scheme == "dm-verity") {
+-        let device_name = VERITY_DEVICE
+-            .get()
+-            .ok_or(ComponentInitError::Unknown)?;
+-        let root_hash_hex = VERITY_ROOT_HASH
+-            .get()
+-            .ok_or(ComponentInitError::Unknown)?;
++    if VERITY_SCHEME
++        .get()
++        .is_some_and(|scheme| scheme == "dm-verity")
++    {
++        let device_name = VERITY_DEVICE.get().ok_or(ComponentInitError::Unknown)?;
++        let root_hash_hex = VERITY_ROOT_HASH.get().ok_or(ComponentInitError::Unknown)?;
+         let root_hash = decode_hash(root_hash_hex).map_err(|_| ComponentInitError::Unknown)?;
+         let data_blocks = *VERITY_DATA_BLOCKS
+             .get()
+@@ -144,23 +201,66 @@ fn init() -> Result<(), ComponentInitError> {
+             warn!("cannot find dm-verity lower device {device_name}");
+             return Err(ComponentInitError::Unknown);
+         };
+-        let id = allocate_mapper_id()?;
+-        let mapper = DmDevice::new_verity(
+-            id,
+-            mapper_name,
+-            lower,
+-            data_blocks,
+-            hash_start_block,
+-            root_hash,
+-        )
+-        .map_err(|_| ComponentInitError::Unknown)?;
++        let id = allocate_mapper_id().map_err(|_| ComponentInitError::Unknown)?;
++        let cache_blocks = VERITY_CACHE_BLOCKS.get().copied().unwrap_or(256);
++        let mapper = Arc::new(
++            DmDevice::new_verity_with_cache(
++                id,
++                mapper_name,
++                lower,
++                data_blocks,
++                hash_start_block,
++                root_hash,
++                cache_blocks,
++            )
++            .map_err(|_| ComponentInitError::Unknown)?,
++        );
+         mapper.self_test_first_block().map_err(|error| {
+-            ostd::early_println!("[dm-test] FAIL dm-verity rejected first data block: {:?}", error);
++            VERITY_BOOT_STATUS.store(
++                if error == DmError::IntegrityViolation {
++                    2
++                } else {
++                    3
++                },
++                Ordering::Relaxed,
++            );
++            ostd::early_println!(
++                "[dm-test] FAIL dm-verity rejected first data block: {:?}",
++                error
++            );
+             ComponentInitError::Unknown
+         })?;
++        mapper.self_test_first_block().map_err(|error| {
++            VERITY_BOOT_STATUS.store(
++                if error == DmError::IntegrityViolation {
++                    2
++                } else {
++                    3
++                },
++                Ordering::Relaxed,
++            );
++            ostd::early_println!(
++                "[dm-test] FAIL dm-verity rejected repeated data block: {:?}",
++                error
++            );
++            ComponentInitError::Unknown
++        })?;
++        VERITY_BOOT_STATUS.store(1, Ordering::Relaxed);
+         ostd::early_println!("[dm-test] PASS first data block verified through dm-verity");
++        if let Some(stats) = mapper.verity_stats() {
++            ostd::early_println!(
++                "[dm-perf] verity cache_blocks={} verified={} bio_blocks={} data_rereads={} hash_hits={} hash_misses={}",
++                cache_blocks,
++                stats.verified_data_blocks,
++                stats.bio_data_blocks,
++                stats.data_reread_blocks,
++                stats.hash_cache_hits,
++                stats.hash_cache_misses
++            );
++        }
+         info!("registering dm-verity device {}", mapper.name());
+-        aster_block::register(Arc::new(mapper)).map_err(|_| ComponentInitError::Unknown)?;
++        VERITY_MAPPER.call_once(|| Arc::clone(&mapper));
++        aster_block::register(mapper).map_err(|_| ComponentInitError::Unknown)?;
+         ostd::early_println!("[dm] registered dm-verity mapper");
+     }
+ 
+@@ -168,10 +268,11 @@ fn init() -> Result<(), ComponentInitError> {
+     Ok(())
+ }
+ 
+-fn allocate_mapper_id() -> Result<DeviceId, ComponentInitError> {
+-    let major = DM_MAJOR.get().ok_or(ComponentInitError::Unknown)?.get();
++fn allocate_mapper_id() -> Result<DeviceId, DmError> {
++    let major = DM_MAJOR.get().ok_or(DmError::NotFound)?.get();
+     let minor = NEXT_DM_MINOR.fetch_add(1, Ordering::Relaxed);
+-    Ok(DeviceId::new(major, MinorId::new(minor)))
++    let minor = MinorId::try_from(minor).map_err(|_| DmError::OutOfRange)?;
++    Ok(DeviceId::new(major, minor))
+ }
+ 
+ fn find_device(name: &str) -> Option<Arc<dyn BlockDevice>> {
+@@ -197,8 +298,8 @@ fn decode_hex(input: &str) -> Result<Vec<u8>, DmError> {
+ 
+     let mut output = Vec::with_capacity(input.len() / 2);
+     for index in (0..input.len()).step_by(2) {
+-        let byte = u8::from_str_radix(&input[index..index + 2], 16)
+-            .map_err(|_| DmError::InvalidHex)?;
++        let byte =
++            u8::from_str_radix(&input[index..index + 2], 16).map_err(|_| DmError::InvalidHex)?;
+         output.push(byte);
+     }
+     Ok(output)
+diff --git a/kernel/comps/dm/src/runtime.rs b/kernel/comps/dm/src/runtime.rs
+new file mode 100644
+index 000000000..7d13e1468
+--- /dev/null
++++ b/kernel/comps/dm/src/runtime.rs
+@@ -0,0 +1,262 @@
++// SPDX-License-Identifier: MPL-2.0
++
++use alloc::{
++    collections::BTreeMap,
++    string::{String, ToString},
++    sync::Arc,
++    vec::Vec,
++};
++
++use aster_block::BlockDevice;
++use device_id::{DeviceId, MajorId, MinorId};
++use spin::Mutex;
++
++use crate::{DmDevice, DmError, allocate_mapper_id, decode_hex};
++
++static RUNTIME_MAPPERS: Mutex<BTreeMap<String, RuntimeMapper>> = Mutex::new(BTreeMap::new());
++
++/// Runtime mapper state returned to the Linux-compatible control plane.
++#[derive(Clone, Debug, Eq, PartialEq)]
++pub struct RuntimeMapperStatus {
++    pub id: DeviceId,
++    pub name: String,
++    pub uuid: String,
++    pub table_loaded: bool,
++    pub active: bool,
++    pub sector_start: u64,
++    pub logical_sectors: u64,
++    pub target_type: Option<String>,
++    pub table_parameters: Option<String>,
++}
++
++struct RuntimeMapper {
++    id: DeviceId,
++    uuid: String,
++    state: RuntimeMapperState,
++}
++
++enum RuntimeMapperState {
++    Empty,
++    Loaded(CryptTable),
++    Active(CryptPublicTable),
++}
++
++struct CryptTable {
++    lower: Arc<dyn BlockDevice>,
++    key: Vec<u8>,
++    iv_offset: u64,
++    data_offset_sectors: u64,
++    logical_sectors: usize,
++    public_parameters: String,
++}
++
++struct CryptPublicTable {
++    logical_sectors: usize,
++    public_parameters: String,
++}
++
++/// Reserves a runtime mapper name and device ID in suspended state.
++pub fn create_runtime_mapper(name: &str, uuid: &str) -> Result<RuntimeMapperStatus, DmError> {
++    validate_name(name)?;
++    let mut mappers = RUNTIME_MAPPERS.lock();
++    if mappers.contains_key(name) {
++        return Err(DmError::AlreadyExists);
++    }
++    let id = allocate_mapper_id()?;
++    let mapper = RuntimeMapper {
++        id,
++        uuid: uuid.to_string(),
++        state: RuntimeMapperState::Empty,
++    };
++    let status = status_for(name, &mapper);
++    mappers.insert(name.to_string(), mapper);
++    Ok(status)
++}
++
++/// Loads one Linux dm-crypt target into the mapper's inactive table slot.
++pub fn load_runtime_crypt_table(
++    name: &str,
++    sector_start: u64,
++    logical_sectors: u64,
++    parameters: &str,
++) -> Result<RuntimeMapperStatus, DmError> {
++    if sector_start != 0 {
++        return Err(DmError::InvalidTable);
++    }
++    let logical_sectors = usize::try_from(logical_sectors).map_err(|_| DmError::OutOfRange)?;
++    let table = parse_crypt_table(parameters, logical_sectors)?;
++    let mut mappers = RUNTIME_MAPPERS.lock();
++    let mapper = mappers.get_mut(name).ok_or(DmError::NotFound)?;
++    if matches!(mapper.state, RuntimeMapperState::Active(_)) {
++        return Err(DmError::Busy);
++    }
++    mapper.state = RuntimeMapperState::Loaded(table);
++    Ok(status_for(name, mapper))
++}
++
++/// Atomically promotes the inactive table and registers the block device.
++pub fn activate_runtime_mapper(name: &str) -> Result<RuntimeMapperStatus, DmError> {
++    let mut mappers = RUNTIME_MAPPERS.lock();
++    let mapper = mappers.get_mut(name).ok_or(DmError::NotFound)?;
++    if matches!(mapper.state, RuntimeMapperState::Active(_)) {
++        return Ok(status_for(name, mapper));
++    }
++    let RuntimeMapperState::Loaded(table) = &mut mapper.state else {
++        return Err(DmError::InvalidTable);
++    };
++    let device = DmDevice::new_crypt_table(
++        mapper.id,
++        name.to_string(),
++        Arc::clone(&table.lower),
++        &table.key,
++        table.iv_offset,
++        table.data_offset_sectors,
++        table.logical_sectors,
++    )?;
++    aster_block::register(Arc::new(device)).map_err(|_| DmError::AlreadyExists)?;
++    table.key.fill(0);
++    let public_table = CryptPublicTable {
++        logical_sectors: table.logical_sectors,
++        public_parameters: table.public_parameters.clone(),
++    };
++    mapper.state = RuntimeMapperState::Active(public_table);
++    Ok(status_for(name, mapper))
++}
++
++/// Removes a runtime mapper and wipes any key still held by an inactive table.
++pub fn remove_runtime_mapper(name: &str) -> Result<RuntimeMapperStatus, DmError> {
++    let mut mapper = RUNTIME_MAPPERS
++        .lock()
++        .remove(name)
++        .ok_or(DmError::NotFound)?;
++    let status = status_for(name, &mapper);
++    if matches!(mapper.state, RuntimeMapperState::Active(_)) {
++        aster_block::unregister(mapper.id).map_err(|_| DmError::Busy)?;
++    }
++    if let RuntimeMapperState::Loaded(table) = &mut mapper.state {
++        table.key.fill(0);
++    }
++    Ok(status)
++}
++
++pub fn runtime_mapper_status(name: &str) -> Result<RuntimeMapperStatus, DmError> {
++    let mappers = RUNTIME_MAPPERS.lock();
++    let mapper = mappers.get(name).ok_or(DmError::NotFound)?;
++    Ok(status_for(name, mapper))
++}
++
++pub fn runtime_mapper_list() -> Vec<RuntimeMapperStatus> {
++    RUNTIME_MAPPERS
++        .lock()
++        .iter()
++        .map(|(name, mapper)| status_for(name, mapper))
++        .collect()
++}
++
++fn status_for(name: &str, mapper: &RuntimeMapper) -> RuntimeMapperStatus {
++    let (logical_sectors, table_parameters) = match &mapper.state {
++        RuntimeMapperState::Loaded(table) => (
++            table.logical_sectors as u64,
++            Some(table.public_parameters.clone()),
++        ),
++        RuntimeMapperState::Active(table) => (
++            table.logical_sectors as u64,
++            Some(table.public_parameters.clone()),
++        ),
++        RuntimeMapperState::Empty => (0, None),
++    };
++    RuntimeMapperStatus {
++        id: mapper.id,
++        name: name.to_string(),
++        uuid: mapper.uuid.clone(),
++        table_loaded: !matches!(mapper.state, RuntimeMapperState::Empty),
++        active: matches!(mapper.state, RuntimeMapperState::Active(_)),
++        sector_start: 0,
++        logical_sectors,
++        target_type: table_parameters.as_ref().map(|_| "crypt".to_string()),
++        table_parameters,
++    }
++}
++
++fn parse_crypt_table(parameters: &str, logical_sectors: usize) -> Result<CryptTable, DmError> {
++    let fields: Vec<&str> = parameters.split_whitespace().collect();
++    if fields.len() < 5 || fields[0] != "aes-xts-plain64" {
++        return Err(DmError::UnsupportedTarget);
++    }
++    let iv_offset = parse_u64(fields[2])?;
++    let lower = find_lower_device(fields[3])?;
++    let data_offset_sectors = parse_u64(fields[4])?;
++    validate_options(&fields[5..])?;
++    let mut key = decode_hex(fields[1])?;
++    if key.len() != 64 {
++        key.fill(0);
++        return Err(DmError::InvalidKey);
++    }
++    Ok(CryptTable {
++        public_parameters: alloc::format!(
++            "{} - {} {}:{} {}",
++            fields[0],
++            iv_offset,
++            lower.id().major().get(),
++            lower.id().minor().get(),
++            data_offset_sectors
++        ),
++        lower,
++        key,
++        iv_offset,
++        data_offset_sectors,
++        logical_sectors,
++    })
++}
++
++fn find_lower_device(specifier: &str) -> Result<Arc<dyn BlockDevice>, DmError> {
++    if let Some((major, minor)) = specifier.split_once(':') {
++        let major = major.parse::<u16>().map_err(|_| DmError::InvalidTable)?;
++        let minor = minor.parse::<u32>().map_err(|_| DmError::InvalidTable)?;
++        let major = MajorId::try_from(major).map_err(|_| DmError::OutOfRange)?;
++        let minor = MinorId::try_from(minor).map_err(|_| DmError::OutOfRange)?;
++        return aster_block::lookup(DeviceId::new(major, minor)).ok_or(DmError::NotFound);
++    }
++    aster_block::collect_all()
++        .into_iter()
++        .find(|device| device.name() == specifier)
++        .ok_or(DmError::NotFound)
++}
++
++fn validate_options(fields: &[&str]) -> Result<(), DmError> {
++    if fields.is_empty() {
++        return Ok(());
++    }
++    let count = fields[0]
++        .parse::<usize>()
++        .map_err(|_| DmError::InvalidTable)?;
++    if fields.len() != count + 1 {
++        return Err(DmError::InvalidTable);
++    }
++    for option in &fields[1..] {
++        if !matches!(
++            *option,
++            "allow_discards"
++                | "same_cpu_crypt"
++                | "submit_from_crypt_cpus"
++                | "no_read_workqueue"
++                | "no_write_workqueue"
++                | "iv_large_sectors"
++                | "sector_size:512"
++        ) {
++            return Err(DmError::InvalidTable);
++        }
++    }
++    Ok(())
++}
++
++fn validate_name(name: &str) -> Result<(), DmError> {
++    if name.is_empty() || name.len() >= 128 || name.contains('/') {
++        return Err(DmError::InvalidTable);
++    }
++    Ok(())
++}
++
++fn parse_u64(value: &str) -> Result<u64, DmError> {
++    value.parse().map_err(|_| DmError::InvalidTable)
++}
+diff --git a/kernel/comps/dm/src/sha256.rs b/kernel/comps/dm/src/sha256.rs
+index b9b1b43a0..612710022 100644
+--- a/kernel/comps/dm/src/sha256.rs
++++ b/kernel/comps/dm/src/sha256.rs
+@@ -1,27 +1,18 @@
+ // SPDX-License-Identifier: MPL-2.0
+ 
+ const INITIAL_STATE: [u32; 8] = [
+-    0x6a09e667,
+-    0xbb67ae85,
+-    0x3c6ef372,
+-    0xa54ff53a,
+-    0x510e527f,
+-    0x9b05688c,
+-    0x1f83d9ab,
+-    0x5be0cd19,
++    0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
+ ];
+ 
+ const ROUND_CONSTANTS: [u32; 64] = [
+-    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4,
+-    0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe,
+-    0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f,
+-    0x4a7484aa, 0x5cb0a9dc, 0x76f988da, 0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7,
+-    0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 0x4d2c6dfc,
+-    0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b,
+-    0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070, 0x19a4c116,
+-    0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+-    0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7,
+-    0xc67178f2,
++    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
++    0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
++    0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
++    0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
++    0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
++    0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
++    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
++    0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
+ ];
+ 
+ /// Calculates a SHA-256 digest.
+@@ -76,21 +67,18 @@ fn compress(state: &mut [u32; 8], chunk: &[u8]) {
+ 
+     let mut working = *state;
+     for index in 0..64 {
+-        let big_sigma1 = working[4].rotate_right(6)
+-            ^ working[4].rotate_right(11)
+-            ^ working[4].rotate_right(25);
++        let big_sigma1 =
++            working[4].rotate_right(6) ^ working[4].rotate_right(11) ^ working[4].rotate_right(25);
+         let choose = (working[4] & working[5]) ^ (!working[4] & working[6]);
+         let temp1 = working[7]
+             .wrapping_add(big_sigma1)
+             .wrapping_add(choose)
+             .wrapping_add(ROUND_CONSTANTS[index])
+             .wrapping_add(schedule[index]);
+-        let big_sigma0 = working[0].rotate_right(2)
+-            ^ working[0].rotate_right(13)
+-            ^ working[0].rotate_right(22);
+-        let majority = (working[0] & working[1])
+-            ^ (working[0] & working[2])
+-            ^ (working[1] & working[2]);
++        let big_sigma0 =
++            working[0].rotate_right(2) ^ working[0].rotate_right(13) ^ working[0].rotate_right(22);
++        let majority =
++            (working[0] & working[1]) ^ (working[0] & working[2]) ^ (working[1] & working[2]);
+         let temp2 = big_sigma0.wrapping_add(majority);
+ 
+         working.copy_within(0..7, 1);
+@@ -111,11 +99,10 @@ mod tests {
+         assert_eq!(
+             sha256(b"abc"),
+             [
+-                0xba, 0x78, 0x16, 0xbf, 0x8f, 0x01, 0xcf, 0xea, 0x41, 0x41, 0x40, 0xde,
+-                0x5d, 0xae, 0x22, 0x23, 0xb0, 0x03, 0x61, 0xa3, 0x96, 0x17, 0x7a, 0x9c,
+-                0xb4, 0x10, 0xff, 0x61, 0xf2, 0x00, 0x15, 0xad,
++                0xba, 0x78, 0x16, 0xbf, 0x8f, 0x01, 0xcf, 0xea, 0x41, 0x41, 0x40, 0xde, 0x5d, 0xae,
++                0x22, 0x23, 0xb0, 0x03, 0x61, 0xa3, 0x96, 0x17, 0x7a, 0x9c, 0xb4, 0x10, 0xff, 0x61,
++                0xf2, 0x00, 0x15, 0xad,
+             ]
+         );
+     }
+ }
+-
+diff --git a/kernel/comps/dm/src/verity.rs b/kernel/comps/dm/src/verity.rs
+index 4dfe5ec21..6310068ab 100644
+--- a/kernel/comps/dm/src/verity.rs
++++ b/kernel/comps/dm/src/verity.rs
+@@ -1,6 +1,11 @@
+ // SPDX-License-Identifier: MPL-2.0
+ 
+-use alloc::{vec, vec::Vec};
++use alloc::{
++    collections::{BTreeMap, VecDeque},
++    sync::Arc,
++    vec::Vec,
++};
++use core::sync::atomic::{AtomicU64, Ordering};
+ 
+ use aster_block::{
+     BLOCK_SIZE, BlockDevice, SECTOR_SIZE,
+@@ -8,25 +13,43 @@ use aster_block::{
+     id::Bid,
+ };
+ use ostd::mm::VmIo;
++use spin::Mutex;
+ 
+ use crate::{DmError, sha256::sha256};
+ 
+ const HASH_SIZE: usize = 32;
+ const HASHES_PER_BLOCK: usize = BLOCK_SIZE / HASH_SIZE;
+ 
++/// A point-in-time snapshot of dm-verity's hot-path counters.
++#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
++pub struct VerityStats {
++    /// Number of data blocks authenticated successfully.
++    pub verified_data_blocks: u64,
++    /// Number of data blocks authenticated directly from the completed BIO.
++    pub bio_data_blocks: u64,
++    /// Number of data blocks reread for partial or unaligned BIOs.
++    pub data_reread_blocks: u64,
++    /// Number of authenticated hash blocks served from the cache.
++    pub hash_cache_hits: u64,
++    /// Number of hash blocks fetched from the lower device.
++    pub hash_cache_misses: u64,
++}
++
+ /// Verifies data blocks against an on-disk SHA-256 Merkle tree.
+ pub(crate) struct VerityTarget {
+     data_blocks: usize,
+     root_hash: [u8; HASH_SIZE],
+     levels: Vec<HashLevel>,
++    hash_cache: Mutex<VerifiedHashBlockCache>,
++    stats: VerityAtomicStats,
+ }
+ 
+ impl VerityTarget {
+-    /// Creates the level layout for a packed on-disk hash tree.
+-    pub(crate) fn new(
++    pub(crate) fn new_with_cache(
+         data_blocks: usize,
+         hash_start_block: usize,
+         root_hash: [u8; HASH_SIZE],
++        hash_cache_blocks: usize,
+     ) -> Result<Self, DmError> {
+         if data_blocks == 0 {
+             return Err(DmError::OutOfRange);
+@@ -54,6 +77,8 @@ impl VerityTarget {
+             data_blocks,
+             root_hash,
+             levels,
++            hash_cache: Mutex::new(VerifiedHashBlockCache::new(hash_cache_blocks)),
++            stats: VerityAtomicStats::default(),
+         })
+     }
+ 
+@@ -61,18 +86,84 @@ impl VerityTarget {
+         self.data_blocks * (BLOCK_SIZE / SECTOR_SIZE)
+     }
+ 
+-    pub(crate) fn verify_range(
++    /// Authenticates a completed BIO without rereading its full data blocks.
++    ///
++    /// Partial-block BIOs use the conservative lower-device path because a
++    /// SHA-256 digest must cover the complete 4-KiB block.
++    pub(crate) fn verify_segments(
++        &self,
++        lower: &dyn BlockDevice,
++        first_sector: u64,
++        segments: &[BioSegment],
++    ) -> Result<(), DmError> {
++        let start_byte = first_sector
++            .checked_mul(SECTOR_SIZE as u64)
++            .ok_or(DmError::OutOfRange)?;
++        let total_bytes = segments.iter().try_fold(0usize, |total, segment| {
++            total
++                .checked_add(segment.nbytes())
++                .ok_or(DmError::OutOfRange)
++        })?;
++        if !start_byte.is_multiple_of(BLOCK_SIZE as u64) || !total_bytes.is_multiple_of(BLOCK_SIZE)
++        {
++            return self.verify_range(lower, first_sector, total_bytes);
++        }
++
++        let first_block =
++            usize::try_from(start_byte / BLOCK_SIZE as u64).map_err(|_| DmError::OutOfRange)?;
++        let requested_blocks = total_bytes / BLOCK_SIZE;
++        let end_block = first_block
++            .checked_add(requested_blocks)
++            .ok_or(DmError::OutOfRange)?;
++        if end_block > self.data_blocks {
++            return Err(DmError::OutOfRange);
++        }
++
++        let mut data_block = [0u8; BLOCK_SIZE];
++        let mut bytes_in_block = 0usize;
++        let mut block_id = first_block;
++        for segment in segments {
++            let mut segment_offset = 0usize;
++            while segment_offset < segment.nbytes() {
++                let copy_len = (BLOCK_SIZE - bytes_in_block).min(segment.nbytes() - segment_offset);
++                segment
++                    .inner_dma_slice()
++                    .read_bytes(
++                        segment_offset,
++                        &mut data_block[bytes_in_block..bytes_in_block + copy_len],
++                    )
++                    .map_err(|_| DmError::Io)?;
++                segment_offset += copy_len;
++                bytes_in_block += copy_len;
++
++                if bytes_in_block == BLOCK_SIZE {
++                    self.verify_data_block(lower, block_id, &data_block)?;
++                    self.stats.bio_data_blocks.fetch_add(1, Ordering::Relaxed);
++                    block_id += 1;
++                    bytes_in_block = 0;
++                }
++            }
++        }
++        debug_assert_eq!(bytes_in_block, 0);
++        debug_assert_eq!(block_id, end_block);
++        Ok(())
++    }
++
++    pub(crate) fn stats(&self) -> VerityStats {
++        self.stats.snapshot()
++    }
++
++    fn verify_range(
+         &self,
+         lower: &dyn BlockDevice,
+         first_sector: u64,
+-        num_sectors: u64,
++        num_bytes: usize,
+     ) -> Result<(), DmError> {
+         let start_byte = first_sector
+             .checked_mul(SECTOR_SIZE as u64)
+             .ok_or(DmError::OutOfRange)?;
+-        let end_byte = first_sector
+-            .checked_add(num_sectors)
+-            .and_then(|end| end.checked_mul(SECTOR_SIZE as u64))
++        let end_byte = start_byte
++            .checked_add(num_bytes as u64)
+             .ok_or(DmError::OutOfRange)?;
+         let first_block = start_byte / BLOCK_SIZE as u64;
+         let end_block = end_byte.div_ceil(BLOCK_SIZE as u64);
+@@ -80,16 +171,25 @@ impl VerityTarget {
+             return Err(DmError::OutOfRange);
+         }
+ 
++        self.stats
++            .data_reread_blocks
++            .fetch_add(end_block - first_block, Ordering::Relaxed);
+         for block_id in first_block..end_block {
+-            self.verify_block(lower, block_id as usize)?;
++            let data = read_block(lower, block_id as usize)?;
++            self.verify_data_block(lower, block_id as usize, &data)?;
+         }
+         Ok(())
+     }
+ 
+-    fn verify_block(&self, lower: &dyn BlockDevice, block_id: usize) -> Result<(), DmError> {
+-        let data = read_block(lower, block_id)?;
+-        let mut digest = sha256(&data);
++    fn verify_data_block(
++        &self,
++        lower: &dyn BlockDevice,
++        block_id: usize,
++        data: &[u8; BLOCK_SIZE],
++    ) -> Result<(), DmError> {
++        let mut digest = sha256(data);
+         let mut digest_index = block_id;
++        let mut newly_authenticated = Vec::new();
+ 
+         for level in &self.levels {
+             if digest_index >= level.digest_count {
+@@ -97,18 +197,36 @@ impl VerityTarget {
+             }
+             let hash_block_index = digest_index / HASHES_PER_BLOCK;
+             let digest_slot = digest_index % HASHES_PER_BLOCK;
+-            let hash_block = read_block(lower, level.block_offset + hash_block_index)?;
++            let physical_block = level.block_offset + hash_block_index;
++            let hash_block = if let Some(cached) = self.hash_cache.lock().get(physical_block) {
++                self.stats.hash_cache_hits.fetch_add(1, Ordering::Relaxed);
++                cached
++            } else {
++                self.stats.hash_cache_misses.fetch_add(1, Ordering::Relaxed);
++                let fetched = Arc::new(read_block(lower, physical_block)?);
++                newly_authenticated.push((physical_block, Arc::clone(&fetched)));
++                fetched
++            };
+             let digest_offset = digest_slot * HASH_SIZE;
+             if hash_block[digest_offset..digest_offset + HASH_SIZE] != digest {
+                 return Err(DmError::IntegrityViolation);
+             }
+-            digest = sha256(&hash_block);
++            digest = sha256(hash_block.as_ref());
+             digest_index = hash_block_index;
+         }
+ 
+         if digest != self.root_hash {
+             return Err(DmError::IntegrityViolation);
+         }
++        // Cache insertion happens only after the complete path reaches the
++        // trusted root, so an unauthenticated hash block is never reused.
++        let mut cache = self.hash_cache.lock();
++        for (block_id, block) in newly_authenticated {
++            cache.insert_authenticated(block_id, block);
++        }
++        self.stats
++            .verified_data_blocks
++            .fetch_add(1, Ordering::Relaxed);
+         Ok(())
+     }
+ }
+@@ -118,7 +236,61 @@ struct HashLevel {
+     digest_count: usize,
+ }
+ 
+-fn read_block(lower: &dyn BlockDevice, block_id: usize) -> Result<Vec<u8>, DmError> {
++struct VerifiedHashBlockCache {
++    blocks: BTreeMap<usize, Arc<[u8; BLOCK_SIZE]>>,
++    insertion_order: VecDeque<usize>,
++    capacity: usize,
++}
++
++impl VerifiedHashBlockCache {
++    fn new(capacity: usize) -> Self {
++        Self {
++            blocks: BTreeMap::new(),
++            insertion_order: VecDeque::new(),
++            capacity,
++        }
++    }
++
++    fn get(&self, block_id: usize) -> Option<Arc<[u8; BLOCK_SIZE]>> {
++        self.blocks.get(&block_id).map(Arc::clone)
++    }
++
++    fn insert_authenticated(&mut self, block_id: usize, block: Arc<[u8; BLOCK_SIZE]>) {
++        if self.capacity == 0 || self.blocks.contains_key(&block_id) {
++            return;
++        }
++        if self.blocks.len() == self.capacity {
++            if let Some(evicted) = self.insertion_order.pop_front() {
++                self.blocks.remove(&evicted);
++            }
++        }
++        self.blocks.insert(block_id, block);
++        self.insertion_order.push_back(block_id);
++    }
++}
++
++#[derive(Default)]
++struct VerityAtomicStats {
++    verified_data_blocks: AtomicU64,
++    bio_data_blocks: AtomicU64,
++    data_reread_blocks: AtomicU64,
++    hash_cache_hits: AtomicU64,
++    hash_cache_misses: AtomicU64,
++}
++
++impl VerityAtomicStats {
++    fn snapshot(&self) -> VerityStats {
++        VerityStats {
++            verified_data_blocks: self.verified_data_blocks.load(Ordering::Relaxed),
++            bio_data_blocks: self.bio_data_blocks.load(Ordering::Relaxed),
++            data_reread_blocks: self.data_reread_blocks.load(Ordering::Relaxed),
++            hash_cache_hits: self.hash_cache_hits.load(Ordering::Relaxed),
++            hash_cache_misses: self.hash_cache_misses.load(Ordering::Relaxed),
++        }
++    }
++}
++
++fn read_block(lower: &dyn BlockDevice, block_id: usize) -> Result<[u8; BLOCK_SIZE], DmError> {
+     let segment = BioSegment::alloc(1, BioDirection::FromDevice);
+     let status = lower
+         .read_blocks(Bid::new(block_id as u64), segment.clone())
+@@ -126,9 +298,7 @@ fn read_block(lower: &dyn BlockDevice, block_id: usize) -> Result<Vec<u8>, DmErr
+     if status != BioStatus::Complete {
+         return Err(DmError::Io);
+     }
+-    let mut block = vec![0u8; BLOCK_SIZE];
+-    segment
+-        .read_bytes(0, &mut block)
+-        .map_err(|_| DmError::Io)?;
++    let mut block = [0u8; BLOCK_SIZE];
++    segment.read_bytes(0, &mut block).map_err(|_| DmError::Io)?;
+     Ok(block)
+ }
+diff --git a/kernel/src/device/misc/dm_control.rs b/kernel/src/device/misc/dm_control.rs
+new file mode 100644
+index 000000000..2cfc79640
+--- /dev/null
++++ b/kernel/src/device/misc/dm_control.rs
+@@ -0,0 +1,519 @@
++// SPDX-License-Identifier: MPL-2.0
++
++//! Linux-compatible Device Mapper control device.
++//!
++//! This implements the ioctl sequence used by libdevmapper/cryptsetup for a
++//! single `crypt` target: create, load, activate, query, and remove.
++
++use alloc::vec;
++
++use aster_dm::{
++    DmError, RuntimeMapperStatus, activate_runtime_mapper, create_runtime_mapper,
++    load_runtime_crypt_table, remove_runtime_mapper, runtime_mapper_list, runtime_mapper_status,
++};
++use device_id::{DeviceId, MinorId};
++use ostd::{mm::VmIo, task::Task};
++
++use crate::{
++    context::current_userspace,
++    device::{Device, DeviceType, DevtmpfsInodeMeta, add_node, registry::char},
++    events::IoEvents,
++    fs::{
++        file::{PerOpenFileOps, StatusFlags},
++        vfs::{inode::FileOps, path::FsPath},
++    },
++    prelude::*,
++    process::signal::{PollHandle, Pollable},
++    util::ioctl::{RawIoctl, dispatch_ioctl},
++};
++
++const DM_CONTROL_MINOR: u32 = 236;
++const DM_IOCTL_SIZE: usize = size_of::<DmIoctl>();
++const DM_EXISTS_FLAG: u32 = 1 << 2;
++const DM_STATUS_TABLE_FLAG: u32 = 1 << 4;
++const DM_ACTIVE_PRESENT_FLAG: u32 = 1 << 5;
++const DM_INACTIVE_PRESENT_FLAG: u32 = 1 << 6;
++const DM_BUFFER_FULL_FLAG: u32 = 1 << 8;
++const DM_UEVENT_GENERATED_FLAG: u32 = 1 << 13;
++const DM_SUSPEND_FLAG: u32 = 1 << 1;
++const MAX_IOCTL_DATA: usize = 1024 * 1024;
++
++#[derive(Debug)]
++struct DmControlDevice {
++    id: DeviceId,
++}
++
++impl Device for DmControlDevice {
++    fn type_(&self) -> DeviceType {
++        DeviceType::Char
++    }
++
++    fn id(&self) -> DeviceId {
++        self.id
++    }
++
++    fn devtmpfs_meta(&self) -> Option<DevtmpfsInodeMeta<'_>> {
++        Some(DevtmpfsInodeMeta::new("mapper/control"))
++    }
++
++    fn open(&self) -> Result<Box<dyn PerOpenFileOps>> {
++        Ok(Box::new(DmControlFile))
++    }
++}
++
++struct DmControlFile;
++
++impl Pollable for DmControlFile {
++    fn poll(&self, mask: IoEvents, _poller: Option<&mut PollHandle>) -> IoEvents {
++        mask & (IoEvents::IN | IoEvents::OUT)
++    }
++}
++
++impl FileOps for DmControlFile {
++    fn read_at(
++        &self,
++        _offset: usize,
++        _writer: &mut VmWriter,
++        _status_flags: StatusFlags,
++    ) -> Result<usize> {
++        return_errno_with_message!(Errno::EBADF, "device-mapper control is ioctl-only")
++    }
++
++    fn write_at(
++        &self,
++        _offset: usize,
++        _reader: &mut VmReader,
++        _status_flags: StatusFlags,
++    ) -> Result<usize> {
++        return_errno_with_message!(Errno::EBADF, "device-mapper control is ioctl-only")
++    }
++}
++
++impl PerOpenFileOps for DmControlFile {
++    fn check_seekable(&self) -> Result<()> {
++        return_errno_with_message!(Errno::ESPIPE, "device-mapper control is not seekable")
++    }
++
++    fn is_offset_aware(&self) -> bool {
++        false
++    }
++
++    fn ioctl(&self, raw_ioctl: RawIoctl) -> Result<i32> {
++        use ioctl_defs::*;
++
++        dispatch_ioctl!(match raw_ioctl {
++            _cmd @ DmVersion => {
++                handle_ioctl(raw_ioctl, Command::Version)
++            }
++            _cmd @ DmListVersions => {
++                handle_ioctl(raw_ioctl, Command::ListVersions)
++            }
++            _cmd @ DmTableStatus => {
++                handle_ioctl(raw_ioctl, Command::TableStatus)
++            }
++            _cmd @ DmDevCreate => {
++                handle_ioctl(raw_ioctl, Command::DevCreate)
++            }
++            _cmd @ DmTableLoad => {
++                handle_ioctl(raw_ioctl, Command::TableLoad)
++            }
++            _cmd @ DmDevSuspend => {
++                handle_ioctl(raw_ioctl, Command::DevSuspend)
++            }
++            _cmd @ DmDevRemove => {
++                handle_ioctl(raw_ioctl, Command::DevRemove)
++            }
++            _cmd @ DmDevStatus => {
++                handle_ioctl(raw_ioctl, Command::DevStatus)
++            }
++            _ => return_errno_with_message!(Errno::ENOTTY, "unknown device-mapper ioctl"),
++        })
++    }
++}
++
++#[derive(Clone, Copy)]
++enum Command {
++    Version,
++    ListVersions,
++    TableStatus,
++    DevCreate,
++    TableLoad,
++    DevSuspend,
++    DevRemove,
++    DevStatus,
++}
++
++fn handle_ioctl(raw: RawIoctl, command: Command) -> Result<i32> {
++    let mut header = current_userspace!().read_val::<DmIoctl>(raw.arg())?;
++    if header.data_size as usize > MAX_IOCTL_DATA {
++        return_errno_with_message!(Errno::E2BIG, "device-mapper ioctl buffer is too large");
++    }
++    let input_flags = header.flags;
++    set_version(&mut header);
++
++    match command {
++        Command::Version => {}
++        Command::ListVersions => write_target_versions(raw.arg(), &mut header)?,
++        Command::DevCreate => {
++            let name = c_string(&header.name)?;
++            let uuid = c_string(&header.uuid)?;
++            let status = create_runtime_mapper(&name, &uuid).map_err(dm_error)?;
++            fill_status(&mut header, &status, input_flags);
++        }
++        Command::TableLoad => {
++            let name = mapper_name(&header)?;
++            let spec_addr = payload_address(raw.arg(), &header, size_of::<DmTargetSpec>())?;
++            if header.target_count != 1 {
++                return_errno_with_message!(Errno::EINVAL, "exactly one dm target is supported");
++            }
++            let spec = current_userspace!().read_val::<DmTargetSpec>(spec_addr)?;
++            if c_string(&spec.target_type)? != "crypt" {
++                return_errno_with_message!(Errno::EOPNOTSUPP, "only the crypt target is supported");
++            }
++            let parameters = read_target_parameters(spec_addr, raw.arg(), &header, &spec)?;
++            let parameters = normalize_lower_device(&parameters)?;
++            let lower_spec = parameters.split_whitespace().nth(3).unwrap_or("<missing>");
++            let status =
++                load_runtime_crypt_table(&name, spec.sector_start, spec.length, &parameters)
++                    .map_err(|error| {
++                        ostd::early_println!(
++                            "[dm-control] table load failed: name={} dev={:#x} lower={} error={:?}",
++                            name,
++                            header.dev,
++                            lower_spec,
++                            error
++                        );
++                        dm_error(error)
++                    })?;
++            fill_status(&mut header, &status, input_flags | DM_INACTIVE_PRESENT_FLAG);
++        }
++        Command::DevSuspend => {
++            if input_flags & DM_SUSPEND_FLAG != 0 {
++                return_errno_with_message!(
++                    Errno::EOPNOTSUPP,
++                    "suspending an active mapper is unsupported"
++                );
++            }
++            let name = mapper_name(&header)?;
++            let status = activate_runtime_mapper(&name).map_err(dm_error)?;
++            create_mapper_node(&status);
++            fill_status(
++                &mut header,
++                &status,
++                input_flags | DM_ACTIVE_PRESENT_FLAG | DM_UEVENT_GENERATED_FLAG,
++            );
++            header.target_count = 1;
++        }
++        Command::TableStatus => {
++            let name = mapper_name(&header)?;
++            let status = runtime_mapper_status(&name).map_err(dm_error)?;
++            fill_status(&mut header, &status, input_flags);
++            write_table_status(raw.arg(), &mut header, &status, input_flags)?;
++        }
++        Command::DevStatus => {
++            let name = mapper_name(&header)?;
++            let status = runtime_mapper_status(&name).map_err(dm_error)?;
++            fill_status(&mut header, &status, input_flags);
++        }
++        Command::DevRemove => {
++            let name = mapper_name(&header)?;
++            let status = remove_runtime_mapper(&name).map_err(dm_error)?;
++            remove_mapper_node(&name);
++            fill_status(&mut header, &status, input_flags | DM_UEVENT_GENERATED_FLAG);
++            header.flags &= !(DM_ACTIVE_PRESENT_FLAG | DM_INACTIVE_PRESENT_FLAG);
++        }
++    }
++
++    current_userspace!().write_val(raw.arg(), &header)?;
++    Ok(0)
++}
++
++fn write_target_versions(base: usize, header: &mut DmIoctl) -> Result<()> {
++    let mut payload = Vec::new();
++    append_target_version(&mut payload, [1, 24, 0], b"crypt", false);
++    append_target_version(&mut payload, [1, 10, 0], b"verity", true);
++    write_payload(base, header, &payload)
++}
++
++fn append_target_version(output: &mut Vec<u8>, version: [u32; 3], name: &[u8], is_last: bool) {
++    let start = output.len();
++    let unaligned = 16 + name.len() + 1;
++    let record_len = align_to_8(unaligned);
++    let next = if is_last { 0 } else { record_len as u32 };
++    output.extend_from_slice(&next.to_ne_bytes());
++    for part in version {
++        output.extend_from_slice(&part.to_ne_bytes());
++    }
++    output.extend_from_slice(name);
++    output.resize(start + record_len, 0);
++}
++
++fn write_table_status(
++    base: usize,
++    header: &mut DmIoctl,
++    status: &RuntimeMapperStatus,
++    input_flags: u32,
++) -> Result<()> {
++    let Some(target_type) = &status.target_type else {
++        header.target_count = 0;
++        header.data_size = header.data_start.max(DM_IOCTL_SIZE as u32);
++        return Ok(());
++    };
++    let parameters = if input_flags & DM_STATUS_TABLE_FLAG != 0 {
++        status.table_parameters.as_deref().unwrap_or("")
++    } else {
++        ""
++    };
++    let spec = DmTargetSpec {
++        sector_start: status.sector_start,
++        length: status.logical_sectors,
++        status: 0,
++        next: 0,
++        target_type: c_array::<16>(target_type)?,
++    };
++    let mut payload = Vec::with_capacity(size_of::<DmTargetSpec>() + parameters.len() + 1);
++    payload.extend_from_slice(spec.as_bytes());
++    payload.extend_from_slice(parameters.as_bytes());
++    payload.push(0);
++    header.target_count = 1;
++    write_payload(base, header, &payload)
++}
++
++fn write_payload(base: usize, header: &mut DmIoctl, payload: &[u8]) -> Result<()> {
++    let start = header.data_start.max(DM_IOCTL_SIZE as u32) as usize;
++    let required = start.checked_add(payload.len()).ok_or_else(|| {
++        Error::with_message(Errno::EOVERFLOW, "device-mapper payload size overflow")
++    })?;
++    if required > header.data_size as usize {
++        header.flags |= DM_BUFFER_FULL_FLAG;
++        header.data_size = required as u32;
++        return Ok(());
++    }
++    current_userspace!().write_bytes(base + start, payload)?;
++    header.data_start = start as u32;
++    header.data_size = required as u32;
++    Ok(())
++}
++
++fn read_target_parameters(
++    spec_addr: usize,
++    base: usize,
++    header: &DmIoctl,
++    spec: &DmTargetSpec,
++) -> Result<String> {
++    let start = spec_addr + size_of::<DmTargetSpec>();
++    let data_end = base
++        .checked_add(header.data_size as usize)
++        .ok_or_else(|| Error::with_message(Errno::EOVERFLOW, "dm table end overflow"))?;
++    let end = if spec.next == 0 {
++        data_end
++    } else {
++        spec_addr
++            .checked_add(spec.next as usize)
++            .ok_or_else(|| Error::with_message(Errno::EOVERFLOW, "dm target end overflow"))?
++            .min(data_end)
++    };
++    if end <= start || end - start > MAX_IOCTL_DATA {
++        return_errno_with_message!(Errno::EINVAL, "invalid dm target parameter range");
++    }
++    let mut bytes = vec![0u8; end - start];
++    current_userspace!().read_bytes(start, &mut bytes)?;
++    c_string(&bytes)
++}
++
++fn payload_address(base: usize, header: &DmIoctl, minimum: usize) -> Result<usize> {
++    let start = header.data_start as usize;
++    let end = start.checked_add(minimum).ok_or_else(|| {
++        Error::with_message(Errno::EOVERFLOW, "device-mapper data offset overflow")
++    })?;
++    if start < DM_IOCTL_SIZE || end > header.data_size as usize {
++        return_errno_with_message!(Errno::EINVAL, "invalid device-mapper data range");
++    }
++    base.checked_add(start)
++        .ok_or_else(|| Error::with_message(Errno::EOVERFLOW, "userspace address overflow"))
++}
++
++fn fill_status(header: &mut DmIoctl, status: &RuntimeMapperStatus, input_flags: u32) {
++    header.dev = status.id.as_encoded_u64();
++    header.name = c_array_lossy::<128>(&status.name);
++    header.uuid = c_array_lossy::<129>(&status.uuid);
++    header.open_count = 0;
++    header.event_nr = 0;
++    header.flags = input_flags | DM_EXISTS_FLAG;
++    if status.active {
++        header.flags |= DM_ACTIVE_PRESENT_FLAG;
++    } else if status.table_loaded {
++        header.flags |= DM_INACTIVE_PRESENT_FLAG;
++    }
++}
++
++fn set_version(header: &mut DmIoctl) {
++    header.version = [4, 48, 0];
++    header.flags |= DM_EXISTS_FLAG;
++}
++
++fn c_string(bytes: &[u8]) -> Result<String> {
++    let end = bytes
++        .iter()
++        .position(|byte| *byte == 0)
++        .unwrap_or(bytes.len());
++    String::from_utf8(bytes[..end].to_vec())
++        .map_err(|_| Error::with_message(Errno::EINVAL, "device-mapper string is not UTF-8"))
++}
++
++fn mapper_name(header: &DmIoctl) -> Result<String> {
++    let name = c_string(&header.name)?;
++    if !name.is_empty() {
++        return Ok(name);
++    }
++    runtime_mapper_list()
++        .into_iter()
++        .find(|status| status.id.as_encoded_u64() == header.dev)
++        .map(|status| status.name)
++        .ok_or_else(|| Error::with_message(Errno::ENXIO, "device-mapper device does not exist"))
++}
++
++fn normalize_lower_device(parameters: &str) -> Result<String> {
++    let mut fields: Vec<String> = parameters
++        .split_whitespace()
++        .map(String::from)
++        .collect();
++    let Some(lower) = fields.get(3) else {
++        return_errno_with_message!(Errno::EINVAL, "dm-crypt table is missing a lower device");
++    };
++    if !lower.starts_with('/') {
++        return Ok(parameters.to_string());
++    }
++
++    let task = Task::current()
++        .ok_or_else(|| Error::with_message(Errno::ESRCH, "no current task"))?;
++    let thread_local = task
++        .as_thread_local()
++        .ok_or_else(|| Error::with_message(Errno::ESRCH, "no current thread state"))?;
++    let fs = thread_local.borrow_fs();
++    let resolver = fs.resolver().read();
++    let path = resolver.lookup(&FsPath::try_from(lower.as_str())?)?;
++    let device_id = path.metadata().self_dev_id.ok_or_else(|| {
++        Error::with_message(Errno::ENODEV, "dm-crypt lower path is not a device")
++    })?;
++    fields[3] = alloc::format!(
++        "{}:{}",
++        device_id.major().get(),
++        device_id.minor().get()
++    );
++    Ok(fields.join(" "))
++}
++
++fn c_array<const N: usize>(value: &str) -> Result<[u8; N]> {
++    if value.len() >= N {
++        return_errno_with_message!(Errno::ENAMETOOLONG, "device-mapper string is too long");
++    }
++    Ok(c_array_lossy(value))
++}
++
++fn c_array_lossy<const N: usize>(value: &str) -> [u8; N] {
++    let mut output = [0u8; N];
++    let length = value.len().min(N.saturating_sub(1));
++    output[..length].copy_from_slice(&value.as_bytes()[..length]);
++    output
++}
++
++fn align_to_8(value: usize) -> usize {
++    (value + 7) & !7
++}
++
++fn dm_error(error: DmError) -> Error {
++    let errno = match error {
++        DmError::AlreadyExists => Errno::EEXIST,
++        DmError::Busy => Errno::EBUSY,
++        DmError::NotFound => Errno::ENXIO,
++        DmError::UnsupportedTarget => Errno::EOPNOTSUPP,
++        DmError::OutOfRange => Errno::ERANGE,
++        DmError::IntegrityViolation | DmError::Io => Errno::EIO,
++        DmError::InvalidHex
++        | DmError::InvalidKey
++        | DmError::InvalidTable
++        | DmError::InvalidData
++        | DmError::UnalignedIo => Errno::EINVAL,
++    };
++    Error::with_message(errno, "device-mapper operation failed")
++}
++
++fn create_mapper_node(status: &RuntimeMapperStatus) {
++    let Some(task) = Task::current() else {
++        return;
++    };
++    let Some(thread_local) = task.as_thread_local() else {
++        return;
++    };
++    let fs = thread_local.borrow_fs();
++    let resolver = fs.resolver().read();
++    let path = alloc::format!("mapper/{}", status.name);
++    let _ = add_node(
++        DeviceType::Block,
++        status.id.as_encoded_u64(),
++        &DevtmpfsInodeMeta::new(path),
++        &resolver,
++    );
++}
++
++fn remove_mapper_node(name: &str) {
++    let Some(task) = Task::current() else {
++        return;
++    };
++    let Some(thread_local) = task.as_thread_local() else {
++        return;
++    };
++    let fs = thread_local.borrow_fs();
++    let resolver = fs.resolver().read();
++    if let Ok(mapper_dir) = resolver.lookup(&FsPath::try_from("/dev/mapper").unwrap()) {
++        let _ = mapper_dir.unlink(name);
++    }
++}
++
++pub(super) fn init_in_first_kthread() {
++    let major = super::MISC_MAJOR.get().unwrap().get();
++    let id = DeviceId::new(major, MinorId::new(DM_CONTROL_MINOR));
++    char::register(Arc::new(DmControlDevice { id })).unwrap();
++}
++
++#[repr(C)]
++#[derive(Clone, Copy, Pod)]
++struct DmIoctl {
++    version: [u32; 3],
++    data_size: u32,
++    data_start: u32,
++    target_count: u32,
++    open_count: i32,
++    flags: u32,
++    event_nr: u32,
++    padding: u32,
++    dev: u64,
++    name: [u8; 128],
++    uuid: [u8; 129],
++    data: [u8; 7],
++}
++
++#[repr(C)]
++#[derive(Clone, Copy, Pod)]
++struct DmTargetSpec {
++    sector_start: u64,
++    length: u64,
++    status: i32,
++    next: u32,
++    target_type: [u8; 16],
++}
++
++mod ioctl_defs {
++    use super::DmIoctl;
++    use crate::util::ioctl::{InOutData, ioc};
++
++    pub(super) type DmVersion = ioc!(DM_VERSION, 0xfd, 0, InOutData<DmIoctl>);
++    pub(super) type DmDevCreate = ioc!(DM_DEV_CREATE, 0xfd, 3, InOutData<DmIoctl>);
++    pub(super) type DmDevRemove = ioc!(DM_DEV_REMOVE, 0xfd, 4, InOutData<DmIoctl>);
++    pub(super) type DmDevSuspend = ioc!(DM_DEV_SUSPEND, 0xfd, 6, InOutData<DmIoctl>);
++    pub(super) type DmDevStatus = ioc!(DM_DEV_STATUS, 0xfd, 7, InOutData<DmIoctl>);
++    pub(super) type DmTableLoad = ioc!(DM_TABLE_LOAD, 0xfd, 9, InOutData<DmIoctl>);
++    pub(super) type DmTableStatus = ioc!(DM_TABLE_STATUS, 0xfd, 12, InOutData<DmIoctl>);
++    pub(super) type DmListVersions = ioc!(DM_LIST_VERSIONS, 0xfd, 13, InOutData<DmIoctl>);
++}
+diff --git a/kernel/src/device/misc/mod.rs b/kernel/src/device/misc/mod.rs
+index 29289ea58..c8e50d9d8 100644
+--- a/kernel/src/device/misc/mod.rs
++++ b/kernel/src/device/misc/mod.rs
+@@ -9,6 +9,7 @@ use spin::Once;
+ 
+ use super::registry::char::{MajorIdOwner, acquire_major};
+ 
++mod dm_control;
+ mod hwrng;
+ #[cfg(all(target_arch = "x86_64", feature = "cvm_guest"))]
+ pub mod tdxguest;
+@@ -19,6 +20,7 @@ pub(super) fn init_in_first_kthread() {
+     MISC_MAJOR.call_once(|| acquire_major(MajorId::new(10)).unwrap());
+ 
+     hwrng::init_in_first_kthread();
++    dm_control::init_in_first_kthread();
+ 
+     #[cfg(target_arch = "x86_64")]
+     ostd::if_tdx_enabled!({
+diff --git a/kernel/src/device/registry/block.rs b/kernel/src/device/registry/block.rs
+index 44bce4539..f4275762b 100644
+--- a/kernel/src/device/registry/block.rs
++++ b/kernel/src/device/registry/block.rs
+@@ -87,6 +87,15 @@ mod ioctl_defs {
+     /// ioctl must return that larger value. Otherwise user programs will align
+     /// correctly for the device but still hit `EINVAL` at the filesystem.
+     pub(super) type BlkGetSectorSize = ioc!(BLKSSZGET, 0x12, 104, NoData);
++
++    /// Returns whether the block device is read-only.
++    pub(super) type BlkReadOnlyGet = ioc!(BLKROGET, 0x12, 94, NoData);
++
++    /// Returns the block-device read-ahead window in sectors.
++    pub(super) type BlkReadAheadGet = ioc!(BLKRAGET, 0x12, 99, NoData);
++
++    /// Returns the zone size in sectors, or zero for a non-zoned device.
++    pub(super) type BlkGetZoneSize = ioc!(BLKGETZONESZ, 0x12, 132, OutData<u32>);
+ }
+ 
+ /// Represents a block device inode in the filesystem.
+@@ -218,6 +227,18 @@ impl PerOpenFileOps for OpenBlockFile {
+                 current_userspace!().write_val(raw_ioctl.arg(), &sector_size)?;
+                 Ok(0)
+             }
++            _cmd @ BlkReadOnlyGet => {
++                current_userspace!().write_val(raw_ioctl.arg(), &0i32)?;
++                Ok(0)
++            }
++            _cmd @ BlkReadAheadGet => {
++                current_userspace!().write_val(raw_ioctl.arg(), &256u64)?;
++                Ok(0)
++            }
++            cmd @ BlkGetZoneSize => {
++                cmd.write(&0u32)?;
++                Ok(0)
++            }
+             cmd @ BlkGetSize64 => {
+                 let size = (self.0.metadata().nr_sectors * SECTOR_SIZE) as u64;
+                 cmd.write(&size)?;
+diff --git a/kernel/src/fs/fs_impls/procfs/devices.rs b/kernel/src/fs/fs_impls/procfs/devices.rs
+new file mode 100644
+index 000000000..efde3a390
+--- /dev/null
++++ b/kernel/src/fs/fs_impls/procfs/devices.rs
+@@ -0,0 +1,42 @@
++// SPDX-License-Identifier: MPL-2.0
++
++//! Linux-compatible `/proc/devices` support.
++
++use aster_util::printer::VmPrinter;
++
++use crate::{
++    fs::{
++        file::mkmod,
++        procfs::template::{ProcFile, ProcFileOps},
++        vfs::inode::Inode,
++    },
++    prelude::*,
++};
++
++/// Represents the inode at `/proc/devices`.
++pub struct DevicesFileOps;
++
++impl DevicesFileOps {
++    pub fn new_inode(parent: Weak<dyn Inode>) -> Arc<dyn Inode> {
++        ProcFile::new(Self, parent, mkmod!(a+r))
++    }
++}
++
++impl ProcFileOps for DevicesFileOps {
++    fn read_at(&self, offset: usize, writer: &mut VmWriter) -> Result<usize> {
++        let mut printer = VmPrinter::new_skip(writer, offset);
++
++        // Keep the Linux section layout because libdevmapper parses this file
++        // to discover the dynamically allocated device-mapper block major.
++        writeln!(printer, "Character devices:")?;
++        writeln!(printer, "  5 tty")?;
++        writeln!(printer, " 10 misc")?;
++        writeln!(printer)?;
++        writeln!(printer, "Block devices:")?;
++        if let Some(major) = aster_dm::device_mapper_major() {
++            writeln!(printer, "{:>3} device-mapper", major)?;
++        }
++
++        Ok(printer.bytes_written())
++    }
++}
+diff --git a/kernel/src/fs/fs_impls/procfs/dm_crypto_backend.rs b/kernel/src/fs/fs_impls/procfs/dm_crypto_backend.rs
+new file mode 100644
+index 000000000..8e4f9c9c4
+--- /dev/null
++++ b/kernel/src/fs/fs_impls/procfs/dm_crypto_backend.rs
+@@ -0,0 +1,31 @@
++// SPDX-License-Identifier: MPL-2.0
++
++//! Selected dm-crypt data-plane backend.
++
++use aster_util::printer::VmPrinter;
++
++use crate::{
++    fs::{
++        file::mkmod,
++        procfs::template::{ProcFile, ProcFileOps},
++        vfs::inode::Inode,
++    },
++    prelude::*,
++};
++
++/// Represents `/proc/dm-crypto-backend`.
++pub struct DmCryptoBackendFileOps;
++
++impl DmCryptoBackendFileOps {
++    pub fn new_inode(parent: Weak<dyn Inode>) -> Arc<dyn Inode> {
++        ProcFile::new(Self, parent, mkmod!(a+r))
++    }
++}
++
++impl ProcFileOps for DmCryptoBackendFileOps {
++    fn read_at(&self, offset: usize, writer: &mut VmWriter) -> Result<usize> {
++        let mut printer = VmPrinter::new_skip(writer, offset);
++        writeln!(printer, "{}", aster_dm::crypto_backend_name())?;
++        Ok(printer.bytes_written())
++    }
++}
+diff --git a/kernel/src/fs/fs_impls/procfs/dm_verity_stats.rs b/kernel/src/fs/fs_impls/procfs/dm_verity_stats.rs
+new file mode 100644
+index 000000000..8177a6c79
+--- /dev/null
++++ b/kernel/src/fs/fs_impls/procfs/dm_verity_stats.rs
+@@ -0,0 +1,44 @@
++// SPDX-License-Identifier: MPL-2.0
++
++//! Live hot-path counters for the boot-configured dm-verity mapper.
++
++use aster_util::printer::VmPrinter;
++
++use crate::{
++    fs::{
++        file::mkmod,
++        procfs::template::{ProcFile, ProcFileOps},
++        vfs::inode::Inode,
++    },
++    prelude::*,
++};
++
++/// Represents `/proc/dm-verity-stats`.
++pub struct DmVerityStatsFileOps;
++
++impl DmVerityStatsFileOps {
++    pub fn new_inode(parent: Weak<dyn Inode>) -> Arc<dyn Inode> {
++        ProcFile::new(Self, parent, mkmod!(a+r))
++    }
++}
++
++impl ProcFileOps for DmVerityStatsFileOps {
++    fn read_at(&self, offset: usize, writer: &mut VmWriter) -> Result<usize> {
++        let mut printer = VmPrinter::new_skip(writer, offset);
++        if let Some((cache_blocks, stats)) = aster_dm::boot_verity_stats() {
++            writeln!(
++                printer,
++                "status=verified cache_blocks={} verified={} bio_blocks={} data_rereads={} hash_hits={} hash_misses={}",
++                cache_blocks,
++                stats.verified_data_blocks,
++                stats.bio_data_blocks,
++                stats.data_reread_blocks,
++                stats.hash_cache_hits,
++                stats.hash_cache_misses
++            )?;
++        } else {
++            writeln!(printer, "status={}", aster_dm::boot_verity_status())?;
++        }
++        Ok(printer.bytes_written())
++    }
++}
+diff --git a/kernel/src/fs/fs_impls/procfs/mod.rs b/kernel/src/fs/fs_impls/procfs/mod.rs
+index ca97e577d..1dec1e02d 100644
+--- a/kernel/src/fs/fs_impls/procfs/mod.rs
++++ b/kernel/src/fs/fs_impls/procfs/mod.rs
+@@ -11,6 +11,9 @@ use template::{
+ use self::{
+     cmdline::CmdLineFileOps,
+     cpuinfo::CpuInfoFileOps,
++    devices::DevicesFileOps,
++    dm_crypto_backend::DmCryptoBackendFileOps,
++    dm_verity_stats::DmVerityStatsFileOps,
+     loadavg::LoadAvgFileOps,
+     meminfo::MemInfoFileOps,
+     mounts::MountsSymOps,
+@@ -42,6 +45,9 @@ use crate::{
+ 
+ mod cmdline;
+ mod cpuinfo;
++mod devices;
++mod dm_crypto_backend;
++mod dm_verity_stats;
+ mod filesystems;
+ mod loadavg;
+ mod meminfo;
+@@ -151,6 +157,17 @@ impl RootDirOps {
+     const STATIC_ENTRIES: &'static [StaticEntry] = &[
+         ("cmdline", InodeType::File, CmdLineFileOps::new_inode),
+         ("cpuinfo", InodeType::File, CpuInfoFileOps::new_inode),
++        ("devices", InodeType::File, DevicesFileOps::new_inode),
++        (
++            "dm-crypto-backend",
++            InodeType::File,
++            DmCryptoBackendFileOps::new_inode,
++        ),
++        (
++            "dm-verity-stats",
++            InodeType::File,
++            DmVerityStatsFileOps::new_inode,
++        ),
+         (
+             "filesystems",
+             InodeType::File,
+diff --git a/osdk/src/base_crate/Cargo.toml.template b/osdk/src/base_crate/Cargo.toml.template
+index 5ea21e65f..df226fa52 100644
+--- a/osdk/src/base_crate/Cargo.toml.template
++++ b/osdk/src/base_crate/Cargo.toml.template
+@@ -1,5 +1,7 @@
+ # An empty workspace table keeps the base crate away from nesting in other
+ # workspaces.
++cargo-features = ["profile-rustflags"]
++
+ [workspace]
+ 
+ [package]
+diff --git a/osdk/src/commands/build/mod.rs b/osdk/src/commands/build/mod.rs
+index 88ac383fb..0b9afd940 100644
+--- a/osdk/src/commands/build/mod.rs
++++ b/osdk/src/commands/build/mod.rs
+@@ -263,6 +263,17 @@ fn build_kernel_elf(
+     );
+ 
+     command.env("RUSTFLAGS", rustflags.join(" "));
++    if std::env::var_os("OSDK_ENABLE_AES_NI").is_some() {
++        // The pinned freestanding LLVM backend cannot compile Rust vector AES
++        // intrinsics reliably.  Enable dm's scalar API to the small OSTD
++        // inline-assembly boundary and its FPU/XMM preservation guard.
++        command.arg("-Z").arg("profile-rustflags");
++        for profile in ["dev", "release", "release-lto"] {
++            command.arg("--config").arg(format!(
++                "profile.{profile}.package.aster-dm.rustflags=['--cfg','dm_aes_ni','--check-cfg=cfg(dm_aes_ni)']"
++            ));
++        }
++    }
+     command.arg("build");
+     command.arg("--features").arg(features.join(" "));
+     if no_default_features {
+diff --git a/ostd/src/arch/x86/cpu/aesni.rs b/ostd/src/arch/x86/cpu/aesni.rs
+new file mode 100644
+index 000000000..2681275ca
+--- /dev/null
++++ b/ostd/src/arch/x86/cpu/aesni.rs
+@@ -0,0 +1,174 @@
++// SPDX-License-Identifier: MPL-2.0
++
++//! Small AES-NI primitives for kernel users that provide an FPU-state guard.
++//!
++//! Keeping the vector instructions behind this scalar API avoids enabling
++//! SIMD code generation for an entire freestanding kernel crate.
++
++use core::arch::{asm, x86_64::__cpuid};
++
++/// Returns whether the current CPU exposes the AES instruction-set extension.
++pub fn is_available() -> bool {
++    // SAFETY: CPUID leaf 1 is available on every supported x86_64 CPU.  Newer
++    // toolchains expose this intrinsic as safe, so tolerate an unused block.
++    #[allow(unused_unsafe)]
++    unsafe {
++        __cpuid(1).ecx & (1 << 25) != 0
++    }
++}
++
++/// Expands an AES-256 key into fifteen encryption round keys.
++///
++/// The caller must verify [`is_available`] and preserve the current FPU/XMM
++/// context while calling this function.
++pub fn expand_key_256(key: &[u8; 32], round_keys: &mut [[u8; 16]; 15]) {
++    // SAFETY: All memory operands point to arrays of the exact required size.
++    // The caller contract guarantees AES-NI and exclusive temporary XMM use.
++    unsafe {
++        asm!(
++            "movdqu xmm1, [{key}]",
++            "movdqu xmm3, [{key} + 16]",
++            "movdqu [{out}], xmm1",
++            "movdqu [{out} + 16], xmm3",
++
++            "aeskeygenassist xmm2, xmm3, 0x01",
++            "pshufd xmm2, xmm2, 0xff",
++            "movdqa xmm4, xmm1", "pslldq xmm4, 4", "pxor xmm1, xmm4",
++            "movdqa xmm4, xmm1", "pslldq xmm4, 4", "pxor xmm1, xmm4",
++            "movdqa xmm4, xmm1", "pslldq xmm4, 4", "pxor xmm1, xmm4",
++            "pxor xmm1, xmm2", "movdqu [{out} + 32], xmm1",
++            "aeskeygenassist xmm2, xmm1, 0x00", "pshufd xmm2, xmm2, 0xaa",
++            "movdqa xmm4, xmm3", "pslldq xmm4, 4", "pxor xmm3, xmm4",
++            "movdqa xmm4, xmm3", "pslldq xmm4, 4", "pxor xmm3, xmm4",
++            "movdqa xmm4, xmm3", "pslldq xmm4, 4", "pxor xmm3, xmm4",
++            "pxor xmm3, xmm2", "movdqu [{out} + 48], xmm3",
++
++            "aeskeygenassist xmm2, xmm3, 0x02",
++            "pshufd xmm2, xmm2, 0xff",
++            "movdqa xmm4, xmm1", "pslldq xmm4, 4", "pxor xmm1, xmm4",
++            "movdqa xmm4, xmm1", "pslldq xmm4, 4", "pxor xmm1, xmm4",
++            "movdqa xmm4, xmm1", "pslldq xmm4, 4", "pxor xmm1, xmm4",
++            "pxor xmm1, xmm2", "movdqu [{out} + 64], xmm1",
++            "aeskeygenassist xmm2, xmm1, 0x00", "pshufd xmm2, xmm2, 0xaa",
++            "movdqa xmm4, xmm3", "pslldq xmm4, 4", "pxor xmm3, xmm4",
++            "movdqa xmm4, xmm3", "pslldq xmm4, 4", "pxor xmm3, xmm4",
++            "movdqa xmm4, xmm3", "pslldq xmm4, 4", "pxor xmm3, xmm4",
++            "pxor xmm3, xmm2", "movdqu [{out} + 80], xmm3",
++
++            "aeskeygenassist xmm2, xmm3, 0x04",
++            "pshufd xmm2, xmm2, 0xff",
++            "movdqa xmm4, xmm1", "pslldq xmm4, 4", "pxor xmm1, xmm4",
++            "movdqa xmm4, xmm1", "pslldq xmm4, 4", "pxor xmm1, xmm4",
++            "movdqa xmm4, xmm1", "pslldq xmm4, 4", "pxor xmm1, xmm4",
++            "pxor xmm1, xmm2", "movdqu [{out} + 96], xmm1",
++            "aeskeygenassist xmm2, xmm1, 0x00", "pshufd xmm2, xmm2, 0xaa",
++            "movdqa xmm4, xmm3", "pslldq xmm4, 4", "pxor xmm3, xmm4",
++            "movdqa xmm4, xmm3", "pslldq xmm4, 4", "pxor xmm3, xmm4",
++            "movdqa xmm4, xmm3", "pslldq xmm4, 4", "pxor xmm3, xmm4",
++            "pxor xmm3, xmm2", "movdqu [{out} + 112], xmm3",
++
++            "aeskeygenassist xmm2, xmm3, 0x08",
++            "pshufd xmm2, xmm2, 0xff",
++            "movdqa xmm4, xmm1", "pslldq xmm4, 4", "pxor xmm1, xmm4",
++            "movdqa xmm4, xmm1", "pslldq xmm4, 4", "pxor xmm1, xmm4",
++            "movdqa xmm4, xmm1", "pslldq xmm4, 4", "pxor xmm1, xmm4",
++            "pxor xmm1, xmm2", "movdqu [{out} + 128], xmm1",
++            "aeskeygenassist xmm2, xmm1, 0x00", "pshufd xmm2, xmm2, 0xaa",
++            "movdqa xmm4, xmm3", "pslldq xmm4, 4", "pxor xmm3, xmm4",
++            "movdqa xmm4, xmm3", "pslldq xmm4, 4", "pxor xmm3, xmm4",
++            "movdqa xmm4, xmm3", "pslldq xmm4, 4", "pxor xmm3, xmm4",
++            "pxor xmm3, xmm2", "movdqu [{out} + 144], xmm3",
++
++            "aeskeygenassist xmm2, xmm3, 0x10",
++            "pshufd xmm2, xmm2, 0xff",
++            "movdqa xmm4, xmm1", "pslldq xmm4, 4", "pxor xmm1, xmm4",
++            "movdqa xmm4, xmm1", "pslldq xmm4, 4", "pxor xmm1, xmm4",
++            "movdqa xmm4, xmm1", "pslldq xmm4, 4", "pxor xmm1, xmm4",
++            "pxor xmm1, xmm2", "movdqu [{out} + 160], xmm1",
++            "aeskeygenassist xmm2, xmm1, 0x00", "pshufd xmm2, xmm2, 0xaa",
++            "movdqa xmm4, xmm3", "pslldq xmm4, 4", "pxor xmm3, xmm4",
++            "movdqa xmm4, xmm3", "pslldq xmm4, 4", "pxor xmm3, xmm4",
++            "movdqa xmm4, xmm3", "pslldq xmm4, 4", "pxor xmm3, xmm4",
++            "pxor xmm3, xmm2", "movdqu [{out} + 176], xmm3",
++
++            "aeskeygenassist xmm2, xmm3, 0x20",
++            "pshufd xmm2, xmm2, 0xff",
++            "movdqa xmm4, xmm1", "pslldq xmm4, 4", "pxor xmm1, xmm4",
++            "movdqa xmm4, xmm1", "pslldq xmm4, 4", "pxor xmm1, xmm4",
++            "movdqa xmm4, xmm1", "pslldq xmm4, 4", "pxor xmm1, xmm4",
++            "pxor xmm1, xmm2", "movdqu [{out} + 192], xmm1",
++            "aeskeygenassist xmm2, xmm1, 0x00", "pshufd xmm2, xmm2, 0xaa",
++            "movdqa xmm4, xmm3", "pslldq xmm4, 4", "pxor xmm3, xmm4",
++            "movdqa xmm4, xmm3", "pslldq xmm4, 4", "pxor xmm3, xmm4",
++            "movdqa xmm4, xmm3", "pslldq xmm4, 4", "pxor xmm3, xmm4",
++            "pxor xmm3, xmm2", "movdqu [{out} + 208], xmm3",
++
++            "aeskeygenassist xmm2, xmm3, 0x40",
++            "pshufd xmm2, xmm2, 0xff",
++            "movdqa xmm4, xmm1", "pslldq xmm4, 4", "pxor xmm1, xmm4",
++            "movdqa xmm4, xmm1", "pslldq xmm4, 4", "pxor xmm1, xmm4",
++            "movdqa xmm4, xmm1", "pslldq xmm4, 4", "pxor xmm1, xmm4",
++            "pxor xmm1, xmm2", "movdqu [{out} + 224], xmm1",
++            key = in(reg) key.as_ptr(),
++            out = in(reg) round_keys.as_mut_ptr(),
++            out("xmm1") _, out("xmm2") _, out("xmm3") _, out("xmm4") _,
++            options(nostack),
++        );
++    }
++}
++
++/// Encrypts one block with expanded AES-256 encryption round keys.
++pub fn encrypt_block_256(block: &mut [u8; 16], keys: &[[u8; 16]; 15]) {
++    // SAFETY: The fixed offsets remain within `block` and `keys`; see module contract.
++    unsafe {
++        asm!(
++            "movdqu xmm0, [{block}]",
++            "movdqu xmm1, [{keys}]", "pxor xmm0, xmm1",
++            "movdqu xmm1, [{keys} + 16]", "aesenc xmm0, xmm1",
++            "movdqu xmm1, [{keys} + 32]", "aesenc xmm0, xmm1",
++            "movdqu xmm1, [{keys} + 48]", "aesenc xmm0, xmm1",
++            "movdqu xmm1, [{keys} + 64]", "aesenc xmm0, xmm1",
++            "movdqu xmm1, [{keys} + 80]", "aesenc xmm0, xmm1",
++            "movdqu xmm1, [{keys} + 96]", "aesenc xmm0, xmm1",
++            "movdqu xmm1, [{keys} + 112]", "aesenc xmm0, xmm1",
++            "movdqu xmm1, [{keys} + 128]", "aesenc xmm0, xmm1",
++            "movdqu xmm1, [{keys} + 144]", "aesenc xmm0, xmm1",
++            "movdqu xmm1, [{keys} + 160]", "aesenc xmm0, xmm1",
++            "movdqu xmm1, [{keys} + 176]", "aesenc xmm0, xmm1",
++            "movdqu xmm1, [{keys} + 192]", "aesenc xmm0, xmm1",
++            "movdqu xmm1, [{keys} + 208]", "aesenc xmm0, xmm1",
++            "movdqu xmm1, [{keys} + 224]", "aesenclast xmm0, xmm1",
++            "movdqu [{block}], xmm0",
++            block = in(reg) block.as_mut_ptr(), keys = in(reg) keys.as_ptr(),
++            out("xmm0") _, out("xmm1") _, options(nostack),
++        );
++    }
++}
++
++/// Decrypts one block with expanded AES-256 encryption round keys.
++pub fn decrypt_block_256(block: &mut [u8; 16], keys: &[[u8; 16]; 15]) {
++    // SAFETY: The fixed offsets remain within `block` and `keys`; see module contract.
++    unsafe {
++        asm!(
++            "movdqu xmm0, [{block}]",
++            "movdqu xmm1, [{keys} + 224]", "pxor xmm0, xmm1",
++            "movdqu xmm1, [{keys} + 208]", "aesimc xmm1, xmm1", "aesdec xmm0, xmm1",
++            "movdqu xmm1, [{keys} + 192]", "aesimc xmm1, xmm1", "aesdec xmm0, xmm1",
++            "movdqu xmm1, [{keys} + 176]", "aesimc xmm1, xmm1", "aesdec xmm0, xmm1",
++            "movdqu xmm1, [{keys} + 160]", "aesimc xmm1, xmm1", "aesdec xmm0, xmm1",
++            "movdqu xmm1, [{keys} + 144]", "aesimc xmm1, xmm1", "aesdec xmm0, xmm1",
++            "movdqu xmm1, [{keys} + 128]", "aesimc xmm1, xmm1", "aesdec xmm0, xmm1",
++            "movdqu xmm1, [{keys} + 112]", "aesimc xmm1, xmm1", "aesdec xmm0, xmm1",
++            "movdqu xmm1, [{keys} + 96]", "aesimc xmm1, xmm1", "aesdec xmm0, xmm1",
++            "movdqu xmm1, [{keys} + 80]", "aesimc xmm1, xmm1", "aesdec xmm0, xmm1",
++            "movdqu xmm1, [{keys} + 64]", "aesimc xmm1, xmm1", "aesdec xmm0, xmm1",
++            "movdqu xmm1, [{keys} + 48]", "aesimc xmm1, xmm1", "aesdec xmm0, xmm1",
++            "movdqu xmm1, [{keys} + 32]", "aesimc xmm1, xmm1", "aesdec xmm0, xmm1",
++            "movdqu xmm1, [{keys} + 16]", "aesimc xmm1, xmm1", "aesdec xmm0, xmm1",
++            "movdqu xmm1, [{keys}]", "aesdeclast xmm0, xmm1",
++            "movdqu [{block}], xmm0",
++            block = in(reg) block.as_mut_ptr(), keys = in(reg) keys.as_ptr(),
++            out("xmm0") _, out("xmm1") _, options(nostack),
++        );
++    }
++}
+diff --git a/ostd/src/arch/x86/cpu/mod.rs b/ostd/src/arch/x86/cpu/mod.rs
+index eacd55ca5..f239ec5ce 100644
+--- a/ostd/src/arch/x86/cpu/mod.rs
++++ b/ostd/src/arch/x86/cpu/mod.rs
+@@ -2,6 +2,7 @@
+ 
+ //! CPU context & state control and CPU local memory.
+ 
++pub mod aesni;
+ pub mod context;
+ pub mod cpuid;
+ pub mod extension;
+diff --git a/ostd/src/arch/x86/trap/mod.rs b/ostd/src/arch/x86/trap/mod.rs
+index dfe602f11..71ea38be7 100644
+--- a/ostd/src/arch/x86/trap/mod.rs
++++ b/ostd/src/arch/x86/trap/mod.rs
+@@ -175,6 +175,13 @@ unsafe extern "sysv64" fn trap_handler(f: &mut TrapFrame) {
+         }
+         Some(CpuException::PageFault(raw_page_fault_info)) => {
+             enable_local_if(was_irq_enabled);
++            crate::early_println!(
++                "[kernel-trap] exception=PageFault({:?}) trap={} error={:#x} rip={:#x}",
++                raw_page_fault_info,
++                f.trap_num,
++                f.error_code,
++                f.rip
++            );
+             // The actual user space implementation should be responsible
+             // for providing mechanism to treat the 0 virtual address.
+             if (0..MAX_USERSPACE_VADDR).contains(&raw_page_fault_info.addr) {
+@@ -189,6 +196,13 @@ unsafe extern "sysv64" fn trap_handler(f: &mut TrapFrame) {
+         }
+         Some(exception) => {
+             enable_local_if(was_irq_enabled);
++            crate::early_println!(
++                "[kernel-trap] exception={:?} trap={} error={:#x} rip={:#x}",
++                exception,
++                f.trap_num,
++                f.error_code,
++                f.rip
++            );
+             panic!(
+                 "Cannot handle kernel CPU exception: {:#x?}; trapframe: {:#x?}",
+                 exception, f
+diff --git a/test/initramfs/nix/default.nix b/test/initramfs/nix/default.nix
+index 2c508c0eb..86f5d2b36 100644
+--- a/test/initramfs/nix/default.nix
++++ b/test/initramfs/nix/default.nix
+@@ -35,6 +35,7 @@ in rec {
+ 
+   initramfs = pkgs.callPackage ./initramfs.nix {
+     inherit busybox;
++    cryptsetup = pkgs.cryptsetup;
+     benchmark = if enableBenchmarkTest then benchmark else null;
+     conformance = if enableConformanceTest then conformance else null;
+     regression = if enableRegressionTest then regression else null;
+diff --git a/test/initramfs/nix/initramfs.nix b/test/initramfs/nix/initramfs.nix
+index 3bf35a8be..03a5b5497 100644
+--- a/test/initramfs/nix/initramfs.nix
++++ b/test/initramfs/nix/initramfs.nix
+@@ -1,5 +1,5 @@
+ { lib, pkgs, stdenvNoCC, fetchFromGitHub, hostPlatform, writeClosure, busybox
+-, benchmark, conformance, regression, dnsServer, }:
++, cryptsetup, benchmark, conformance, regression, dnsServer, }:
+ let
+   boot_hello = builtins.path { path = ./../src/boot_hello.sh; };
+   init = builtins.path { path = ./../src/init; };
+@@ -18,7 +18,7 @@ let
+   # Whether the initramfs should include evtest, a common tool to debug input devices (`/dev/input/eventX`)
+   is_evtest_included = false;
+ 
+-  all_pkgs = [ busybox etc resolv_conf ]
++  all_pkgs = [ busybox cryptsetup etc resolv_conf ]
+     ++ lib.optionals (benchmark != null) [ benchmark.package ]
+     ++ lib.optionals (conformance != null) [ conformance.package ]
+     ++ lib.optionals (regression != null) [ regression.package ]
+@@ -34,6 +34,7 @@ in stdenvNoCC.mkDerivation {
+     ln -sfn usr/lib $out/lib
+     ln -sfn usr/lib64 $out/lib64
+     cp -r ${busybox}/bin/* $out/bin/
++    cp ${cryptsetup}/bin/cryptsetup $out/bin/cryptsetup
+     ${lib.optionalString is_evtest_included ''
+       cp -r ${pkgs.evtest}/bin/* $out/bin/
+     ''}
+diff --git a/test/initramfs/src/init b/test/initramfs/src/init
+index f87f870e6..2a9c18935 100755
+--- a/test/initramfs/src/init
++++ b/test/initramfs/src/init
+@@ -15,16 +15,52 @@
+ 
+ DM_ROOT_DEVICE=
+ DM_ROOT_REQUESTED=0
++DM_ROOT_BOOTSTRAPPED=0
++CRYPTSETUP_SMOKE_DEVICE=
++CRYPTSETUP_SMOKE_REQUESTED=0
++DM_BENCH_RAW=
++DM_BENCH_MAPPER=
++DM_BENCH_REQUESTED=0
+ for arg in "$@"; do
+-    if [ "$arg" = "dm-root" ]; then
++    if [ "$arg" = "dm-bench" ]; then
++        DM_BENCH_REQUESTED=1
++        break
++    fi
++done
++if [ "$DM_BENCH_REQUESTED" -eq 1 ]; then
++    while [ "$#" -gt 0 ] && [ "$1" != "dm-bench" ]; do
++        shift
++    done
++    DM_BENCH_RAW="${2:-}"
++    DM_BENCH_MAPPER="${3:-}"
++    shift 3
++fi
++for arg in "$@"; do
++    if [ "$arg" = "cryptsetup-smoke" ]; then
++        CRYPTSETUP_SMOKE_REQUESTED=1
++        break
++    fi
++done
++if [ "$CRYPTSETUP_SMOKE_REQUESTED" -eq 1 ]; then
++    while [ "$#" -gt 0 ] && [ "$1" != "cryptsetup-smoke" ]; do
++        shift
++    done
++    CRYPTSETUP_SMOKE_DEVICE="${2:-}"
++    shift 2
++fi
++for arg in "$@"; do
++    if [ "$arg" = "dm-root" ] || [ "$arg" = "dm-root-stage2" ]; then
+         DM_ROOT_REQUESTED=1
+         break
+     fi
+ done
+ if [ "$DM_ROOT_REQUESTED" -eq 1 ]; then
+-    while [ "$#" -gt 0 ] && [ "$1" != "dm-root" ]; do
++    while [ "$#" -gt 0 ] && [ "$1" != "dm-root" ] && [ "$1" != "dm-root-stage2" ]; do
+         shift
+     done
++    if [ "$1" = "dm-root-stage2" ]; then
++        DM_ROOT_BOOTSTRAPPED=1
++    fi
+     DM_ROOT_DEVICE="${2:-}"
+     shift 2
+ fi
+@@ -49,14 +85,112 @@ echo "[init] mounting exfat"
+ mount -t exfat /dev/vdb /exfat
+ echo "[init] mounts complete"
+ 
++if [ -n "$DM_BENCH_RAW" ] && [ -n "$DM_BENCH_MAPPER" ]; then
++    if [ ! -x /benchmark/bin/fio ]; then
++        echo "[dm-bench] FAIL fio is missing from the benchmark initramfs"
++        poweroff -f
++    fi
++    echo "[dm-bench] matrix=raw,dm-verity runs=5 rw=read bs=4k qd=1 size=8m runtime=2s"
++    RUN=1
++    while [ "$RUN" -le 5 ]; do
++        for LABEL in raw dm-verity; do
++            if [ "$LABEL" = "raw" ]; then
++                DEVICE="$DM_BENCH_RAW"
++            else
++                DEVICE="$DM_BENCH_MAPPER"
++            fi
++            echo "[dm-bench] BEGIN label=$LABEL run=$RUN device=$DEVICE"
++            /benchmark/bin/fio --name="${LABEL}-${RUN}" --filename="$DEVICE" \
++                --rw=read --bs=4k --ioengine=sync --direct=1 --iodepth=1 \
++                --size=8m --time_based=1 --ramp_time=1 --runtime=2 \
++                --numjobs=1 --group_reporting=1 --percentile_list=50:95:99:99.9 \
++                --output-format=json
++            echo "[dm-bench] STATS label=$LABEL run=$RUN $(cat /proc/dm-verity-stats)"
++            echo "[dm-bench] END label=$LABEL run=$RUN"
++        done
++        RUN=$((RUN + 1))
++    done
++    echo "[dm-bench] PASS five-run raw/dm-verity matrix completed"
++    poweroff -f
++    exit 0
++fi
++
++if [ -n "$CRYPTSETUP_SMOKE_DEVICE" ]; then
++    if [ -c /dev/mapper/control ]; then
++        echo "[cryptsetup-test] control node ready: /dev/mapper/control"
++    else
++        echo "[cryptsetup-test] FAIL control node missing: /dev/mapper/control"
++        ls -l /dev /dev/mapper 2>/dev/null
++        poweroff -f
++    fi
++    echo "[cryptsetup-test] opening Linux plain dm-crypt table on $CRYPTSETUP_SMOKE_DEVICE"
++    dd if=/dev/zero of=/tmp/cryptsetup.key bs=64 count=1 2>/dev/null
++    if cryptsetup open --type plain --cipher aes-xts-plain64 --key-size 512 \
++        --key-file /tmp/cryptsetup.key "$CRYPTSETUP_SMOKE_DEVICE" cryptsetup-smoke; then
++        if [ -b /dev/mapper/cryptsetup-smoke ] && \
++            dd if=/dev/mapper/cryptsetup-smoke of=/dev/null bs=4096 count=1 2>/dev/null; then
++            echo "[cryptsetup-test] PASS real cryptsetup open created a readable mapper"
++        else
++            echo "[cryptsetup-test] FAIL mapper node or mapped read"
++            poweroff -f
++        fi
++        if cryptsetup close cryptsetup-smoke 2>/tmp/cryptsetup-close.err; then
++            echo "[cryptsetup-test] PASS real cryptsetup close removed the mapper"
++            poweroff -f
++            exit 0
++        else
++            echo "[cryptsetup-test] FAIL real cryptsetup close"
++            poweroff -f
++        fi
++    else
++        echo "[cryptsetup-test] FAIL real cryptsetup open"
++        poweroff -f
++    fi
++fi
++
+ # The dm-root mode performs a real root transition instead of merely mounting
+ # the mapper as a side volume.  The protected image keeps /etc and application
+ # data, while symlinks prepared by the image builder expose the initramfs tools
+ # below /.initramfs so this deliberately small test root remains bootable.
+ if [ -n "$DM_ROOT_DEVICE" ]; then
++    # Asterinas intentionally rejects pivot_root when the current root is the
++    # special rootfs mount.  Re-enter init through a bind-mounted bootstrap
++    # root first; its mount has a parent in the namespace, satisfying the same
++    # invariant exercised by Asterinas's pivot_root regression test.
++    if [ "$DM_ROOT_BOOTSTRAPPED" -eq 0 ]; then
++        echo "[dm-root] entering bind-mounted bootstrap root"
++        mkdir -p /bootstrap-root
++        if ! mount --bind / /bootstrap-root; then
++            echo "[dm-root] FAIL bootstrap root bind mount rejected"
++            poweroff -f
++        fi
++        # A plain bind does not recursively carry the devfs submount.  The
++        # second-stage init needs the already registered mapper block node.
++        if ! mount --bind /dev /bootstrap-root/dev; then
++            echo "[dm-root] FAIL bootstrap devfs bind mount rejected"
++            poweroff -f
++        fi
++        exec chroot /bootstrap-root /init dm-root-stage2 "$DM_ROOT_DEVICE" "$@"
++        echo "[dm-root] FAIL bootstrap chroot returned"
++        poweroff -f
++    fi
++    if [ "$DM_ROOT_BOOTSTRAPPED" -eq 1 ] && \
++        [ "${DM_ROOT_DEVICE#*crypt}" != "$DM_ROOT_DEVICE" ] && \
++        [ -r /proc/dm-crypto-backend ]; then
++        echo "[dm-perf] AES backend=$(cat /proc/dm-crypto-backend)"
++    fi
++    if [ "$DM_ROOT_BOOTSTRAPPED" -eq 1 ] && \
++        [ "${DM_ROOT_DEVICE#*verity}" != "$DM_ROOT_DEVICE" ] && \
++        [ -r /proc/dm-verity-stats ]; then
++        echo "[dm-perf] verity $(cat /proc/dm-verity-stats)"
++    fi
+     echo "[dm-root] mounting protected root from $DM_ROOT_DEVICE"
+     if [ ! -b "$DM_ROOT_DEVICE" ]; then
+-        echo "[dm-root] FAIL mapper device is missing: $DM_ROOT_DEVICE"
++        if [ -r /proc/dm-verity-stats ]; then
++            echo "[dm-root] FAIL mapper device is missing: $DM_ROOT_DEVICE ($(cat /proc/dm-verity-stats))"
++        else
++            echo "[dm-root] FAIL mapper device is missing: $DM_ROOT_DEVICE"
++        fi
+         poweroff -f
+     fi
+     mkdir -p /newroot
+@@ -76,6 +210,11 @@ if [ -n "$DM_ROOT_DEVICE" ]; then
+     cd /
+     if [ -f /etc/dm-verity-proof ] && [ -d /.initramfs ]; then
+         echo "[dm-root] PASS system root switched to protected mapper"
++        if [ -x /.initramfs/bin/busybox ]; then
++            echo "[dm-root] PASS initramfs runtime retained below /.initramfs"
++            exec /.initramfs/bin/busybox poweroff -f
++        fi
++        echo "[dm-root] FAIL initramfs runtime is unavailable after pivot_root"
+     else
+         echo "[dm-root] FAIL protected root is not active"
+         /.initramfs/bin/poweroff -f
+diff --git a/tools/run_cryptsetup_compat.sh b/tools/run_cryptsetup_compat.sh
+new file mode 100644
+index 000000000..26497e830
+--- /dev/null
++++ b/tools/run_cryptsetup_compat.sh
+@@ -0,0 +1,22 @@
++#!/bin/bash
++
++# SPDX-License-Identifier: MPL-2.0
++
++set -euo pipefail
++
++export OSDK_ENABLE_AES_NI=1
++
++DM_IMAGE=${DM_IMAGE:-./dm-crypt-test.img}
++export CONSOLE=${DM_CONSOLE:-hvc0}
++if [ ! -f "${DM_IMAGE}" ]; then
++    echo "cryptsetup test image not found: ${DM_IMAGE}" >&2
++    exit 1
++fi
++
++export DM_IMAGE
++OSDK_ARGS="--kcmd-args=\"console=${CONSOLE}\" --init-args=\"cryptsetup-smoke /dev/vdc /bin/true\""
++if [ "${ENABLE_KVM:-0}" = "1" ]; then
++    OSDK_ARGS="${OSDK_ARGS} --qemu-args=\"-accel kvm -cpu host\""
++fi
++
++exec make run_kernel ENABLE_KVM=0 CARGO_OSDK_BUILD_ARGS="${OSDK_ARGS}"
+diff --git a/tools/run_dm_crypt.sh b/tools/run_dm_crypt.sh
+index 2b1dcce3b..ab1a2748a 100644
+--- a/tools/run_dm_crypt.sh
++++ b/tools/run_dm_crypt.sh
+@@ -4,27 +4,44 @@
+ 
+ set -euo pipefail
+ 
++# Freestanding targets deliberately disable cpufeatures runtime dispatch.
++# Enable dm's isolated AES-NI data path; it pins each transform and excludes
++# interrupts around the small architecture-specific XMM boundary.
++if [ "${DM_AES_NI:-1}" = "1" ]; then
++    export OSDK_ENABLE_AES_NI=1
++else
++    unset OSDK_ENABLE_AES_NI
++fi
++
+ DM_IMAGE=${DM_IMAGE:-./dm-crypt-test.img}
+ DM_DEVICE=${DM_DEVICE:-vdc}
+ DM_NAME=${DM_NAME:-dm-crypt0}
+ DM_KEY=${DM_KEY:-000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f}
++export CONSOLE=${DM_CONSOLE:-hvc0}
+ 
+ if [ ! -f "${DM_IMAGE}" ]; then
+     echo "dm-crypt image not found: ${DM_IMAGE}" >&2
+     exit 1
+ fi
+ 
+-KCMD_ARGS="dm_crypt.device=${DM_DEVICE} \
++KCMD_ARGS="console=${CONSOLE} \
++dm_crypt.device=${DM_DEVICE} \
+ dm_crypt.name=${DM_NAME} \
+ dm_crypt.key=${DM_KEY}"
+ export DM_IMAGE
+ OSDK_ARGS="--kcmd-args=\"${KCMD_ARGS}\" --init-args=\"dm-root /dev/${DM_NAME} /.initramfs/bin/true\""
+ QEMU_ARGS=""
+ if [ "${ENABLE_KVM:-0}" = "1" ]; then
+-    QEMU_ARGS="-accel kvm"
++    QEMU_ARGS="-accel kvm -cpu host"
++fi
++if [ "${DM_QEMU_DEBUG:-0}" = "1" ]; then
++    QEMU_ARGS="${QEMU_ARGS} -d int,cpu_reset,guest_errors -D /root/target/qemu-int.log -no-reboot"
+ fi
+ if [ -n "${QEMU_ARGS}" ]; then
+     OSDK_ARGS="${OSDK_ARGS} --qemu-args=\"${QEMU_ARGS}\""
+ fi
+ 
+-exec make run_kernel CARGO_OSDK_BUILD_ARGS="${OSDK_ARGS}"
++# The script already supplies the complete QEMU argument set.  Prevent the
++# top-level Makefile's ENABLE_KVM branch from appending a second --qemu-args
++# value that can replace `-cpu host` and hide AES-NI from the guest.
++exec make run_kernel ENABLE_KVM=0 CARGO_OSDK_BUILD_ARGS="${OSDK_ARGS}"
+diff --git a/tools/run_dm_verity.sh b/tools/run_dm_verity.sh
+index b49cf12cc..97230839e 100644
+--- a/tools/run_dm_verity.sh
++++ b/tools/run_dm_verity.sh
+@@ -10,24 +10,28 @@ DM_NAME=${DM_NAME:-dm-verity0}
+ DM_ROOT_HASH=${DM_ROOT_HASH:-6db653b69a094065756dc2770d3af8880ec9beed29df41b5bb2fb2e11b2d49f3}
+ DM_DATA_BLOCKS=${DM_DATA_BLOCKS:-16}
+ DM_HASH_START=${DM_HASH_START:-16}
++DM_CACHE_BLOCKS=${DM_CACHE_BLOCKS:-256}
++export CONSOLE=${DM_CONSOLE:-hvc0}
+ 
+ if [ ! -f "${DM_IMAGE}" ]; then
+     echo "dm-verity image not found: ${DM_IMAGE}" >&2
+     exit 1
+ fi
+ 
+-KCMD_ARGS="rootfs_verity.scheme=dm-verity \
++KCMD_ARGS="console=${CONSOLE} \
++rootfs_verity.scheme=dm-verity \
+ rootfs_verity.device=${DM_DEVICE} \
+ rootfs_verity.name=${DM_NAME} \
+ rootfs_verity.hash=${DM_ROOT_HASH} \
+ rootfs_verity.data_blocks=${DM_DATA_BLOCKS} \
+-rootfs_verity.hash_start=${DM_HASH_START}"
++rootfs_verity.hash_start=${DM_HASH_START} \
++rootfs_verity.cache_blocks=${DM_CACHE_BLOCKS}"
+ 
+ export DM_IMAGE
+ OSDK_ARGS="--kcmd-args=\"${KCMD_ARGS}\" --init-args=\"dm-root /dev/${DM_NAME} /.initramfs/bin/true\""
+ QEMU_ARGS=""
+ if [ "${ENABLE_KVM:-0}" = "1" ]; then
+-    QEMU_ARGS="-accel kvm"
++    QEMU_ARGS="-accel kvm -cpu host"
+ fi
+ if [ "${DM_GDB:-0}" = "1" ]; then
+     QEMU_ARGS="${QEMU_ARGS} -s"
+@@ -39,4 +43,4 @@ if [ -n "${QEMU_ARGS}" ]; then
+     OSDK_ARGS="${OSDK_ARGS} --qemu-args=\"${QEMU_ARGS}\""
+ fi
+ 
+-exec make run_kernel CARGO_OSDK_BUILD_ARGS="${OSDK_ARGS}"
++exec make run_kernel ENABLE_KVM=0 CARGO_OSDK_BUILD_ARGS="${OSDK_ARGS}"
+diff --git a/tools/run_dm_verity_bench.sh b/tools/run_dm_verity_bench.sh
+new file mode 100644
+index 000000000..6383fd286
+--- /dev/null
++++ b/tools/run_dm_verity_bench.sh
+@@ -0,0 +1,36 @@
++#!/bin/bash
++
++# SPDX-License-Identifier: MPL-2.0
++
++set -euo pipefail
++
++DM_IMAGE=${DM_IMAGE:-./dm-test.img}
++DM_DEVICE=${DM_DEVICE:-vdc}
++DM_NAME=${DM_NAME:-dm-verity0}
++DM_ROOT_HASH=${DM_ROOT_HASH:-6db653b69a094065756dc2770d3af8880ec9beed29df41b5bb2fb2e11b2d49f3}
++DM_DATA_BLOCKS=${DM_DATA_BLOCKS:-16}
++DM_HASH_START=${DM_HASH_START:-16}
++DM_CACHE_BLOCKS=${DM_CACHE_BLOCKS:-256}
++export CONSOLE=${DM_CONSOLE:-hvc0}
++
++if [ ! -f "${DM_IMAGE}" ]; then
++    echo "dm-verity image not found: ${DM_IMAGE}" >&2
++    exit 1
++fi
++
++KCMD_ARGS="console=${CONSOLE} \
++rootfs_verity.scheme=dm-verity \
++rootfs_verity.device=${DM_DEVICE} \
++rootfs_verity.name=${DM_NAME} \
++rootfs_verity.hash=${DM_ROOT_HASH} \
++rootfs_verity.data_blocks=${DM_DATA_BLOCKS} \
++rootfs_verity.hash_start=${DM_HASH_START} \
++rootfs_verity.cache_blocks=${DM_CACHE_BLOCKS}"
++
++export DM_IMAGE
++OSDK_ARGS="--kcmd-args=\"${KCMD_ARGS}\" --init-args=\"dm-bench /dev/${DM_DEVICE} /dev/${DM_NAME} /bin/true\""
++if [ "${ENABLE_KVM:-0}" = "1" ]; then
++    OSDK_ARGS="${OSDK_ARGS} --qemu-args=\"-accel kvm -cpu host\""
++fi
++
++exec make run_kernel ENABLE_KVM=0 BENCHMARK=dm-verity CARGO_OSDK_BUILD_ARGS="${OSDK_ARGS}"
+-- 
+2.50.1.windows.1
+
