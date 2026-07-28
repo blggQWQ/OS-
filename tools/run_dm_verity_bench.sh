@@ -11,6 +11,13 @@ DM_ROOT_HASH=${DM_ROOT_HASH:-6db653b69a094065756dc2770d3af8880ec9beed29df41b5bb2
 DM_DATA_BLOCKS=${DM_DATA_BLOCKS:-16}
 DM_HASH_START=${DM_HASH_START:-16}
 DM_CACHE_BLOCKS=${DM_CACHE_BLOCKS:-256}
+DM_BENCH_RW=${DM_BENCH_RW:-read}
+DM_BENCH_BS=${DM_BENCH_BS:-4k}
+DM_BENCH_QD=${DM_BENCH_QD:-1}
+DM_BENCH_SIZE=${DM_BENCH_SIZE:-8m}
+DM_BENCH_RUNTIME=${DM_BENCH_RUNTIME:-2}
+DM_BENCH_RUNS=${DM_BENCH_RUNS:-5}
+DM_BENCH_RAMP=${DM_BENCH_RAMP:-1}
 export CONSOLE=${DM_CONSOLE:-hvc0}
 
 if [ ! -f "${DM_IMAGE}" ]; then
@@ -28,7 +35,7 @@ rootfs_verity.hash_start=${DM_HASH_START} \
 rootfs_verity.cache_blocks=${DM_CACHE_BLOCKS}"
 
 export DM_IMAGE
-OSDK_ARGS="--kcmd-args=\"${KCMD_ARGS}\" --init-args=\"dm-bench /dev/${DM_DEVICE} /dev/${DM_NAME} /bin/true\""
+OSDK_ARGS="--kcmd-args=\"${KCMD_ARGS}\" --init-args=\"dm-bench /dev/${DM_DEVICE} /dev/${DM_NAME} ${DM_BENCH_RW} ${DM_BENCH_BS} ${DM_BENCH_QD} ${DM_BENCH_SIZE} ${DM_BENCH_RUNTIME} ${DM_BENCH_RUNS} ${DM_BENCH_RAMP} /bin/true\""
 if [ "${ENABLE_KVM:-0}" = "1" ]; then
     OSDK_ARGS="${OSDK_ARGS} --qemu-args=\"-accel kvm -cpu host\""
 fi

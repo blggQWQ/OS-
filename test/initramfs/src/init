@@ -21,6 +21,13 @@ CRYPTSETUP_SMOKE_REQUESTED=0
 DM_BENCH_RAW=
 DM_BENCH_MAPPER=
 DM_BENCH_REQUESTED=0
+DM_BENCH_RW=read
+DM_BENCH_BS=4k
+DM_BENCH_QD=1
+DM_BENCH_SIZE=8m
+DM_BENCH_RUNTIME=2
+DM_BENCH_RUNS=5
+DM_BENCH_RAMP=1
 for arg in "$@"; do
     if [ "$arg" = "dm-bench" ]; then
         DM_BENCH_REQUESTED=1
@@ -33,7 +40,17 @@ if [ "$DM_BENCH_REQUESTED" -eq 1 ]; then
     done
     DM_BENCH_RAW="${2:-}"
     DM_BENCH_MAPPER="${3:-}"
-    shift 3
+    DM_BENCH_RW="${4:-read}"
+    DM_BENCH_BS="${5:-4k}"
+    DM_BENCH_QD="${6:-1}"
+    DM_BENCH_SIZE="${7:-8m}"
+    DM_BENCH_RUNTIME="${8:-2}"
+    DM_BENCH_RUNS="${9:-5}"
+    DM_BENCH_RAMP="${10:-1}"
+        # Keep the historical argument layout compatible: the extended
+        # benchmark fields are read above, while only the three mode fields
+        # need to be removed before the payload command is inspected.
+        shift 3
 fi
 for arg in "$@"; do
     if [ "$arg" = "cryptsetup-smoke" ]; then
@@ -90,27 +107,57 @@ if [ -n "$DM_BENCH_RAW" ] && [ -n "$DM_BENCH_MAPPER" ]; then
         echo "[dm-bench] FAIL fio is missing from the benchmark initramfs"
         poweroff -f
     fi
-    echo "[dm-bench] matrix=raw,dm-verity runs=5 rw=read bs=4k qd=1 size=8m runtime=2s"
+    case "$DM_BENCH_MAPPER" in
+        *crypt*) DM_BENCH_LABEL=dm-crypt ;;
+        *verity*) DM_BENCH_LABEL=dm-verity ;;
+        *)        DM_BENCH_LABEL=mapper ;;
+    esac
+    case "$DM_BENCH_RW" in
+        read|randread) ;;
+        write|randwrite)
+            if [ "$DM_BENCH_LABEL" = "dm-verity" ]; then
+                echo "[dm-bench] FAIL dm-verity is read-only"
+                poweroff -f
+            fi
+            ;;
+        *)
+            echo "[dm-bench] FAIL unsupported rw=$DM_BENCH_RW"
+            poweroff -f
+            ;;
+    esac
+    echo "[dm-bench] fio=$(/benchmark/bin/fio --version)"
+    echo "[dm-bench] matrix=raw,$DM_BENCH_LABEL runs=$DM_BENCH_RUNS rw=$DM_BENCH_RW bs=$DM_BENCH_BS qd=$DM_BENCH_QD size=$DM_BENCH_SIZE runtime=${DM_BENCH_RUNTIME}s ramp=${DM_BENCH_RAMP}s"
     RUN=1
-    while [ "$RUN" -le 5 ]; do
-        for LABEL in raw dm-verity; do
+    while [ "$RUN" -le "$DM_BENCH_RUNS" ]; do
+        if [ $((RUN % 2)) -eq 1 ]; then
+            set -- raw "$DM_BENCH_LABEL"
+        else
+            set -- "$DM_BENCH_LABEL" raw
+        fi
+        for LABEL in "$@"; do
             if [ "$LABEL" = "raw" ]; then
                 DEVICE="$DM_BENCH_RAW"
             else
                 DEVICE="$DM_BENCH_MAPPER"
             fi
-            echo "[dm-bench] BEGIN label=$LABEL run=$RUN device=$DEVICE"
+            echo "[dm-bench] BEGIN label=$LABEL run=$RUN device=$DEVICE operation=$DM_BENCH_RW block_size=$DM_BENCH_BS queue_depth=$DM_BENCH_QD"
             /benchmark/bin/fio --name="${LABEL}-${RUN}" --filename="$DEVICE" \
-                --rw=read --bs=4k --ioengine=sync --direct=1 --iodepth=1 \
-                --size=8m --time_based=1 --ramp_time=1 --runtime=2 \
+                --rw="$DM_BENCH_RW" --bs="$DM_BENCH_BS" --ioengine=sync \
+                --direct=1 --iodepth="$DM_BENCH_QD" \
+                --size="$DM_BENCH_SIZE" --time_based=1 \
+                --ramp_time="$DM_BENCH_RAMP" --runtime="$DM_BENCH_RUNTIME" \
                 --numjobs=1 --group_reporting=1 --percentile_list=50:95:99:99.9 \
                 --output-format=json
-            echo "[dm-bench] STATS label=$LABEL run=$RUN $(cat /proc/dm-verity-stats)"
+            if [ "$DM_BENCH_LABEL" = "dm-verity" ] && [ -r /proc/dm-verity-stats ]; then
+                echo "[dm-bench] STATS label=$LABEL run=$RUN $(cat /proc/dm-verity-stats)"
+            else
+                echo "[dm-bench] STATS label=$LABEL run=$RUN backend=$(cat /proc/dm-crypto-backend 2>/dev/null || echo unavailable)"
+            fi
             echo "[dm-bench] END label=$LABEL run=$RUN"
         done
         RUN=$((RUN + 1))
     done
-    echo "[dm-bench] PASS five-run raw/dm-verity matrix completed"
+    echo "[dm-bench] PASS ${DM_BENCH_RUNS}-run raw/$DM_BENCH_LABEL matrix completed"
     poweroff -f
     exit 0
 fi

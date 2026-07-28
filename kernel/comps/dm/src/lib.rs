@@ -37,6 +37,7 @@ pub use verity::VerityStats;
 static CRYPT_DEVICE: Once<String> = Once::new();
 static CRYPT_NAME: Once<String> = Once::new();
 static CRYPT_KEY: Once<String> = Once::new();
+static CRYPT_SCRATCH_POOL: Once<usize> = Once::new();
 static PASSTHROUGH_DEVICE: Once<String> = Once::new();
 static PASSTHROUGH_NAME: Once<String> = Once::new();
 static VERITY_SCHEME: Once<String> = Once::new();
@@ -88,6 +89,7 @@ static NEXT_DM_MINOR: AtomicU32 = AtomicU32::new(0);
 aster_cmdline::define_kv_param!("dm_crypt.device", CRYPT_DEVICE);
 aster_cmdline::define_kv_param!("dm_crypt.name", CRYPT_NAME);
 aster_cmdline::define_kv_param!("dm_crypt.key", CRYPT_KEY);
+aster_cmdline::define_kv_param!("dm_crypt.scratch_pool", CRYPT_SCRATCH_POOL);
 aster_cmdline::define_kv_param!("dm_passthrough.device", PASSTHROUGH_DEVICE);
 aster_cmdline::define_kv_param!("dm_passthrough.name", PASSTHROUGH_NAME);
 aster_cmdline::define_kv_param!("rootfs_verity.scheme", VERITY_SCHEME);
@@ -154,16 +156,19 @@ fn init() -> Result<(), ComponentInitError> {
             return Err(ComponentInitError::Unknown);
         };
         let id = allocate_mapper_id().map_err(|_| ComponentInitError::Unknown)?;
+        let scratch_pool_capacity = CRYPT_SCRATCH_POOL.get().copied().unwrap_or(32);
         ostd::early_println!("[dm] initializing AES-256-XTS mapper");
-        let mapper = DmDevice::new_crypt(id, mapper_name, lower, &key)
-            .map_err(|_| ComponentInitError::Unknown)?;
+        let mapper =
+            DmDevice::new_crypt_with_pool(id, mapper_name, lower, &key, scratch_pool_capacity)
+                .map_err(|_| ComponentInitError::Unknown)?;
         ostd::early_println!(
-            "[dm-perf] AES backend={}",
+            "[dm-perf] AES backend={} scratch_pool={}",
             if crypto::hardware_aes_available() {
                 "AES-NI"
             } else {
                 "portable-software"
-            }
+            },
+            scratch_pool_capacity
         );
         mapper.self_test_ext2_magic().map_err(|error| {
             ostd::early_println!(
@@ -249,13 +254,14 @@ fn init() -> Result<(), ComponentInitError> {
         ostd::early_println!("[dm-test] PASS first data block verified through dm-verity");
         if let Some(stats) = mapper.verity_stats() {
             ostd::early_println!(
-                "[dm-perf] verity cache_blocks={} verified={} bio_blocks={} data_rereads={} hash_hits={} hash_misses={}",
+                "[dm-perf] verity cache_blocks={} verified={} bio_blocks={} data_rereads={} hash_hits={} hash_misses={} auth_shortcuts={}",
                 cache_blocks,
                 stats.verified_data_blocks,
                 stats.bio_data_blocks,
                 stats.data_reread_blocks,
                 stats.hash_cache_hits,
-                stats.hash_cache_misses
+                stats.hash_cache_misses,
+                stats.authenticated_cache_shortcuts
             );
         }
         info!("registering dm-verity device {}", mapper.name());

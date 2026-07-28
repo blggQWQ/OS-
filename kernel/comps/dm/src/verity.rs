@@ -33,6 +33,8 @@ pub struct VerityStats {
     pub hash_cache_hits: u64,
     /// Number of hash blocks fetched from the lower device.
     pub hash_cache_misses: u64,
+    /// Number of verifications completed through an already authenticated hash block.
+    pub authenticated_cache_shortcuts: u64,
 }
 
 /// Verifies data blocks against an on-disk SHA-256 Merkle tree.
@@ -198,9 +200,10 @@ impl VerityTarget {
             let hash_block_index = digest_index / HASHES_PER_BLOCK;
             let digest_slot = digest_index % HASHES_PER_BLOCK;
             let physical_block = level.block_offset + hash_block_index;
-            let hash_block = if let Some(cached) = self.hash_cache.lock().get(physical_block) {
+            let authenticated_cached_block = self.hash_cache.lock().get(physical_block);
+            let hash_block = if let Some(cached) = authenticated_cached_block.as_ref() {
                 self.stats.hash_cache_hits.fetch_add(1, Ordering::Relaxed);
-                cached
+                Arc::clone(cached)
             } else {
                 self.stats.hash_cache_misses.fetch_add(1, Ordering::Relaxed);
                 let fetched = Arc::new(read_block(lower, physical_block)?);
@@ -211,6 +214,20 @@ impl VerityTarget {
             if hash_block[digest_offset..digest_offset + HASH_SIZE] != digest {
                 return Err(DmError::IntegrityViolation);
             }
+            if authenticated_cached_block.is_some() {
+                // A block enters this cache only after its complete path has
+                // reached the trusted root. Matching the current digest
+                // against that immutable block therefore completes the
+                // authentication without rehashing the already trusted suffix.
+                self.cache_authenticated_blocks(newly_authenticated);
+                self.stats
+                    .authenticated_cache_shortcuts
+                    .fetch_add(1, Ordering::Relaxed);
+                self.stats
+                    .verified_data_blocks
+                    .fetch_add(1, Ordering::Relaxed);
+                return Ok(());
+            }
             digest = sha256(hash_block.as_ref());
             digest_index = hash_block_index;
         }
@@ -220,14 +237,18 @@ impl VerityTarget {
         }
         // Cache insertion happens only after the complete path reaches the
         // trusted root, so an unauthenticated hash block is never reused.
-        let mut cache = self.hash_cache.lock();
-        for (block_id, block) in newly_authenticated {
-            cache.insert_authenticated(block_id, block);
-        }
+        self.cache_authenticated_blocks(newly_authenticated);
         self.stats
             .verified_data_blocks
             .fetch_add(1, Ordering::Relaxed);
         Ok(())
+    }
+
+    fn cache_authenticated_blocks(&self, blocks: Vec<(usize, Arc<[u8; BLOCK_SIZE]>)>) {
+        let mut cache = self.hash_cache.lock();
+        for (block_id, block) in blocks {
+            cache.insert_authenticated(block_id, block);
+        }
     }
 }
 
@@ -276,6 +297,7 @@ struct VerityAtomicStats {
     data_reread_blocks: AtomicU64,
     hash_cache_hits: AtomicU64,
     hash_cache_misses: AtomicU64,
+    authenticated_cache_shortcuts: AtomicU64,
 }
 
 impl VerityAtomicStats {
@@ -286,6 +308,9 @@ impl VerityAtomicStats {
             data_reread_blocks: self.data_reread_blocks.load(Ordering::Relaxed),
             hash_cache_hits: self.hash_cache_hits.load(Ordering::Relaxed),
             hash_cache_misses: self.hash_cache_misses.load(Ordering::Relaxed),
+            authenticated_cache_shortcuts: self
+                .authenticated_cache_shortcuts
+                .load(Ordering::Relaxed),
         }
     }
 }

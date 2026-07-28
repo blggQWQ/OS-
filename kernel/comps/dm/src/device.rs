@@ -10,6 +10,7 @@ use aster_block::{
 };
 use device_id::DeviceId;
 use ostd::mm::VmIo;
+use spin::Mutex;
 
 use crate::{
     DmError,
@@ -43,8 +44,28 @@ impl DmDevice {
         lower: Arc<dyn BlockDevice>,
         key: &[u8],
     ) -> Result<Self, DmError> {
+        Self::new_crypt_with_pool(id, name, lower, key, 32)
+    }
+
+    /// Creates an AES-256-XTS mapper with a bounded scratch-buffer pool.
+    pub fn new_crypt_with_pool(
+        id: DeviceId,
+        name: String,
+        lower: Arc<dyn BlockDevice>,
+        key: &[u8],
+        scratch_pool_capacity: usize,
+    ) -> Result<Self, DmError> {
         let logical_sectors = lower.metadata().nr_sectors;
-        Self::new_crypt_table(id, name, lower, key, 0, 0, logical_sectors)
+        Self::new_crypt_table_with_pool(
+            id,
+            name,
+            lower,
+            key,
+            0,
+            0,
+            logical_sectors,
+            scratch_pool_capacity,
+        )
     }
 
     /// Creates an AES-256-XTS mapper from Linux dm-crypt table geometry.
@@ -56,6 +77,29 @@ impl DmDevice {
         iv_offset: u64,
         data_offset_sectors: u64,
         logical_sectors: usize,
+    ) -> Result<Self, DmError> {
+        Self::new_crypt_table_with_pool(
+            id,
+            name,
+            lower,
+            key,
+            iv_offset,
+            data_offset_sectors,
+            logical_sectors,
+            32,
+        )
+    }
+
+    /// Creates an AES-256-XTS mapper with Linux table geometry and scratch pooling.
+    pub fn new_crypt_table_with_pool(
+        id: DeviceId,
+        name: String,
+        lower: Arc<dyn BlockDevice>,
+        key: &[u8],
+        iv_offset: u64,
+        data_offset_sectors: u64,
+        logical_sectors: usize,
+        scratch_pool_capacity: usize,
     ) -> Result<Self, DmError> {
         let lower_sectors = lower.metadata().nr_sectors as u64;
         let logical_end = data_offset_sectors
@@ -73,6 +117,7 @@ impl DmDevice {
                 iv_offset,
                 data_offset_sectors,
                 logical_sectors,
+                scratch_pool: Mutex::new(CryptScratchPool::new(scratch_pool_capacity)),
             }),
         })
     }
@@ -220,7 +265,7 @@ impl DmDevice {
             let mut sector_cursor = iv_first_sector;
             let mut bounce_segments = Vec::with_capacity(bio.segments().len());
             for segment in bio.segments() {
-                let mut ciphertext = vec![0u8; segment.nbytes()];
+                let mut ciphertext = target.take_scratch(segment.nbytes());
                 if segment
                     .inner_dma_slice()
                     .read_bytes(0, &mut ciphertext)
@@ -230,6 +275,7 @@ impl DmDevice {
                         .encrypt(sector_cursor, &mut ciphertext)
                         .is_err()
                 {
+                    target.recycle_scratch(ciphertext);
                     bio.complete(BioStatus::IoError);
                     return;
                 }
@@ -239,9 +285,11 @@ impl DmDevice {
                     .write_bytes(0, &ciphertext)
                     .is_err()
                 {
+                    target.recycle_scratch(ciphertext);
                     bio.complete(BioStatus::IoError);
                     return;
                 }
+                target.recycle_scratch(ciphertext);
                 sector_cursor += segment.nsectors().to_raw();
                 bounce_segments.push(bounce);
             }
@@ -264,7 +312,7 @@ impl DmDevice {
                 let mut sector_cursor = iv_first_sector;
                 let mut status = BioStatus::Complete;
                 for segment in bio.segments() {
-                    let mut plaintext = vec![0u8; segment.nbytes()];
+                    let mut plaintext = target.take_scratch(segment.nbytes());
                     if segment
                         .inner_dma_slice()
                         .read_bytes(0, &mut plaintext)
@@ -278,9 +326,11 @@ impl DmDevice {
                             .write_bytes(0, &plaintext)
                             .is_err()
                     {
+                        target.recycle_scratch(plaintext);
                         status = BioStatus::IoError;
                         break;
                     }
+                    target.recycle_scratch(plaintext);
                     sector_cursor += segment.nsectors().to_raw();
                 }
                 status
@@ -398,6 +448,52 @@ struct CryptTarget {
     iv_offset: u64,
     data_offset_sectors: u64,
     logical_sectors: usize,
+    scratch_pool: Mutex<CryptScratchPool>,
+}
+
+impl CryptTarget {
+    fn take_scratch(&self, len: usize) -> Vec<u8> {
+        self.scratch_pool.lock().take(len)
+    }
+
+    fn recycle_scratch(&self, buffer: Vec<u8>) {
+        self.scratch_pool.lock().recycle(buffer);
+    }
+}
+
+struct CryptScratchPool {
+    buffers: Vec<Vec<u8>>,
+    capacity: usize,
+}
+
+impl CryptScratchPool {
+    fn new(capacity: usize) -> Self {
+        Self {
+            buffers: Vec::with_capacity(capacity),
+            capacity,
+        }
+    }
+
+    fn take(&mut self, len: usize) -> Vec<u8> {
+        let Some(index) = self
+            .buffers
+            .iter()
+            .position(|buffer| buffer.capacity() >= len)
+        else {
+            return vec![0u8; len];
+        };
+        let mut buffer = self.buffers.swap_remove(index);
+        buffer.resize(len, 0);
+        buffer
+    }
+
+    fn recycle(&mut self, mut buffer: Vec<u8>) {
+        if self.capacity == 0 || self.buffers.len() == self.capacity {
+            return;
+        }
+        buffer.clear();
+        self.buffers.push(buffer);
+    }
 }
 
 impl Debug for DmTarget {

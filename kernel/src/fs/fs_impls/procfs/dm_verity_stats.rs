@@ -28,13 +28,14 @@ impl ProcFileOps for DmVerityStatsFileOps {
         if let Some((cache_blocks, stats)) = aster_dm::boot_verity_stats() {
             writeln!(
                 printer,
-                "status=verified cache_blocks={} verified={} bio_blocks={} data_rereads={} hash_hits={} hash_misses={}",
+                "status=verified cache_blocks={} verified={} bio_blocks={} data_rereads={} hash_hits={} hash_misses={} auth_shortcuts={}",
                 cache_blocks,
                 stats.verified_data_blocks,
                 stats.bio_data_blocks,
                 stats.data_reread_blocks,
                 stats.hash_cache_hits,
-                stats.hash_cache_misses
+                stats.hash_cache_misses,
+                stats.authenticated_cache_shortcuts
             )?;
         } else {
             writeln!(printer, "status={}", aster_dm::boot_verity_status())?;
