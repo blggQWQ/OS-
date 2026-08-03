@@ -22,6 +22,7 @@ patches/0002-fix-dm-validate-crypt-and-verity-BIO-paths.patch
 patches/0003-rootfs-switch.patch
 patches/0004-Rust-Device-Mapper.patch
 patches/0005-dm.patch
+patches/0006-dm-performance-attribution.patch
 ```
 
 补丁基于 Asterinas commit `c6284a9106f5a4c87deb7c8a990af6211dc5f540`。
@@ -34,7 +35,8 @@ git am ../asterinas_port/patches/0001-feat-dm-integrate-crypt-and-verity-targets
        ../asterinas_port/patches/0002-fix-dm-validate-crypt-and-verity-BIO-paths.patch \
        ../asterinas_port/patches/0003-rootfs-switch.patch \
        ../asterinas_port/patches/0004-Rust-Device-Mapper.patch \
-       ../asterinas_port/patches/0005-dm.patch
+       ../asterinas_port/patches/0005-dm.patch \
+       ../asterinas_port/patches/0006-dm-performance-attribution.patch
 ```
 
 该补丁包含 `aster-dm` 组件、AES-256-XTS、on-disk dm-verity、启动参数、
@@ -47,6 +49,10 @@ VirtIO 测试盘接入和 QEMU 演示脚本。
 第四个补丁固化完整的 cryptsetup 控制面、KVM 证据链和评审版内核实现。第五个
 补丁加入 dm-crypt 有界临时缓冲池、verity 已认证路径捷径、可配置 fio 矩阵及
 对应 A/B 开关；第五个补丁已通过官方工具链 `make kernel`。
+
+第六个补丁加入 `/proc/dm-performance-stats`、dm-crypt/dm-verity 分阶段计时、
+release-LTO 正式基准合同以及同日志 AES-NI 证据；该补丁已通过 release-LTO 构建和
+256 MiB、10 秒、五轮 KVM 矩阵验证。
 
 第二个补丁修复 BIO DMA segment 的方向访问问题，并加入启动时真实 I/O 自检。
 验收日志：

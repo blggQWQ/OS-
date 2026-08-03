@@ -63,7 +63,7 @@ CRYPT_DEVICE="/dev/mapper/$MAPPER_NAME"
 {
   echo "timestamp_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   echo "kernel=$(uname -srmo)"
-  echo "guest_cmdline=$(tr '\\0' ' ' </proc/cmdline)"
+  echo "guest_cmdline=$(cat /proc/cmdline)"
   echo "guest_cpu=$(lscpu | sed -n 's/^Model name:[[:space:]]*//p')"
   echo "guest_cpu_count=$(nproc)"
   echo "guest_memory_kib=$(awk '/^MemTotal:/ {print $2}' /proc/meminfo)"

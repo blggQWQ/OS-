@@ -74,4 +74,3 @@ fn build_tree_from_device<D: BlockDevice>(device: &D) -> Result<HashTree> {
     }
     Ok(HashTree::build(&blocks))
 }
-

@@ -1,0 +1,11 @@
+scenario,run,seconds_to_marker,marker,log
+plain,1,16.058069,PASS system root switched to protected mapper,docs/evidence/asterinas-boot-time-kvm-logs/plain-run-1.log
+dm-verity,1,16.575102,PASS system root switched to protected mapper,docs/evidence/asterinas-boot-time-kvm-logs/dm-verity-run-1.log
+dm-verity,2,15.491673,PASS system root switched to protected mapper,docs/evidence/asterinas-boot-time-kvm-logs/dm-verity-run-2.log
+plain,2,14.937066,PASS system root switched to protected mapper,docs/evidence/asterinas-boot-time-kvm-logs/plain-run-2.log
+plain,3,15.212371,PASS system root switched to protected mapper,docs/evidence/asterinas-boot-time-kvm-logs/plain-run-3.log
+dm-verity,3,17.731602,PASS system root switched to protected mapper,docs/evidence/asterinas-boot-time-kvm-logs/dm-verity-run-3.log
+dm-verity,4,19.794427,PASS system root switched to protected mapper,docs/evidence/asterinas-boot-time-kvm-logs/dm-verity-run-4.log
+plain,4,17.334759,PASS system root switched to protected mapper,docs/evidence/asterinas-boot-time-kvm-logs/plain-run-4.log
+plain,5,17.275404,PASS system root switched to protected mapper,docs/evidence/asterinas-boot-time-kvm-logs/plain-run-5.log
+dm-verity,5,16.902021,PASS system root switched to protected mapper,docs/evidence/asterinas-boot-time-kvm-logs/dm-verity-run-5.log

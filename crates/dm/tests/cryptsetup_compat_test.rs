@@ -1,8 +1,12 @@
 use dm::{BlockDevice, DmCryptDevice, DmCryptTable, MemoryBlockDevice};
+use std::fmt::Write as _;
 use std::str::FromStr;
 
 fn key_hex() -> String {
-    (0u8..64).map(|byte| format!("{byte:02x}")).collect()
+    (0u8..64).fold(String::new(), |mut output, byte| {
+        write!(output, "{byte:02x}").unwrap();
+        output
+    })
 }
 
 #[test]

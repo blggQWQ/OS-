@@ -79,6 +79,8 @@ def run_once(
                     break
         finally:
             stop_process(process)
+            reader.join(timeout=1)
+            process.stdout.close()
     if marker_seconds is None:
         raise RuntimeError(f"{scenario} run {run} ended without marker {marker!r}")
     return {

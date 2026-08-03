@@ -307,6 +307,7 @@ dm-crypt 提供透明块级加密，专注 AES-256-XTS，严格兼容 Linux dm-c
 | AES-NI 后端 | `asterinas/kernel/comps/dm/src/crypto.rs` | 五轮 dm-crypt 日志均确认 `backend=AES-NI`；尚无同条件软件 AES A/B |
 | dm-crypt 有界临时缓冲池 | `asterinas/kernel/comps/dm/src/device.rs` | 已实现；`scratch_pool=0/32` A/B 待 KVM 量化 |
 | verity 已认证路径捷径 | `asterinas/kernel/comps/dm/src/verity.rs` | 已实现并输出 `auth_shortcuts`；新增收益待 KVM 量化 |
+| 内核 I/O 分阶段归因 | `asterinas/kernel/comps/dm/src/statistics.rs` | 已完成正式 256 MiB KVM 五轮：crypt 下层等待中位占比 98.07%，verity 为 93.79% |
 
 ![性能比较逻辑图](docs/document/figures/performance_comparison_logic.png)
 
@@ -358,7 +359,38 @@ bash scripts/benchmark.sh
 以下数字只引用仓库中已经版本化的 KVM 日志和 CSV，不把不同客体、不同运行时长的
 Linux/WSL 基线与 Asterinas 绝对吞吐直接比较。
 
-**Asterinas dm-crypt 五轮基准（KVM、CPU=host、AES-NI、4 KiB、QD1、direct、
+新的正式测试合同已经固化为 release-LTO、KVM、CPU=host、1 vCPU、8 GiB、
+相同 264 MiB 容器和前 256 MiB 数据区、4 KiB、QD1、sync、direct、2 秒 ramp、
+10 秒 runtime、交替顺序五轮。`dm.perf_stats=1` 时，guest 会在每轮 fio 前后读取
+`/proc/dm-performance-stats`，由汇总器计算下层等待、AES/SHA、复制、缓存和哈希树
+查找的单轮差值；不得用累计值直接归因。完整入口为：
+
+```bash
+sudo bash scripts/run_formal_dm_benchmark.sh --build-images
+```
+
+该命令生成 raw/dm-crypt/dm-verity 统一三行表、逐轮 CSV、metadata、串口日志和
+阶段耗时 CSV。本轮正式结果如下；raw 行合并两组 raw 的十次测量，target 的相对值
+分别使用同一镜像、同一轮次合同的配对 raw 中位数，避免跨镜像横比：
+
+| 设备 | 五轮中位吞吐（MiB/s） | 中位 p50（us） | 中位 p95（us） | 相对配对 raw |
+|---|---:|---:|---:|---:|
+| raw（两组共十轮） | 5.628 | 655.360 | 974.848 | 100.0% |
+| dm-crypt | 4.936 | 724.992 | 1220.608 | 102.0% |
+| dm-verity | 6.217 | 585.728 | 905.216 | 100.6% |
+
+`102.0%` 和 `100.6%` 只表示本轮中位数落在 raw 附近，不声称映射层能加速设备。
+阶段差值显示 dm-crypt 的下层等待中位占 98.07%、AES-XTS 占 1.66%；dm-verity 的
+下层等待中位占 93.79%、数据 SHA-256 占 5.81%。因此当前瓶颈是同步下层 I/O 等待，
+不是 AES-NI、复制、cache 查找或哈希树计算；把路径改为异步完成需要重新证明 BIO
+回调上下文中的锁、分配和解密安全性，本轮不把高风险架构改动包装成小优化。
+
+正式证据：[统一三行表](docs/evidence/formal-256m/raw-crypt-verity.csv)、
+[dm-crypt 阶段 CSV](docs/evidence/formal-256m/dm-crypt-stages.csv)、
+[dm-verity 阶段 CSV](docs/evidence/formal-256m/dm-verity-stages.csv)。下列 8 MiB/16 MiB
+结果仅作为历史证据，不与新合同混合出表。
+
+**历史 Asterinas dm-crypt 五轮基准（KVM、CPU=host、AES-NI、4 KiB、QD1、direct、
 1 秒 ramp + 2 秒 runtime、8 MiB、顺序读）：**
 
 | 设备 | 五轮中位吞吐（MiB/s） | 中位 p95（us） | 中位 p99（us） | 相对 raw 吞吐 |
@@ -370,7 +402,7 @@ Linux/WSL 基线与 Asterinas 绝对吞吐直接比较。
 [汇总 CSV](docs/evidence/asterinas-dm-crypt-kvm-summary.csv)、
 [测试说明](docs/evidence/asterinas-dm-crypt-kvm-2026-07-15.md)。
 
-**Asterinas dm-verity hash cache A/B（同一 16 MiB 受保护镜像、KVM、4 KiB fio
+**历史 Asterinas dm-verity hash cache A/B（同一 16 MiB 受保护镜像、KVM、4 KiB fio
 读；每个配置五轮，只比较 dm-verity 行）：**
 
 | hash cache | 五轮中位吞吐（MiB/s） | 中位 p95（us） | 中位 p99（us） | 最终 hits / misses |
@@ -384,11 +416,31 @@ Linux/WSL 基线与 Asterinas 绝对吞吐直接比较。
 [cache=256 CSV](docs/evidence/asterinas-verity-fio-cache256-kvm.csv)、
 [完整验证说明](docs/evidence/FINAL_VALIDATION.md)。
 
-> 严格的 Linux vs Asterinas 绝对吞吐表尚待在相同宿主机、QEMU/KVM 配置、镜像、
-> fio 参数和运行时长下补测。在此之前，本项目不声称 Asterinas 达到 Linux 性能的
-> 某个百分比；现有 Linux/WSL 五轮矩阵仅作为独立参考上限。
-> 仓库已提供 Linux KVM guest 采集器、metadata 强制核对比较器和启动时间五轮
-> 计时器，见 [性能测试方案](docs/performance.md)；没有原始 CSV 前仍保持“待测”。
+**Linux guest 与 Asterinas 严格同条件五轮对照（同一宿主机、KVM、CPU=host、
+1 vCPU、8 GiB、同一 virtio-blk 数据盘前 8 MiB、4 KiB、sync、direct=1、QD1）：**
+
+| 系统 | raw 中位吞吐（MiB/s） | dm-crypt 中位吞吐（MiB/s） | dm-crypt 保留率 | dm-crypt p95（us） |
+|---|---:|---:|---:|---:|
+| Linux guest | 4.652 | 4.355 | 93.629% | 1335.296 |
+| Asterinas | 1.737 | 0.523 | 30.094% | 15663.104 |
+
+Asterinas dm-crypt 的绝对吞吐为 Linux guest 的 **12.0%**。比较器已逐项核对
+metadata 和测试区域 SHA-256（`93ff1ab9…f944d`），条件不一致时拒绝出表。
+证据：[对照说明](docs/evidence/linux-vs-asterinas-dm-crypt.md)、
+[对照 CSV](docs/evidence/linux-vs-asterinas-dm-crypt.csv)、
+[Linux 原始 CSV](docs/evidence/linux-guest-dm-crypt-kvm.csv)、
+[Asterinas 原始 CSV](docs/evidence/asterinas-dm-crypt-kvm-current.csv)。
+
+**Asterinas 冷启动五轮对照（交替顺序、QEMU/KVM、1 vCPU、8 GiB）：**
+
+| 场景 | 到 root-switch PASS 的中位时间 |
+|---|---:|
+| plain root | 16.058 s |
+| dm-verity root | 16.902 s |
+
+dm-verity 中位启动增量为 **5.256%**。证据：
+[逐轮 CSV](docs/evidence/asterinas-boot-time-kvm.csv)、
+[汇总 CSV](docs/evidence/asterinas-boot-time-kvm-summary.csv)及逐轮串口日志。
 
 ![交叉验证数据流图](docs/document/figures/cross_validation_flow.png)
 
@@ -406,8 +458,7 @@ Linux/WSL 基线与 Asterinas 绝对吞吐直接比较。
 
 ### 开源协议
 
-- **项目源代码**：Apache-2.0
-- **技术文档与答辩材料**：CC-BY-SA 4.0
+- **项目源代码与仓库文档**：[MIT License](LICENSE)
 - **第三方依赖**：MIT 或 Apache-2.0，与项目协议兼容
 
 ### 本队增量贡献
@@ -639,11 +690,14 @@ cargo run -p dmctl -- verity-verify target/demo.img 64 "$root"  # 预期失败
 ### 决赛级验证入口
 
 ```bash
-cargo test --workspace
-bash scripts/benchmark.sh
-sudo bash scripts/verify_linux_xts_compat.sh
-sudo bash scripts/build_crypt_rootfs.sh
+bash scripts/final_demo.sh
+python3 scripts/review_release_check.py
 ```
+
+`final_demo.sh` 默认以 fail-closed 顺序验证工作区测试、dm-crypt/dm-verity 演示、
+已归档 Linux XTS 向量、KVM 正反例日志和发布门禁；需要重新启动 KVM 客体时使用
+`bash scripts/final_demo.sh --live-kvm`。同一套 fmt、Clippy、测试和发布检查也由
+[GitHub Actions](.github/workflows/quality.yml) 自动执行。
 
 ### 国赛提交建议
 

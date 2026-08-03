@@ -95,9 +95,10 @@ LUKS metadata、PBKDF 与 keyslot 仍按 Linux 分层留在用户态。
 - `scripts/benchmark_boot_time.py` 提供带宿主机时间戳的五轮启动对照；
 - `scripts/summarize_benchmark.py` 输出中位数、吞吐保留率和 p95 延迟开销。
 
-当前已经完成 Asterinas KVM 下 dm-crypt raw/AES-NI 五轮配对和 dm-verity hash cache
-A/B 五轮测试。仍需补齐两项：相同 QEMU/KVM、镜像和 fio 参数下的 Linux guest
-直接对照，以及带原始时间戳日志的 kernel boot 五轮对照。
+当前已经完成 Asterinas KVM 下 dm-crypt raw/AES-NI 五轮配对、dm-verity hash cache
+A/B 五轮测试、同一宿主机与数据盘上的 Linux guest/Asterinas 直接对照，以及带
+宿主机单调时间戳日志的 plain/dm-verity 各五轮启动对照。严格对照中 Asterinas
+dm-crypt 吞吐为 Linux guest 的 12.0%；dm-verity 中位启动增量为 5.256%。
 
 ## 指标 5：技术探索
 
@@ -131,6 +132,8 @@ A/B 五轮测试。仍需补齐两项：相同 QEMU/KVM、镜像和 fio 参数�
 | dm-verity 正例 | `status=verified`、`data_rereads=0`、根切换 PASS |
 | dm-verity 篡改反例 | 一字节篡改后 `status=integrity-rejected`；零个 root-switch PASS |
 | 可量化优化 | hash cache=256 相对 cache=0：五轮 dm-verity 中位吞吐 +24.4%，p95 -8.7% |
+| 跨系统性能 | 同条件五轮：Linux 4.355 MiB/s，Asterinas 0.523 MiB/s（12.0%） |
+| 启动开销 | plain 16.058 s，dm-verity 16.902 s，中位增量 5.256% |
 
 原始 KVM 串口和逐轮 CSV 位于 `docs/evidence/`，入口索引为
 `docs/evidence/FINAL_VALIDATION.md`。

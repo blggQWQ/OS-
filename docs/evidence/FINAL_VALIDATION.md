@@ -35,3 +35,36 @@ Raw matrices and summaries:
 
 - `asterinas-verity-fio-cache0-kvm.{log,csv,summary.csv}`
 - `asterinas-verity-fio-cache256-kvm.{log,csv,summary.csv}`
+
+## Strict Linux guest / Asterinas dm-crypt comparison (2026-08-01)
+
+Both guests used the same host, KVM, one vCPU, 8 GiB memory, CPU=host, a
+virtio-blk device, and the same first 8 MiB data region.  The comparison tool
+verified the shared region SHA-256 and all I/O/cipher metadata before producing
+the table.
+
+| System | Raw median MiB/s | dm-crypt median MiB/s | Retention | dm-crypt p95 us |
+|---|---:|---:|---:|---:|
+| Linux guest | 4.652 | 4.355 | 93.629% | 1335.296 |
+| Asterinas | 1.737 | 0.523 | 30.094% | 15663.104 |
+
+Asterinas dm-crypt absolute throughput is 12.0% of the Linux guest result for
+this fixed 4 KiB synchronous-read matrix.  Raw evidence:
+
+- `linux-guest-dm-crypt-kvm.{csv,metadata.txt}`
+- `asterinas-dm-crypt-kvm-current.{csv,metadata.txt}`
+- `linux-vs-asterinas-dm-crypt.{csv,md}`
+
+## Plain / dm-verity boot timing (2026-08-01)
+
+Five runs per scenario were alternated.  The host timer stopped only after the
+serial marker `PASS system root switched to protected mapper`.
+
+| Scenario | Median seconds to marker |
+|---|---:|
+| Plain root | 16.058 |
+| dm-verity root | 16.902 |
+
+The median dm-verity overhead is 5.256%.  Evidence is in
+`asterinas-boot-time-kvm.csv`, `asterinas-boot-time-kvm-summary.csv`, and
+`asterinas-boot-time-kvm-logs/`.

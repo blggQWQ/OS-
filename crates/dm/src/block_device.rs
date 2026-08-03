@@ -37,9 +37,27 @@ impl MemoryBlockDevice {
             });
         }
 
+        let block_count = usize::try_from(num_blocks).map_err(|_| DmError::CapacityOverflow {
+            blocks: num_blocks,
+            block_size,
+        })?;
+        let allocation_size =
+            block_count
+                .checked_mul(block_size)
+                .ok_or(DmError::CapacityOverflow {
+                    blocks: num_blocks,
+                    block_size,
+                })?;
+        if allocation_size > isize::MAX as usize {
+            return Err(DmError::CapacityOverflow {
+                blocks: num_blocks,
+                block_size,
+            });
+        }
+
         Ok(Self {
             block_size,
-            blocks: Arc::new(Mutex::new(vec![vec![0; block_size]; num_blocks as usize])),
+            blocks: Arc::new(Mutex::new(vec![vec![0; block_size]; block_count])),
         })
     }
 
@@ -125,7 +143,14 @@ impl FileBlockDevice {
             .read(true)
             .write(true)
             .open(path)?;
-        file.set_len(num_blocks * block_size as u64)?;
+        let image_size =
+            num_blocks
+                .checked_mul(block_size as u64)
+                .ok_or(DmError::CapacityOverflow {
+                    blocks: num_blocks,
+                    block_size,
+                })?;
+        file.set_len(image_size)?;
 
         Ok(Self {
             block_size,
