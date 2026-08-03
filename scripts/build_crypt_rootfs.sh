@@ -3,7 +3,8 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 IMAGE="${1:-$ROOT_DIR/target/crypt-rootfs.img}"
-SIZE_MIB="${SIZE_MIB:-16}"
+DATA_SIZE_MIB="${DATA_SIZE_MIB:-${SIZE_MIB:-256}}"
+CONTAINER_SIZE_MIB="${CONTAINER_SIZE_MIB:-264}"
 MAPPER="asterinas_crypt_build_$$"
 KEY_HEX="${DM_KEY:-000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f}"
 STAGING="$ROOT_DIR/target/crypt-rootfs-staging"
@@ -28,9 +29,13 @@ for path in bin sbin lib lib64 usr nix dev proc sys; do
   fi
 done
 
-truncate -s "$((SIZE_MIB * 1024 * 1024))" "$IMAGE"
+if (( CONTAINER_SIZE_MIB < DATA_SIZE_MIB )); then
+  echo "CONTAINER_SIZE_MIB must be at least DATA_SIZE_MIB" >&2
+  exit 1
+fi
+truncate -s "$((CONTAINER_SIZE_MIB * 1024 * 1024))" "$IMAGE"
 LOOP_DEV="$(losetup --find --show "$IMAGE")"
-SECTORS=$((SIZE_MIB * 1024 * 1024 / 512))
+SECTORS=$((CONTAINER_SIZE_MIB * 1024 * 1024 / 512))
 cleanup() {
   set +e
   remove_mapper >/dev/null 2>&1
@@ -49,6 +54,11 @@ remove_mapper() {
 trap cleanup EXIT
 
 echo "0 $SECTORS crypt aes-xts-plain64 $KEY_HEX 0 $LOOP_DEV 0" | dmsetup create "$MAPPER"
+dmsetup mknodes "$MAPPER"
+if [[ ! -b "/dev/mapper/$MAPPER" ]]; then
+  echo "dmsetup created $MAPPER but its block node is unavailable" >&2
+  exit 1
+fi
 mke2fs -q -F -t ext2 -b 4096 -d "$STAGING" "/dev/mapper/$MAPPER"
 sync
 remove_mapper
@@ -60,9 +70,13 @@ DM_IMAGE=$IMAGE
 DM_DEVICE=vdc
 DM_NAME=dm-crypt0
 DM_KEY=$KEY_HEX
+DM_DATA_SIZE_MIB=$DATA_SIZE_MIB
+DM_CONTAINER_SIZE_MIB=$CONTAINER_SIZE_MIB
 EOF
 
 echo "image=$IMAGE"
 echo "metadata=$METADATA"
 echo "cipher=aes-xts-plain64"
+echo "data_size_mib=$DATA_SIZE_MIB"
+echo "container_size_mib=$CONTAINER_SIZE_MIB"
 echo "proof_file=/etc/dm-verity-proof"

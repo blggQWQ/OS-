@@ -75,3 +75,18 @@ impl HashTree {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::HashTree;
+
+    #[test]
+    fn rejects_tampered_intermediate_hash() {
+        let blocks = vec![vec![1; 16], vec![2; 16], vec![3; 16], vec![4; 16]];
+        let mut tree = HashTree::build(&blocks);
+        // Block 0's parent is recomputed, while its sibling parent is read
+        // from the stored tree and must therefore be authenticated.
+        tree.levels[1][1][0] ^= 0xff;
+
+        assert!(!tree.verify_block(0, &blocks[0]));
+    }
+}

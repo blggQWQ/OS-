@@ -3,6 +3,7 @@ use dm::{
     FileBlockDevice, MemoryBlockDevice, Result,
 };
 use std::env;
+use std::fmt::Write as _;
 use std::fs::{self, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::str::FromStr;
@@ -219,7 +220,7 @@ fn demo_verity() -> Result<()> {
 fn demo_stack() -> Result<()> {
     const BLOCK_SIZE: usize = 512;
     let raw = MemoryBlockDevice::new(4, BLOCK_SIZE)?;
-    let key_hex: String = (0u8..64).map(|byte| format!("{byte:02x}")).collect();
+    let key_hex = demo_key_hex();
     let table = DmCryptTable::from_str(&format!(
         "aes-xts-plain64 {key_hex} 0 memory 0 2 no_read_workqueue no_write_workqueue"
     ))?;
@@ -288,7 +289,7 @@ fn benchmark(blocks: u64, iterations: usize) -> Result<()> {
         return Err(DmError::Io("blocks and iterations must be non-zero".into()));
     }
     let plain = MemoryBlockDevice::new(blocks, BLOCK_SIZE)?;
-    let key_hex: String = (0u8..64).map(|byte| format!("{byte:02x}")).collect();
+    let key_hex = demo_key_hex();
     let table = DmCryptTable::from_str(&format!("aes-xts-plain64 {key_hex} 0 memory 0"))?;
     let crypt = DmCryptDevice::from_table(plain.clone(), &table)?;
     let block = vec![0x5a; BLOCK_SIZE];
@@ -436,7 +437,14 @@ fn printable_block(input: &[u8]) -> String {
 }
 
 fn hex_encode(input: &[u8]) -> String {
-    input.iter().map(|byte| format!("{byte:02x}")).collect()
+    input.iter().fold(String::new(), |mut output, byte| {
+        write!(output, "{byte:02x}").expect("writing to a String cannot fail");
+        output
+    })
+}
+
+fn demo_key_hex() -> String {
+    hex_encode(&(0u8..64).collect::<Vec<_>>())
 }
 
 fn decode_hex_32(input: &str) -> Result<[u8; 32]> {

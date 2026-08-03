@@ -7,6 +7,7 @@ pub enum DmError {
     InvalidBlockSize { expected: usize, actual: usize },
     InvalidBlockId { block_id: u64, blocks: u64 },
     InvalidImageSize { image_size: u64, block_size: usize },
+    CapacityOverflow { blocks: u64, block_size: usize },
     InvalidKey,
     InvalidTable(String),
     UnsupportedCipher(String),
@@ -31,6 +32,10 @@ impl fmt::Display for DmError {
             } => write!(
                 f,
                 "invalid image size {image_size}; not divisible by block size {block_size}"
+            ),
+            Self::CapacityOverflow { blocks, block_size } => write!(
+                f,
+                "device capacity overflows the platform: {blocks} blocks of {block_size} bytes"
             ),
             Self::InvalidKey => write!(f, "invalid encryption key"),
             Self::InvalidTable(message) => write!(f, "invalid device-mapper table: {message}"),

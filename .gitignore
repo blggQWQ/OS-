@@ -1,2 +1,16 @@
-target/ 
-artifacts/ 
+target/
+artifacts/
+
+# LaTeX build products (the reviewed PDF remains versioned explicitly).
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.out
+*.synctex.gz
+
+# Local editor and Python caches.
+.vscode/
+__pycache__/
+*.pyc

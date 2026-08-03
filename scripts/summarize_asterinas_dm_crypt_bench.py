@@ -61,6 +61,11 @@ def main() -> None:
     parser.add_argument("raw_csv", type=Path)
     parser.add_argument("summary_csv", type=Path)
     args = parser.parse_args()
+    serial_text = args.serial_log.read_text(encoding="utf-8", errors="replace")
+    if "profile=release-lto" not in serial_text:
+        raise SystemExit("formal benchmark log must contain profile=release-lto")
+    if not re.search(r"(?:AES\s+)?backend[=:]AES-NI\b", serial_text):
+        raise SystemExit("formal benchmark log must confirm AES backend=AES-NI")
     rows = parse_log(args.serial_log)
     if len(rows) != 10 or {row["label"] for row in rows} != {"raw", "dm-crypt"}:
         raise SystemExit(f"expected five raw and five dm-crypt results, found {len(rows)} rows")
@@ -77,6 +82,7 @@ def main() -> None:
             "label": label, "runs": len(group), "backend": group[-1]["backend"],
             "bw_mib_s_median": f"{statistics.median(row['bw_mib_s'] for row in group):.3f}",
             "iops_median": f"{statistics.median(row['iops'] for row in group):.3f}",
+            "p50_us_median": f"{statistics.median(row['p50_us'] for row in group):.3f}",
             "p95_us_median": f"{statistics.median(row['p95_us'] for row in group):.3f}",
             "p99_us_median": f"{statistics.median(row['p99_us'] for row in group):.3f}",
         })

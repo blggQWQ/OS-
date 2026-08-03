@@ -93,4 +93,6 @@ Spawn the first kernel thread
 [dm-test] FAIL dm-verity rejected first data block: IntegrityViolation
 ```
 
-下一阶段只剩把已注册 mapper 接入系统 `/` 的正式根挂载流程，并记录启动耗时。
+已完成 mapper 接入正式 `/` 根挂载流程，并归档 dm-crypt、dm-verity 正例与篡改
+反例日志。plain 与 dm-verity 各五轮冷启动也已完成：中位数分别为 16.058 秒和
+16.902 秒，增量 5.256%，原始证据见 `docs/evidence/`。

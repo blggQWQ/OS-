@@ -40,7 +40,7 @@ impl FromStr for DmCryptTable {
 #[derive(Clone)]
 enum CryptMode {
     Demo(DemoStreamCipher),
-    Aes256Xts(Aes256XtsCipher),
+    Aes256Xts(Box<Aes256XtsCipher>),
 }
 
 #[derive(Clone)]
@@ -94,7 +94,7 @@ impl<D: BlockDevice> DmCryptDevice<D> {
         }
         Ok(Self {
             lower,
-            mode: CryptMode::Aes256Xts(Aes256XtsCipher::new(&table.key)?),
+            mode: CryptMode::Aes256Xts(Box::new(Aes256XtsCipher::new(&table.key)?)),
             iv_offset: table.iv_offset,
             data_offset_blocks,
             logical_blocks,
@@ -113,12 +113,17 @@ impl<D: BlockDevice> DmCryptDevice<D> {
             }
             CryptMode::Aes256Xts(cipher) => {
                 let sectors_per_block = data.len() / DM_SECTOR_SIZE;
+                let sector_delta = block_id
+                    .checked_mul(sectors_per_block as u64)
+                    .ok_or_else(|| DmError::InvalidTable("sector number overflow".into()))?;
                 let first_sector = self
                     .iv_offset
-                    .checked_add(block_id * sectors_per_block as u64)
+                    .checked_add(sector_delta)
                     .ok_or_else(|| DmError::InvalidTable("sector number overflow".into()))?;
                 for (index, sector_data) in data.chunks_exact_mut(DM_SECTOR_SIZE).enumerate() {
-                    let sector = first_sector + index as u64;
+                    let sector = first_sector
+                        .checked_add(index as u64)
+                        .ok_or_else(|| DmError::InvalidTable("sector number overflow".into()))?;
                     if encrypt {
                         cipher.encrypt_sector(sector, sector_data)?;
                     } else {

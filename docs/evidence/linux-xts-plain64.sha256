@@ -1,0 +1,4 @@
+# Linux dm-crypt aes-xts-plain64 compatibility vector
+# Captured with scripts/verify_linux_xts_compat.sh.
+# Key: bytes 00..3f; IV offset: 0; sector: 0; plaintext: 512 bytes of 0x5a.
+4334c17f4b0380b3c1f902509cce0c0f98d9fa77aa93f6407ec940215d77921d  sector-0.bin

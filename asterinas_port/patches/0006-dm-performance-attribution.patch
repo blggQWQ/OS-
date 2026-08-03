@@ -1,0 +1,1168 @@
+From f9da5469f269f1de57b3059e8620c437a07d14de Mon Sep 17 00:00:00 2001
+From: scnu202421326914 <2787304139@qq.com>
+Date: Mon, 3 Aug 2026 17:48:18 +0800
+Subject: [PATCH] =?UTF-8?q?=E5=AE=8C=E5=96=84=E8=AE=BE=E5=A4=87=E6=98=A0?=
+ =?UTF-8?q?=E5=B0=84=E6=80=A7=E8=83=BD=E5=BD=92=E5=9B=A0=E4=B8=8E=E6=AD=A3?=
+ =?UTF-8?q?=E5=BC=8F=E5=9F=BA=E5=87=86?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ Cargo.lock                                    |   2 +-
+ Makefile                                      |   1 +
+ kernel/comps/dm/Cargo.toml                    |   1 +
+ kernel/comps/dm/src/device.rs                 | 188 ++++++++++++------
+ kernel/comps/dm/src/lib.rs                    |  33 ++-
+ kernel/comps/dm/src/statistics.rs             | 156 +++++++++++++++
+ kernel/comps/dm/src/verity.rs                 |  69 +++++--
+ .../fs_impls/procfs/dm_performance_stats.rs   |  57 ++++++
+ kernel/src/fs/fs_impls/procfs/mod.rs          |   7 +
+ test/initramfs/src/init                       |   7 +-
+ tools/run_dm_crypt_bench.sh                   |  38 +++-
+ tools/run_dm_verity_bench.sh                  |  79 +++++++-
+ 12 files changed, 546 insertions(+), 92 deletions(-)
+ create mode 100644 kernel/comps/dm/src/statistics.rs
+ create mode 100644 kernel/src/fs/fs_impls/procfs/dm_performance_stats.rs
+
+diff --git a/Cargo.lock b/Cargo.lock
+index 3ca218aa5..a01f629dd 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -134,8 +134,8 @@ dependencies = [
+  "aes",
+  "aster-block",
+  "aster-cmdline",
++ "aster-time",
+  "component",
+- "cpufeatures",
+  "device-id",
+  "ostd",
+  "spin",
+diff --git a/Makefile b/Makefile
+index f31ab8a42..f98a89e22 100644
+--- a/Makefile
++++ b/Makefile
+@@ -212,6 +212,7 @@ CARGO_OSDK_COMMON_ARGS += $(CARGO_OSDK_INITRAMFS_OPTION)
+ endif
+
+ CARGO_OSDK_BUILD_ARGS += $(CARGO_OSDK_COMMON_ARGS)
++CARGO_OSDK_BUILD_ARGS += $(EXTRA_CARGO_OSDK_BUILD_ARGS)
+ CARGO_OSDK_TEST_ARGS += $(CARGO_OSDK_COMMON_ARGS)
+
+ # Pass make variables to all subdirectory makes
+diff --git a/kernel/comps/dm/Cargo.toml b/kernel/comps/dm/Cargo.toml
+index ffe04b807..4ae270dce 100644
+--- a/kernel/comps/dm/Cargo.toml
++++ b/kernel/comps/dm/Cargo.toml
+@@ -7,6 +7,7 @@ edition.workspace = true
+ aes.workspace = true
+ aster-block.workspace = true
+ aster-cmdline.workspace = true
++aster-time.workspace = true
+ component.workspace = true
+ device-id.workspace = true
+ ostd.workspace = true
+diff --git a/kernel/comps/dm/src/device.rs b/kernel/comps/dm/src/device.rs
+index 463340358..482ddbc73 100644
+--- a/kernel/comps/dm/src/device.rs
++++ b/kernel/comps/dm/src/device.rs
+@@ -15,6 +15,7 @@ use spin::Mutex;
+ use crate::{
+     DmError,
+     crypto::AesXtsCipher,
++    statistics::{DmAtomicPerformanceStats, DmPerformanceStats, IoStage},
+     verity::{VerityStats, VerityTarget},
+ };
+
+@@ -24,6 +25,7 @@ pub struct DmDevice {
+     name: String,
+     lower: Arc<dyn BlockDevice>,
+     target: DmTarget,
++    performance_stats: DmAtomicPerformanceStats,
+ }
+
+ impl DmDevice {
+@@ -34,6 +36,7 @@ impl DmDevice {
+             name,
+             lower,
+             target: DmTarget::Passthrough,
++            performance_stats: DmAtomicPerformanceStats::default(),
+         }
+     }
+
+@@ -119,6 +122,7 @@ impl DmDevice {
+                 logical_sectors,
+                 scratch_pool: Mutex::new(CryptScratchPool::new(scratch_pool_capacity)),
+             }),
++            performance_stats: DmAtomicPerformanceStats::default(),
+         })
+     }
+
+@@ -162,6 +166,7 @@ impl DmDevice {
+                 root_hash,
+                 hash_cache_blocks,
+             )?),
++            performance_stats: DmAtomicPerformanceStats::default(),
+         })
+     }
+
+@@ -191,6 +196,11 @@ impl DmDevice {
+         Some(target.stats())
+     }
+
++    /// Returns cumulative, opt-in stage timings for this mapper.
++    pub fn performance_stats(&self) -> DmPerformanceStats {
++        self.performance_stats.snapshot()
++    }
++
+     /// Reads and validates the ext2 superblock magic through this mapper.
+     ///
+     /// The magic is located 56 bytes into the superblock, which starts at
+@@ -225,71 +235,95 @@ impl DmDevice {
+     }
+
+     fn process_crypt(&self, bio: SubmittedBio, target: &CryptTarget) {
++        let operation_started = self.performance_stats.start();
++        let bytes = bio.segments().iter().fold(0usize, |total, segment| {
++            total.saturating_add(segment.nbytes())
++        });
++        let status = self.execute_crypt(&bio, target);
++        self.performance_stats.record_operation(
++            operation_started,
++            bytes,
++            status != BioStatus::Complete,
++        );
++        bio.complete(status);
++    }
++
++    fn execute_crypt(&self, bio: &SubmittedBio, target: &CryptTarget) -> BioStatus {
+         let bio_type = bio.type_();
+         if bio_type == BioType::Flush {
++            let lower_started = self.performance_stats.start();
+             let status = self.lower.sync().unwrap_or(BioStatus::IoError);
+-            bio.complete(status);
+-            return;
++            self.performance_stats
++                .record_stage(IoStage::LowerWait, lower_started);
++            return status;
+         }
+
+-        let logical_first_sector = bio
+-            .sid_range()
+-            .start
+-            .to_raw()
+-            .checked_add(bio.sid_offset())
+-            .unwrap_or(u64::MAX);
+-        let num_sectors = bio.segments().iter().try_fold(0u64, |total, segment| {
+-            total.checked_add(segment.nsectors().to_raw())
+-        });
+-        let Some(logical_end_sector) =
+-            num_sectors.and_then(|count| logical_first_sector.checked_add(count))
+-        else {
+-            bio.complete(BioStatus::IoError);
+-            return;
+-        };
+-        if logical_end_sector > target.logical_sectors as u64 {
+-            bio.complete(BioStatus::IoError);
+-            return;
+-        }
+-        let Some(lower_first_sector) = target.data_offset_sectors.checked_add(logical_first_sector)
+-        else {
+-            bio.complete(BioStatus::IoError);
+-            return;
+-        };
+-        let Some(iv_first_sector) = target.iv_offset.checked_add(logical_first_sector) else {
+-            bio.complete(BioStatus::IoError);
+-            return;
++        let validation_started = self.performance_stats.start();
++        let geometry = (|| {
++            let logical_first_sector = bio
++                .sid_range()
++                .start
++                .to_raw()
++                .checked_add(bio.sid_offset())?;
++            let num_sectors = bio.segments().iter().try_fold(0u64, |total, segment| {
++                total.checked_add(segment.nsectors().to_raw())
++            })?;
++            let logical_end_sector = logical_first_sector.checked_add(num_sectors)?;
++            if logical_end_sector > target.logical_sectors as u64 {
++                return None;
++            }
++            let lower_first_sector = target
++                .data_offset_sectors
++                .checked_add(logical_first_sector)?;
++            let iv_first_sector = target.iv_offset.checked_add(logical_first_sector)?;
++            Some((lower_first_sector, iv_first_sector))
++        })();
++        self.performance_stats
++            .record_stage(IoStage::Validation, validation_started);
++        let Some((lower_first_sector, iv_first_sector)) = geometry else {
++            return BioStatus::IoError;
+         };
+
+         let lower_segments = if bio_type == BioType::Write {
+             let mut sector_cursor = iv_first_sector;
+             let mut bounce_segments = Vec::with_capacity(bio.segments().len());
+             for segment in bio.segments() {
++                let scratch_started = self.performance_stats.start();
+                 let mut ciphertext = target.take_scratch(segment.nbytes());
+-                if segment
++                self.performance_stats
++                    .record_stage(IoStage::Scratch, scratch_started);
++                let copy_started = self.performance_stats.start();
++                let copied = segment
+                     .inner_dma_slice()
+                     .read_bytes(0, &mut ciphertext)
+-                    .is_err()
+-                    || target
++                    .is_ok();
++                self.performance_stats
++                    .record_stage(IoStage::Copy, copy_started);
++                let crypto_started = self.performance_stats.start();
++                let encrypted = copied
++                    && target
+                         .cipher
+                         .encrypt(sector_cursor, &mut ciphertext)
+-                        .is_err()
+-                {
++                        .is_ok();
++                self.performance_stats
++                    .record_stage(IoStage::Crypto, crypto_started);
++                if !encrypted {
+                     target.recycle_scratch(ciphertext);
+-                    bio.complete(BioStatus::IoError);
+-                    return;
++                    return BioStatus::IoError;
+                 }
++                let copy_started = self.performance_stats.start();
+                 let bounce = BioSegment::alloc_bytes(segment.nbytes(), BioDirection::ToDevice);
+-                if bounce
+-                    .inner_dma_slice()
+-                    .write_bytes(0, &ciphertext)
+-                    .is_err()
+-                {
++                let copied = bounce.inner_dma_slice().write_bytes(0, &ciphertext).is_ok();
++                self.performance_stats
++                    .record_stage(IoStage::Copy, copy_started);
++                if !copied {
+                     target.recycle_scratch(ciphertext);
+-                    bio.complete(BioStatus::IoError);
+-                    return;
++                    return BioStatus::IoError;
+                 }
++                let scratch_started = self.performance_stats.start();
+                 target.recycle_scratch(ciphertext);
++                self.performance_stats
++                    .record_stage(IoStage::Scratch, scratch_started);
+                 sector_cursor += segment.nsectors().to_raw();
+                 bounce_segments.push(bounce);
+             }
+@@ -299,46 +333,58 @@ impl DmDevice {
+         };
+
+         let lower_bio = Bio::new(bio_type, Sid::new(lower_first_sector), lower_segments, None);
++        let lower_started = self.performance_stats.start();
+         let lower_status = lower_bio
+             .submit_and_wait(self.lower.as_ref())
+             .unwrap_or(BioStatus::IoError);
++        self.performance_stats
++            .record_stage(IoStage::LowerWait, lower_started);
+         if lower_status != BioStatus::Complete {
+-            bio.complete(lower_status);
+-            return;
++            return lower_status;
+         }
+
+-        let status = match bio_type {
++        match bio_type {
+             BioType::Read => {
+                 let mut sector_cursor = iv_first_sector;
+                 let mut status = BioStatus::Complete;
+                 for segment in bio.segments() {
++                    let scratch_started = self.performance_stats.start();
+                     let mut plaintext = target.take_scratch(segment.nbytes());
+-                    if segment
++                    self.performance_stats
++                        .record_stage(IoStage::Scratch, scratch_started);
++                    let copy_started = self.performance_stats.start();
++                    let copied_in = segment
+                         .inner_dma_slice()
+                         .read_bytes(0, &mut plaintext)
+-                        .is_err()
+-                        || target
+-                            .cipher
+-                            .decrypt(sector_cursor, &mut plaintext)
+-                            .is_err()
+-                        || segment
+-                            .inner_dma_slice()
+-                            .write_bytes(0, &plaintext)
+-                            .is_err()
+-                    {
++                        .is_ok();
++                    self.performance_stats
++                        .record_stage(IoStage::Copy, copy_started);
++                    let crypto_started = self.performance_stats.start();
++                    let decrypted =
++                        copied_in && target.cipher.decrypt(sector_cursor, &mut plaintext).is_ok();
++                    self.performance_stats
++                        .record_stage(IoStage::Crypto, crypto_started);
++                    let copy_started = self.performance_stats.start();
++                    let copied_out =
++                        decrypted && segment.inner_dma_slice().write_bytes(0, &plaintext).is_ok();
++                    self.performance_stats
++                        .record_stage(IoStage::Copy, copy_started);
++                    if !copied_out {
+                         target.recycle_scratch(plaintext);
+                         status = BioStatus::IoError;
+                         break;
+                     }
++                    let scratch_started = self.performance_stats.start();
+                     target.recycle_scratch(plaintext);
++                    self.performance_stats
++                        .record_stage(IoStage::Scratch, scratch_started);
+                     sector_cursor += segment.nsectors().to_raw();
+                 }
+                 status
+             }
+             BioType::Write => BioStatus::Complete,
+             BioType::Flush => unreachable!(),
+-        };
+-        bio.complete(status);
++        }
+     }
+
+     fn process_verity(&self, bio: SubmittedBio, target: &VerityTarget) {
+@@ -351,34 +397,56 @@ impl DmDevice {
+             return;
+         }
+
++        let operation_started = self.performance_stats.start();
++        let bytes = bio.segments().iter().fold(0usize, |total, segment| {
++            total.saturating_add(segment.nbytes())
++        });
++        let validation_started = self.performance_stats.start();
+         let first_sector = bio
+             .sid_range()
+             .start
+             .to_raw()
+             .checked_add(bio.sid_offset())
+             .unwrap_or(u64::MAX);
++        self.performance_stats
++            .record_stage(IoStage::Validation, validation_started);
+         let lower_bio = Bio::new(
+             BioType::Read,
+             Sid::new(first_sector),
+             bio.segments().to_vec(),
+             None,
+         );
++        let lower_started = self.performance_stats.start();
+         let lower_status = lower_bio
+             .submit_and_wait(self.lower.as_ref())
+             .unwrap_or(BioStatus::IoError);
++        self.performance_stats
++            .record_stage(IoStage::LowerWait, lower_started);
+         if lower_status != BioStatus::Complete {
++            self.performance_stats
++                .record_operation(operation_started, bytes, true);
+             bio.complete(lower_status);
+             return;
+         }
+
+         let status = if target
+-            .verify_segments(self.lower.as_ref(), first_sector, bio.segments())
++            .verify_segments(
++                self.lower.as_ref(),
++                first_sector,
++                bio.segments(),
++                &self.performance_stats,
++            )
+             .is_ok()
+         {
+             BioStatus::Complete
+         } else {
+             BioStatus::IoError
+         };
++        self.performance_stats.record_operation(
++            operation_started,
++            bytes,
++            status != BioStatus::Complete,
++        );
+         bio.complete(status);
+     }
+ }
+diff --git a/kernel/comps/dm/src/lib.rs b/kernel/comps/dm/src/lib.rs
+index f593a4ff4..41bc4ea66 100644
+--- a/kernel/comps/dm/src/lib.rs
++++ b/kernel/comps/dm/src/lib.rs
+@@ -17,6 +17,7 @@ mod crypto;
+ mod device;
+ mod runtime;
+ mod sha256;
++mod statistics;
+ mod verity;
+
+ use alloc::{string::String, sync::Arc, vec::Vec};
+@@ -32,12 +33,15 @@ pub use runtime::{
+     remove_runtime_mapper, runtime_mapper_list, runtime_mapper_status,
+ };
+ use spin::Once;
++pub use statistics::DmPerformanceStats;
+ pub use verity::VerityStats;
+
+ static CRYPT_DEVICE: Once<String> = Once::new();
+ static CRYPT_NAME: Once<String> = Once::new();
+ static CRYPT_KEY: Once<String> = Once::new();
+ static CRYPT_SCRATCH_POOL: Once<usize> = Once::new();
++static PERF_STATS: Once<usize> = Once::new();
++static CRYPT_MAPPER: Once<Arc<DmDevice>> = Once::new();
+ static PASSTHROUGH_DEVICE: Once<String> = Once::new();
+ static PASSTHROUGH_NAME: Once<String> = Once::new();
+ static VERITY_SCHEME: Once<String> = Once::new();
+@@ -75,6 +79,16 @@ pub fn boot_verity_stats() -> Option<(usize, VerityStats)> {
+     Some((VERITY_CACHE_BLOCKS.get().copied().unwrap_or(256), stats))
+ }
+
++/// Returns a live stage-attribution snapshot for the boot-configured mapper.
++pub fn boot_performance_stats() -> Option<(&'static str, DmPerformanceStats)> {
++    if let Some(mapper) = CRYPT_MAPPER.get() {
++        return Some(("dm-crypt", mapper.performance_stats()));
++    }
++    VERITY_MAPPER
++        .get()
++        .map(|mapper| ("dm-verity", mapper.performance_stats()))
++}
++
+ /// Returns the result of the boot-time dm-verity authenticated read.
+ pub fn boot_verity_status() -> &'static str {
+     match VERITY_BOOT_STATUS.load(Ordering::Relaxed) {
+@@ -90,6 +104,7 @@ aster_cmdline::define_kv_param!("dm_crypt.device", CRYPT_DEVICE);
+ aster_cmdline::define_kv_param!("dm_crypt.name", CRYPT_NAME);
+ aster_cmdline::define_kv_param!("dm_crypt.key", CRYPT_KEY);
+ aster_cmdline::define_kv_param!("dm_crypt.scratch_pool", CRYPT_SCRATCH_POOL);
++aster_cmdline::define_kv_param!("dm.perf_stats", PERF_STATS);
+ aster_cmdline::define_kv_param!("dm_passthrough.device", PASSTHROUGH_DEVICE);
+ aster_cmdline::define_kv_param!("dm_passthrough.name", PASSTHROUGH_NAME);
+ aster_cmdline::define_kv_param!("rootfs_verity.scheme", VERITY_SCHEME);
+@@ -120,6 +135,16 @@ pub enum DmError {
+ #[init_component(process)]
+ fn init() -> Result<(), ComponentInitError> {
+     ostd::early_println!("[dm] process-stage initialization started");
++    let perf_stats_enabled = PERF_STATS.get().copied().unwrap_or(0) != 0;
++    statistics::set_enabled(perf_stats_enabled);
++    ostd::early_println!(
++        "[dm-perf] stage_stats={}",
++        if perf_stats_enabled {
++            "enabled"
++        } else {
++            "disabled"
++        }
++    );
+     if DM_MAJOR.get().is_none() {
+         let major = aster_block::allocate_major().map_err(|_| ComponentInitError::Unknown)?;
+         DM_MAJOR.call_once(|| major);
+@@ -158,9 +183,10 @@ fn init() -> Result<(), ComponentInitError> {
+         let id = allocate_mapper_id().map_err(|_| ComponentInitError::Unknown)?;
+         let scratch_pool_capacity = CRYPT_SCRATCH_POOL.get().copied().unwrap_or(32);
+         ostd::early_println!("[dm] initializing AES-256-XTS mapper");
+-        let mapper =
++        let mapper = Arc::new(
+             DmDevice::new_crypt_with_pool(id, mapper_name, lower, &key, scratch_pool_capacity)
+-                .map_err(|_| ComponentInitError::Unknown)?;
++                .map_err(|_| ComponentInitError::Unknown)?,
++        );
+         ostd::early_println!(
+             "[dm-perf] AES backend={} scratch_pool={}",
+             if crypto::hardware_aes_available() {
+@@ -181,7 +207,8 @@ fn init() -> Result<(), ComponentInitError> {
+             "[dm-test] PASS AES-256-XTS decrypted a valid ext2 superblock through dm-crypt"
+         );
+         info!("registering AES-256-XTS device {}", mapper.name());
+-        aster_block::register(Arc::new(mapper)).map_err(|_| ComponentInitError::Unknown)?;
++        CRYPT_MAPPER.call_once(|| Arc::clone(&mapper));
++        aster_block::register(mapper).map_err(|_| ComponentInitError::Unknown)?;
+         ostd::early_println!("[dm] registered AES-256-XTS mapper");
+     }
+
+diff --git a/kernel/comps/dm/src/statistics.rs b/kernel/comps/dm/src/statistics.rs
+new file mode 100644
+index 000000000..b40c655b1
+--- /dev/null
++++ b/kernel/comps/dm/src/statistics.rs
+@@ -0,0 +1,156 @@
++// SPDX-License-Identifier: MPL-2.0
++
++//! Low-overhead, opt-in attribution for Device Mapper I/O stages.
++
++use core::{
++    sync::atomic::{AtomicBool, AtomicU64, Ordering},
++    time::Duration,
++};
++
++use aster_time::read_monotonic_time;
++
++static ENABLED: AtomicBool = AtomicBool::new(false);
++
++/// Enables or disables stage attribution for subsequently executed I/O.
++pub(crate) fn set_enabled(enabled: bool) {
++    ENABLED.store(enabled, Ordering::Relaxed);
++}
++
++fn enabled() -> bool {
++    ENABLED.load(Ordering::Relaxed)
++}
++
++/// Identifies one measured section of a mapper I/O.
++#[derive(Clone, Copy)]
++pub(crate) enum IoStage {
++    Validation,
++    Scratch,
++    Copy,
++    Crypto,
++    LowerWait,
++    DataSha256,
++    CacheLookup,
++    HashWait,
++    HashSha256,
++    DigestCompare,
++    CacheInsert,
++}
++
++/// Snapshot returned through procfs after a benchmark run.
++#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
++pub struct DmPerformanceStats {
++    pub enabled: bool,
++    pub operations: u64,
++    pub bytes: u64,
++    pub failures: u64,
++    pub total_ns: u64,
++    pub max_total_ns: u64,
++    pub validation_ns: u64,
++    pub scratch_ns: u64,
++    pub copy_ns: u64,
++    pub crypto_ns: u64,
++    pub lower_wait_ns: u64,
++    pub data_sha256_ns: u64,
++    pub cache_lookup_ns: u64,
++    pub hash_wait_ns: u64,
++    pub hash_sha256_ns: u64,
++    pub digest_compare_ns: u64,
++    pub cache_insert_ns: u64,
++    pub tree_levels: u64,
++}
++
++#[derive(Debug, Default)]
++pub(crate) struct DmAtomicPerformanceStats {
++    operations: AtomicU64,
++    bytes: AtomicU64,
++    failures: AtomicU64,
++    total_ns: AtomicU64,
++    max_total_ns: AtomicU64,
++    validation_ns: AtomicU64,
++    scratch_ns: AtomicU64,
++    copy_ns: AtomicU64,
++    crypto_ns: AtomicU64,
++    lower_wait_ns: AtomicU64,
++    data_sha256_ns: AtomicU64,
++    cache_lookup_ns: AtomicU64,
++    hash_wait_ns: AtomicU64,
++    hash_sha256_ns: AtomicU64,
++    digest_compare_ns: AtomicU64,
++    cache_insert_ns: AtomicU64,
++    tree_levels: AtomicU64,
++}
++
++impl DmAtomicPerformanceStats {
++    pub(crate) fn start(&self) -> Option<Duration> {
++        enabled().then(read_monotonic_time)
++    }
++
++    pub(crate) fn record_stage(&self, stage: IoStage, started: Option<Duration>) {
++        let Some(started) = started else {
++            return;
++        };
++        let elapsed = elapsed_ns(started);
++        let counter = match stage {
++            IoStage::Validation => &self.validation_ns,
++            IoStage::Scratch => &self.scratch_ns,
++            IoStage::Copy => &self.copy_ns,
++            IoStage::Crypto => &self.crypto_ns,
++            IoStage::LowerWait => &self.lower_wait_ns,
++            IoStage::DataSha256 => &self.data_sha256_ns,
++            IoStage::CacheLookup => &self.cache_lookup_ns,
++            IoStage::HashWait => &self.hash_wait_ns,
++            IoStage::HashSha256 => &self.hash_sha256_ns,
++            IoStage::DigestCompare => &self.digest_compare_ns,
++            IoStage::CacheInsert => &self.cache_insert_ns,
++        };
++        counter.fetch_add(elapsed, Ordering::Relaxed);
++    }
++
++    pub(crate) fn record_operation(&self, started: Option<Duration>, bytes: usize, failed: bool) {
++        if !enabled() {
++            return;
++        }
++        let elapsed = started.map(elapsed_ns).unwrap_or(0);
++        self.operations.fetch_add(1, Ordering::Relaxed);
++        self.bytes.fetch_add(bytes as u64, Ordering::Relaxed);
++        self.total_ns.fetch_add(elapsed, Ordering::Relaxed);
++        self.max_total_ns.fetch_max(elapsed, Ordering::Relaxed);
++        if failed {
++            self.failures.fetch_add(1, Ordering::Relaxed);
++        }
++    }
++
++    pub(crate) fn record_tree_level(&self) {
++        if enabled() {
++            self.tree_levels.fetch_add(1, Ordering::Relaxed);
++        }
++    }
++
++    pub(crate) fn snapshot(&self) -> DmPerformanceStats {
++        DmPerformanceStats {
++            enabled: enabled(),
++            operations: self.operations.load(Ordering::Relaxed),
++            bytes: self.bytes.load(Ordering::Relaxed),
++            failures: self.failures.load(Ordering::Relaxed),
++            total_ns: self.total_ns.load(Ordering::Relaxed),
++            max_total_ns: self.max_total_ns.load(Ordering::Relaxed),
++            validation_ns: self.validation_ns.load(Ordering::Relaxed),
++            scratch_ns: self.scratch_ns.load(Ordering::Relaxed),
++            copy_ns: self.copy_ns.load(Ordering::Relaxed),
++            crypto_ns: self.crypto_ns.load(Ordering::Relaxed),
++            lower_wait_ns: self.lower_wait_ns.load(Ordering::Relaxed),
++            data_sha256_ns: self.data_sha256_ns.load(Ordering::Relaxed),
++            cache_lookup_ns: self.cache_lookup_ns.load(Ordering::Relaxed),
++            hash_wait_ns: self.hash_wait_ns.load(Ordering::Relaxed),
++            hash_sha256_ns: self.hash_sha256_ns.load(Ordering::Relaxed),
++            digest_compare_ns: self.digest_compare_ns.load(Ordering::Relaxed),
++            cache_insert_ns: self.cache_insert_ns.load(Ordering::Relaxed),
++            tree_levels: self.tree_levels.load(Ordering::Relaxed),
++        }
++    }
++}
++
++fn elapsed_ns(started: Duration) -> u64 {
++    let elapsed = read_monotonic_time().saturating_sub(started).as_nanos();
++    u64::try_from(elapsed).unwrap_or(u64::MAX)
++}
+diff --git a/kernel/comps/dm/src/verity.rs b/kernel/comps/dm/src/verity.rs
+index 31ce51e4c..510b489d6 100644
+--- a/kernel/comps/dm/src/verity.rs
++++ b/kernel/comps/dm/src/verity.rs
+@@ -15,7 +15,11 @@ use aster_block::{
+ use ostd::mm::VmIo;
+ use spin::Mutex;
+
+-use crate::{DmError, sha256::sha256};
++use crate::{
++    DmError,
++    sha256::sha256,
++    statistics::{DmAtomicPerformanceStats, IoStage},
++};
+
+ const HASH_SIZE: usize = 32;
+ const HASHES_PER_BLOCK: usize = BLOCK_SIZE / HASH_SIZE;
+@@ -97,6 +101,7 @@ impl VerityTarget {
+         lower: &dyn BlockDevice,
+         first_sector: u64,
+         segments: &[BioSegment],
++        performance_stats: &DmAtomicPerformanceStats,
+     ) -> Result<(), DmError> {
+         let start_byte = first_sector
+             .checked_mul(SECTOR_SIZE as u64)
+@@ -108,7 +113,7 @@ impl VerityTarget {
+         })?;
+         if !start_byte.is_multiple_of(BLOCK_SIZE as u64) || !total_bytes.is_multiple_of(BLOCK_SIZE)
+         {
+-            return self.verify_range(lower, first_sector, total_bytes);
++            return self.verify_range(lower, first_sector, total_bytes, performance_stats);
+         }
+
+         let first_block =
+@@ -139,7 +144,7 @@ impl VerityTarget {
+                 bytes_in_block += copy_len;
+
+                 if bytes_in_block == BLOCK_SIZE {
+-                    self.verify_data_block(lower, block_id, &data_block)?;
++                    self.verify_data_block(lower, block_id, &data_block, performance_stats)?;
+                     self.stats.bio_data_blocks.fetch_add(1, Ordering::Relaxed);
+                     block_id += 1;
+                     bytes_in_block = 0;
+@@ -160,6 +165,7 @@ impl VerityTarget {
+         lower: &dyn BlockDevice,
+         first_sector: u64,
+         num_bytes: usize,
++        performance_stats: &DmAtomicPerformanceStats,
+     ) -> Result<(), DmError> {
+         let start_byte = first_sector
+             .checked_mul(SECTOR_SIZE as u64)
+@@ -177,8 +183,13 @@ impl VerityTarget {
+             .data_reread_blocks
+             .fetch_add(end_block - first_block, Ordering::Relaxed);
+         for block_id in first_block..end_block {
+-            let data = read_block(lower, block_id as usize)?;
+-            self.verify_data_block(lower, block_id as usize, &data)?;
++            let data = read_block(
++                lower,
++                block_id as usize,
++                performance_stats,
++                IoStage::LowerWait,
++            )?;
++            self.verify_data_block(lower, block_id as usize, &data, performance_stats)?;
+         }
+         Ok(())
+     }
+@@ -188,30 +199,44 @@ impl VerityTarget {
+         lower: &dyn BlockDevice,
+         block_id: usize,
+         data: &[u8; BLOCK_SIZE],
++        performance_stats: &DmAtomicPerformanceStats,
+     ) -> Result<(), DmError> {
++        let sha_started = performance_stats.start();
+         let mut digest = sha256(data);
++        performance_stats.record_stage(IoStage::DataSha256, sha_started);
+         let mut digest_index = block_id;
+         let mut newly_authenticated = Vec::new();
+
+         for level in &self.levels {
++            performance_stats.record_tree_level();
+             if digest_index >= level.digest_count {
+                 return Err(DmError::OutOfRange);
+             }
+             let hash_block_index = digest_index / HASHES_PER_BLOCK;
+             let digest_slot = digest_index % HASHES_PER_BLOCK;
+             let physical_block = level.block_offset + hash_block_index;
++            let cache_started = performance_stats.start();
+             let authenticated_cached_block = self.hash_cache.lock().get(physical_block);
++            performance_stats.record_stage(IoStage::CacheLookup, cache_started);
+             let hash_block = if let Some(cached) = authenticated_cached_block.as_ref() {
+                 self.stats.hash_cache_hits.fetch_add(1, Ordering::Relaxed);
+                 Arc::clone(cached)
+             } else {
+                 self.stats.hash_cache_misses.fetch_add(1, Ordering::Relaxed);
+-                let fetched = Arc::new(read_block(lower, physical_block)?);
++                let fetched = Arc::new(read_block(
++                    lower,
++                    physical_block,
++                    performance_stats,
++                    IoStage::HashWait,
++                )?);
+                 newly_authenticated.push((physical_block, Arc::clone(&fetched)));
+                 fetched
+             };
+             let digest_offset = digest_slot * HASH_SIZE;
+-            if hash_block[digest_offset..digest_offset + HASH_SIZE] != digest {
++            let compare_started = performance_stats.start();
++            let matches = hash_block[digest_offset..digest_offset + HASH_SIZE] == digest;
++            performance_stats.record_stage(IoStage::DigestCompare, compare_started);
++            if !matches {
+                 return Err(DmError::IntegrityViolation);
+             }
+             if authenticated_cached_block.is_some() {
+@@ -219,7 +244,7 @@ impl VerityTarget {
+                 // reached the trusted root. Matching the current digest
+                 // against that immutable block therefore completes the
+                 // authentication without rehashing the already trusted suffix.
+-                self.cache_authenticated_blocks(newly_authenticated);
++                self.cache_authenticated_blocks(newly_authenticated, performance_stats);
+                 self.stats
+                     .authenticated_cache_shortcuts
+                     .fetch_add(1, Ordering::Relaxed);
+@@ -228,27 +253,38 @@ impl VerityTarget {
+                     .fetch_add(1, Ordering::Relaxed);
+                 return Ok(());
+             }
++            let sha_started = performance_stats.start();
+             digest = sha256(hash_block.as_ref());
++            performance_stats.record_stage(IoStage::HashSha256, sha_started);
+             digest_index = hash_block_index;
+         }
+
+-        if digest != self.root_hash {
++        let compare_started = performance_stats.start();
++        let root_matches = digest == self.root_hash;
++        performance_stats.record_stage(IoStage::DigestCompare, compare_started);
++        if !root_matches {
+             return Err(DmError::IntegrityViolation);
+         }
+         // Cache insertion happens only after the complete path reaches the
+         // trusted root, so an unauthenticated hash block is never reused.
+-        self.cache_authenticated_blocks(newly_authenticated);
++        self.cache_authenticated_blocks(newly_authenticated, performance_stats);
+         self.stats
+             .verified_data_blocks
+             .fetch_add(1, Ordering::Relaxed);
+         Ok(())
+     }
+
+-    fn cache_authenticated_blocks(&self, blocks: Vec<(usize, Arc<[u8; BLOCK_SIZE]>)>) {
++    fn cache_authenticated_blocks(
++        &self,
++        blocks: Vec<(usize, Arc<[u8; BLOCK_SIZE]>)>,
++        performance_stats: &DmAtomicPerformanceStats,
++    ) {
++        let cache_started = performance_stats.start();
+         let mut cache = self.hash_cache.lock();
+         for (block_id, block) in blocks {
+             cache.insert_authenticated(block_id, block);
+         }
++        performance_stats.record_stage(IoStage::CacheInsert, cache_started);
+     }
+ }
+
+@@ -315,15 +351,24 @@ impl VerityAtomicStats {
+     }
+ }
+
+-fn read_block(lower: &dyn BlockDevice, block_id: usize) -> Result<[u8; BLOCK_SIZE], DmError> {
++fn read_block(
++    lower: &dyn BlockDevice,
++    block_id: usize,
++    performance_stats: &DmAtomicPerformanceStats,
++    wait_stage: IoStage,
++) -> Result<[u8; BLOCK_SIZE], DmError> {
+     let segment = BioSegment::alloc(1, BioDirection::FromDevice);
++    let wait_started = performance_stats.start();
+     let status = lower
+         .read_blocks(Bid::new(block_id as u64), segment.clone())
+         .map_err(|_| DmError::Io)?;
++    performance_stats.record_stage(wait_stage, wait_started);
+     if status != BioStatus::Complete {
+         return Err(DmError::Io);
+     }
+     let mut block = [0u8; BLOCK_SIZE];
++    let copy_started = performance_stats.start();
+     segment.read_bytes(0, &mut block).map_err(|_| DmError::Io)?;
++    performance_stats.record_stage(IoStage::Copy, copy_started);
+     Ok(block)
+ }
+diff --git a/kernel/src/fs/fs_impls/procfs/dm_performance_stats.rs b/kernel/src/fs/fs_impls/procfs/dm_performance_stats.rs
+new file mode 100644
+index 000000000..ca29f4c4d
+--- /dev/null
++++ b/kernel/src/fs/fs_impls/procfs/dm_performance_stats.rs
+@@ -0,0 +1,57 @@
++// SPDX-License-Identifier: MPL-2.0
++
++//! Cumulative Device Mapper stage-attribution counters.
++
++use aster_util::printer::VmPrinter;
++
++use crate::{
++    fs::{
++        file::mkmod,
++        procfs::template::{ProcFile, ProcFileOps},
++        vfs::inode::Inode,
++    },
++    prelude::*,
++};
++
++/// Represents `/proc/dm-performance-stats`.
++pub struct DmPerformanceStatsFileOps;
++
++impl DmPerformanceStatsFileOps {
++    pub fn new_inode(parent: Weak<dyn Inode>) -> Arc<dyn Inode> {
++        ProcFile::new(Self, parent, mkmod!(a+r))
++    }
++}
++
++impl ProcFileOps for DmPerformanceStatsFileOps {
++    fn read_at(&self, offset: usize, writer: &mut VmWriter) -> Result<usize> {
++        let mut printer = VmPrinter::new_skip(writer, offset);
++        if let Some((target, stats)) = aster_dm::boot_performance_stats() {
++            writeln!(
++                printer,
++                "target={} enabled={} operations={} bytes={} failures={} total_ns={} max_total_ns={} validation_ns={} scratch_ns={} copy_ns={} crypto_ns={} lower_wait_ns={} data_sha256_ns={} cache_lookup_ns={} hash_wait_ns={} hash_sha256_ns={} digest_compare_ns={} cache_insert_ns={} tree_levels={}",
++                target,
++                u8::from(stats.enabled),
++                stats.operations,
++                stats.bytes,
++                stats.failures,
++                stats.total_ns,
++                stats.max_total_ns,
++                stats.validation_ns,
++                stats.scratch_ns,
++                stats.copy_ns,
++                stats.crypto_ns,
++                stats.lower_wait_ns,
++                stats.data_sha256_ns,
++                stats.cache_lookup_ns,
++                stats.hash_wait_ns,
++                stats.hash_sha256_ns,
++                stats.digest_compare_ns,
++                stats.cache_insert_ns,
++                stats.tree_levels
++            )?;
++        } else {
++            writeln!(printer, "target=none enabled=0")?;
++        }
++        Ok(printer.bytes_written())
++    }
++}
+diff --git a/kernel/src/fs/fs_impls/procfs/mod.rs b/kernel/src/fs/fs_impls/procfs/mod.rs
+index 1dec1e02d..d4754b039 100644
+--- a/kernel/src/fs/fs_impls/procfs/mod.rs
++++ b/kernel/src/fs/fs_impls/procfs/mod.rs
+@@ -13,6 +13,7 @@ use self::{
+     cpuinfo::CpuInfoFileOps,
+     devices::DevicesFileOps,
+     dm_crypto_backend::DmCryptoBackendFileOps,
++    dm_performance_stats::DmPerformanceStatsFileOps,
+     dm_verity_stats::DmVerityStatsFileOps,
+     loadavg::LoadAvgFileOps,
+     meminfo::MemInfoFileOps,
+@@ -47,6 +48,7 @@ mod cmdline;
+ mod cpuinfo;
+ mod devices;
+ mod dm_crypto_backend;
++mod dm_performance_stats;
+ mod dm_verity_stats;
+ mod filesystems;
+ mod loadavg;
+@@ -163,6 +165,11 @@ impl RootDirOps {
+             InodeType::File,
+             DmCryptoBackendFileOps::new_inode,
+         ),
++        (
++            "dm-performance-stats",
++            InodeType::File,
++            DmPerformanceStatsFileOps::new_inode,
++        ),
+         (
+             "dm-verity-stats",
+             InodeType::File,
+diff --git a/test/initramfs/src/init b/test/initramfs/src/init
+index 768cafd98..0f4cf98b7 100755
+--- a/test/initramfs/src/init
++++ b/test/initramfs/src/init
+@@ -141,6 +141,9 @@ if [ -n "$DM_BENCH_RAW" ] && [ -n "$DM_BENCH_MAPPER" ]; then
+                 DEVICE="$DM_BENCH_MAPPER"
+             fi
+             echo "[dm-bench] BEGIN label=$LABEL run=$RUN device=$DEVICE operation=$DM_BENCH_RW block_size=$DM_BENCH_BS queue_depth=$DM_BENCH_QD"
++            if [ -r /proc/dm-performance-stats ]; then
++                echo "[dm-bench] STATS_BEFORE label=$LABEL run=$RUN $(cat /proc/dm-performance-stats)"
++            fi
+             /benchmark/bin/fio --name="${LABEL}-${RUN}" --filename="$DEVICE" \
+                 --rw="$DM_BENCH_RW" --bs="$DM_BENCH_BS" --ioengine=sync \
+                 --direct=1 --iodepth="$DM_BENCH_QD" \
+@@ -149,9 +152,9 @@ if [ -n "$DM_BENCH_RAW" ] && [ -n "$DM_BENCH_MAPPER" ]; then
+                 --numjobs=1 --group_reporting=1 --percentile_list=50:95:99:99.9 \
+                 --output-format=json
+             if [ "$DM_BENCH_LABEL" = "dm-verity" ] && [ -r /proc/dm-verity-stats ]; then
+-                echo "[dm-bench] STATS label=$LABEL run=$RUN $(cat /proc/dm-verity-stats)"
++                echo "[dm-bench] STATS label=$LABEL run=$RUN $(cat /proc/dm-verity-stats) perf=$(cat /proc/dm-performance-stats 2>/dev/null || echo unavailable)"
+             else
+-                echo "[dm-bench] STATS label=$LABEL run=$RUN backend=$(cat /proc/dm-crypto-backend 2>/dev/null || echo unavailable)"
++                echo "[dm-bench] STATS label=$LABEL run=$RUN backend=$(cat /proc/dm-crypto-backend 2>/dev/null || echo unavailable) perf=$(cat /proc/dm-performance-stats 2>/dev/null || echo unavailable)"
+             fi
+             echo "[dm-bench] END label=$LABEL run=$RUN"
+         done
+diff --git a/tools/run_dm_crypt_bench.sh b/tools/run_dm_crypt_bench.sh
+index 8b3c95dd5..8a1f03f28 100644
+--- a/tools/run_dm_crypt_bench.sh
++++ b/tools/run_dm_crypt_bench.sh
+@@ -14,17 +14,25 @@ else
+     unset OSDK_ENABLE_AES_NI
+ fi
+
+-DM_IMAGE=${DM_IMAGE:-./dm-crypt-test.img}
++DM_IMAGE=${DM_IMAGE:-../target/crypt-rootfs.img}
++if [ -r "${DM_IMAGE}.env" ]; then
++    REQUESTED_DM_IMAGE=${DM_IMAGE}
++    # shellcheck disable=SC1090
++    . "${DM_IMAGE}.env"
++    DM_IMAGE=${REQUESTED_DM_IMAGE}
++fi
+ DM_DEVICE=${DM_DEVICE:-vdc}
+ DM_NAME=${DM_NAME:-dm-crypt0}
+ DM_CRYPT_SCRATCH_POOL=${DM_CRYPT_SCRATCH_POOL:-32}
+ DM_BENCH_RW=${DM_BENCH_RW:-read}
+ DM_BENCH_BS=${DM_BENCH_BS:-4k}
+ DM_BENCH_QD=${DM_BENCH_QD:-1}
+-DM_BENCH_SIZE=${DM_BENCH_SIZE:-8m}
+-DM_BENCH_RUNTIME=${DM_BENCH_RUNTIME:-2}
++DM_BENCH_SIZE=${DM_BENCH_SIZE:-256m}
++DM_BENCH_RUNTIME=${DM_BENCH_RUNTIME:-10}
+ DM_BENCH_RUNS=${DM_BENCH_RUNS:-5}
+-DM_BENCH_RAMP=${DM_BENCH_RAMP:-1}
++DM_BENCH_RAMP=${DM_BENCH_RAMP:-2}
++DM_PERF_STATS=${DM_PERF_STATS:-1}
++RELEASE_LTO=${RELEASE_LTO:-1}
+ DM_BENCH_METADATA=${DM_BENCH_METADATA:-../target/benchmark/asterinas-dm-crypt.metadata.txt}
+ DM_KEY=${DM_KEY:-000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f}
+ export CONSOLE=${DM_CONSOLE:-hvc0}
+@@ -33,6 +41,10 @@ if [ ! -f "${DM_IMAGE}" ]; then
+     echo "dm-crypt image not found: ${DM_IMAGE}" >&2
+     exit 1
+ fi
++if [ "${RELEASE_LTO}" != "1" ]; then
++    echo "formal dm benchmark requires RELEASE_LTO=1" >&2
++    exit 1
++fi
+ case "${DM_BENCH_SIZE}" in
+     *m|*M) DM_BENCH_SIZE_MIB=${DM_BENCH_SIZE%[mM]} ;;
+     *)
+@@ -42,13 +54,22 @@ case "${DM_BENCH_SIZE}" in
+ esac
+
+ mkdir -p "$(dirname "${DM_BENCH_METADATA}")"
++GIT_COMMIT=$(git rev-parse HEAD)
++GIT_DIRTY=$([ -n "$(git status --porcelain --untracked-files=no)" ] && echo 1 || echo 0)
++TIMESTAMP_UTC=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+ {
++    echo "git_commit=${GIT_COMMIT}"
++    echo "git_dirty=${GIT_DIRTY}"
++    echo "build_profile=release-lto"
++    echo "stage_stats=${DM_PERF_STATS}"
++    echo "timestamp_utc=${TIMESTAMP_UTC}"
+     echo "host=$(uname -srmo)"
+     echo "vcpus=${SMP:-1}"
+     echo "memory=${MEM:-8G}"
+     echo "accelerator=$([ "${ENABLE_KVM:-0}" = "1" ] && echo kvm || echo tcg)"
+     echo "cpu_model=$([ "${ENABLE_KVM:-0}" = "1" ] && echo host || echo default)"
+     echo "device_model=virtio-blk"
++    echo "image_size_bytes=$(stat -c %s "${DM_IMAGE}")"
+     echo "image_region_sha256=$(dd if="${DM_IMAGE}" bs=1M count="${DM_BENCH_SIZE_MIB}" status=none | sha256sum | awk '{print $1}')"
+     echo "cipher=aes-xts-plain64"
+     echo "rw=${DM_BENCH_RW}"
+@@ -63,15 +84,20 @@ mkdir -p "$(dirname "${DM_BENCH_METADATA}")"
+     echo "scratch_pool=${DM_CRYPT_SCRATCH_POOL}"
+ } >"${DM_BENCH_METADATA}"
+
++echo "[dm-bench-meta] commit=${GIT_COMMIT} dirty=${GIT_DIRTY} profile=release-lto stage_stats=${DM_PERF_STATS} timestamp_utc=${TIMESTAMP_UTC}"
++echo "[dm-bench-meta] accelerator=$([ "${ENABLE_KVM:-0}" = "1" ] && echo kvm || echo tcg) cpu_model=$([ "${ENABLE_KVM:-0}" = "1" ] && echo host || echo default) vcpus=${SMP:-1} memory=${MEM:-8G} device_model=virtio-blk"
++echo "[dm-bench-meta] rw=${DM_BENCH_RW} block_size=${DM_BENCH_BS} queue_depth=${DM_BENCH_QD} size=${DM_BENCH_SIZE} runtime=${DM_BENCH_RUNTIME} ramp=${DM_BENCH_RAMP} runs=${DM_BENCH_RUNS}"
++
+ KCMD_ARGS="console=${CONSOLE} \
+ dm_crypt.device=${DM_DEVICE} \
+ dm_crypt.name=${DM_NAME} \
+ dm_crypt.key=${DM_KEY} \
+-dm_crypt.scratch_pool=${DM_CRYPT_SCRATCH_POOL}"
++dm_crypt.scratch_pool=${DM_CRYPT_SCRATCH_POOL} \
++dm.perf_stats=${DM_PERF_STATS}"
+ export DM_IMAGE
+ OSDK_ARGS="--kcmd-args=\"${KCMD_ARGS}\" --init-args=\"dm-bench /dev/${DM_DEVICE} /dev/${DM_NAME} ${DM_BENCH_RW} ${DM_BENCH_BS} ${DM_BENCH_QD} ${DM_BENCH_SIZE} ${DM_BENCH_RUNTIME} ${DM_BENCH_RUNS} ${DM_BENCH_RAMP} /bin/true\""
+ if [ "${ENABLE_KVM:-0}" = "1" ]; then
+     OSDK_ARGS="${OSDK_ARGS} --qemu-args=\"-accel kvm -cpu host\""
+ fi
+
+-exec make run_kernel ENABLE_KVM=0 BENCHMARK=dm-verity CARGO_OSDK_BUILD_ARGS="${OSDK_ARGS}"
++exec make run_kernel RELEASE_LTO=1 ENABLE_KVM=0 BENCHMARK=dm-verity EXTRA_CARGO_OSDK_BUILD_ARGS="${OSDK_ARGS}"
+diff --git a/tools/run_dm_verity_bench.sh b/tools/run_dm_verity_bench.sh
+index ab7e0ea46..c60d81757 100644
+--- a/tools/run_dm_verity_bench.sh
++++ b/tools/run_dm_verity_bench.sh
+@@ -4,26 +4,88 @@
+
+ set -euo pipefail
+
+-DM_IMAGE=${DM_IMAGE:-./dm-test.img}
++DM_IMAGE=${DM_IMAGE:-../target/verity-rootfs.img}
++if [ -r "${DM_IMAGE}.env" ]; then
++    REQUESTED_DM_IMAGE=${DM_IMAGE}
++    # shellcheck disable=SC1090
++    . "${DM_IMAGE}.env"
++    DM_IMAGE=${REQUESTED_DM_IMAGE}
++fi
+ DM_DEVICE=${DM_DEVICE:-vdc}
+ DM_NAME=${DM_NAME:-dm-verity0}
+ DM_ROOT_HASH=${DM_ROOT_HASH:-6db653b69a094065756dc2770d3af8880ec9beed29df41b5bb2fb2e11b2d49f3}
+-DM_DATA_BLOCKS=${DM_DATA_BLOCKS:-16}
+-DM_HASH_START=${DM_HASH_START:-16}
++DM_DATA_BLOCKS=${DM_DATA_BLOCKS:-65536}
++DM_HASH_START=${DM_HASH_START:-65536}
+ DM_CACHE_BLOCKS=${DM_CACHE_BLOCKS:-256}
+ DM_BENCH_RW=${DM_BENCH_RW:-read}
+ DM_BENCH_BS=${DM_BENCH_BS:-4k}
+ DM_BENCH_QD=${DM_BENCH_QD:-1}
+-DM_BENCH_SIZE=${DM_BENCH_SIZE:-8m}
+-DM_BENCH_RUNTIME=${DM_BENCH_RUNTIME:-2}
++DM_BENCH_SIZE=${DM_BENCH_SIZE:-256m}
++DM_BENCH_RUNTIME=${DM_BENCH_RUNTIME:-10}
+ DM_BENCH_RUNS=${DM_BENCH_RUNS:-5}
+-DM_BENCH_RAMP=${DM_BENCH_RAMP:-1}
++DM_BENCH_RAMP=${DM_BENCH_RAMP:-2}
++DM_PERF_STATS=${DM_PERF_STATS:-1}
++RELEASE_LTO=${RELEASE_LTO:-1}
++DM_BENCH_METADATA=${DM_BENCH_METADATA:-../target/benchmark/asterinas-dm-verity.metadata.txt}
+ export CONSOLE=${DM_CONSOLE:-hvc0}
+
+ if [ ! -f "${DM_IMAGE}" ]; then
+     echo "dm-verity image not found: ${DM_IMAGE}" >&2
+     exit 1
+ fi
++if [ "${RELEASE_LTO}" != "1" ]; then
++    echo "formal dm benchmark requires RELEASE_LTO=1" >&2
++    exit 1
++fi
++case "${DM_BENCH_SIZE}" in
++    *m|*M) DM_BENCH_SIZE_MIB=${DM_BENCH_SIZE%[mM]} ;;
++    *)
++        echo "DM_BENCH_SIZE must use an MiB suffix, for example 256m" >&2
++        exit 1
++        ;;
++esac
++if [ "${DM_DATA_BLOCKS}" -lt $((DM_BENCH_SIZE_MIB * 256)) ]; then
++    echo "verity data area is smaller than benchmark region" >&2
++    exit 1
++fi
++
++mkdir -p "$(dirname "${DM_BENCH_METADATA}")"
++GIT_COMMIT=$(git rev-parse HEAD)
++GIT_DIRTY=$([ -n "$(git status --porcelain --untracked-files=no)" ] && echo 1 || echo 0)
++TIMESTAMP_UTC=$(date -u +%Y-%m-%dT%H:%M:%SZ)
++{
++    echo "git_commit=${GIT_COMMIT}"
++    echo "git_dirty=${GIT_DIRTY}"
++    echo "build_profile=release-lto"
++    echo "stage_stats=${DM_PERF_STATS}"
++    echo "timestamp_utc=${TIMESTAMP_UTC}"
++    echo "host=$(uname -srmo)"
++    echo "vcpus=${SMP:-1}"
++    echo "memory=${MEM:-8G}"
++    echo "accelerator=$([ "${ENABLE_KVM:-0}" = "1" ] && echo kvm || echo tcg)"
++    echo "cpu_model=$([ "${ENABLE_KVM:-0}" = "1" ] && echo host || echo default)"
++    echo "device_model=virtio-blk"
++    echo "image_size_bytes=$(stat -c %s "${DM_IMAGE}")"
++    echo "image_region_sha256=$(dd if="${DM_IMAGE}" bs=1M count="${DM_BENCH_SIZE_MIB}" status=none | sha256sum | awk '{print $1}')"
++    echo "target=dm-verity"
++    echo "data_blocks=${DM_DATA_BLOCKS}"
++    echo "hash_start=${DM_HASH_START}"
++    echo "root_hash=${DM_ROOT_HASH}"
++    echo "rw=${DM_BENCH_RW}"
++    echo "block_size=${DM_BENCH_BS}"
++    echo "ioengine=sync"
++    echo "direct=1"
++    echo "queue_depth=${DM_BENCH_QD}"
++    echo "size_mib=${DM_BENCH_SIZE_MIB}"
++    echo "ramp_seconds=${DM_BENCH_RAMP}"
++    echo "runtime_seconds=${DM_BENCH_RUNTIME}"
++    echo "runs=${DM_BENCH_RUNS}"
++    echo "cache_blocks=${DM_CACHE_BLOCKS}"
++} >"${DM_BENCH_METADATA}"
++
++echo "[dm-bench-meta] commit=${GIT_COMMIT} dirty=${GIT_DIRTY} profile=release-lto stage_stats=${DM_PERF_STATS} timestamp_utc=${TIMESTAMP_UTC}"
++echo "[dm-bench-meta] accelerator=$([ "${ENABLE_KVM:-0}" = "1" ] && echo kvm || echo tcg) cpu_model=$([ "${ENABLE_KVM:-0}" = "1" ] && echo host || echo default) vcpus=${SMP:-1} memory=${MEM:-8G} device_model=virtio-blk"
++echo "[dm-bench-meta] rw=${DM_BENCH_RW} block_size=${DM_BENCH_BS} queue_depth=${DM_BENCH_QD} size=${DM_BENCH_SIZE} runtime=${DM_BENCH_RUNTIME} ramp=${DM_BENCH_RAMP} runs=${DM_BENCH_RUNS}"
+
+ KCMD_ARGS="console=${CONSOLE} \
+ rootfs_verity.scheme=dm-verity \
+@@ -32,7 +94,8 @@ rootfs_verity.name=${DM_NAME} \
+ rootfs_verity.hash=${DM_ROOT_HASH} \
+ rootfs_verity.data_blocks=${DM_DATA_BLOCKS} \
+ rootfs_verity.hash_start=${DM_HASH_START} \
+-rootfs_verity.cache_blocks=${DM_CACHE_BLOCKS}"
++rootfs_verity.cache_blocks=${DM_CACHE_BLOCKS} \
++dm.perf_stats=${DM_PERF_STATS}"
+
+ export DM_IMAGE
+ OSDK_ARGS="--kcmd-args=\"${KCMD_ARGS}\" --init-args=\"dm-bench /dev/${DM_DEVICE} /dev/${DM_NAME} ${DM_BENCH_RW} ${DM_BENCH_BS} ${DM_BENCH_QD} ${DM_BENCH_SIZE} ${DM_BENCH_RUNTIME} ${DM_BENCH_RUNS} ${DM_BENCH_RAMP} /bin/true\""
+@@ -40,4 +103,4 @@ if [ "${ENABLE_KVM:-0}" = "1" ]; then
+     OSDK_ARGS="${OSDK_ARGS} --qemu-args=\"-accel kvm -cpu host\""
+ fi
+
+-exec make run_kernel ENABLE_KVM=0 BENCHMARK=dm-verity CARGO_OSDK_BUILD_ARGS="${OSDK_ARGS}"
++exec make run_kernel RELEASE_LTO=1 ENABLE_KVM=0 BENCHMARK=dm-verity EXTRA_CARGO_OSDK_BUILD_ARGS="${OSDK_ARGS}"
+--
+2.50.1.windows.1

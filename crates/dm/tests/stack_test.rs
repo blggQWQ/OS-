@@ -2,10 +2,14 @@ use dm::{
     BlockDevice, DmCryptTable, DmError, DmStackBuilder, DmVerityDevice, InstrumentedDevice,
     MemoryBlockDevice,
 };
+use std::fmt::Write as _;
 use std::str::FromStr;
 
 fn crypt_table() -> DmCryptTable {
-    let key: String = (0u8..64).map(|byte| format!("{byte:02x}")).collect();
+    let key = (0u8..64).fold(String::new(), |mut output, byte| {
+        write!(output, "{byte:02x}").unwrap();
+        output
+    });
     DmCryptTable::from_str(&format!("aes-xts-plain64 {key} 0 memory 0")).unwrap()
 }
 
