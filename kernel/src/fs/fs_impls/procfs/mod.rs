@@ -13,6 +13,7 @@ use self::{
     cpuinfo::CpuInfoFileOps,
     devices::DevicesFileOps,
     dm_crypto_backend::DmCryptoBackendFileOps,
+    dm_performance_stats::DmPerformanceStatsFileOps,
     dm_verity_stats::DmVerityStatsFileOps,
     loadavg::LoadAvgFileOps,
     meminfo::MemInfoFileOps,
@@ -47,6 +48,7 @@ mod cmdline;
 mod cpuinfo;
 mod devices;
 mod dm_crypto_backend;
+mod dm_performance_stats;
 mod dm_verity_stats;
 mod filesystems;
 mod loadavg;
@@ -162,6 +164,11 @@ impl RootDirOps {
             "dm-crypto-backend",
             InodeType::File,
             DmCryptoBackendFileOps::new_inode,
+        ),
+        (
+            "dm-performance-stats",
+            InodeType::File,
+            DmPerformanceStatsFileOps::new_inode,
         ),
         (
             "dm-verity-stats",

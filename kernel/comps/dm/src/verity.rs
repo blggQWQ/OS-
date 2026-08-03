@@ -15,7 +15,11 @@ use aster_block::{
 use ostd::mm::VmIo;
 use spin::Mutex;
 
-use crate::{DmError, sha256::sha256};
+use crate::{
+    DmError,
+    sha256::sha256,
+    statistics::{DmAtomicPerformanceStats, IoStage},
+};
 
 const HASH_SIZE: usize = 32;
 const HASHES_PER_BLOCK: usize = BLOCK_SIZE / HASH_SIZE;
@@ -97,6 +101,7 @@ impl VerityTarget {
         lower: &dyn BlockDevice,
         first_sector: u64,
         segments: &[BioSegment],
+        performance_stats: &DmAtomicPerformanceStats,
     ) -> Result<(), DmError> {
         let start_byte = first_sector
             .checked_mul(SECTOR_SIZE as u64)
@@ -108,7 +113,7 @@ impl VerityTarget {
         })?;
         if !start_byte.is_multiple_of(BLOCK_SIZE as u64) || !total_bytes.is_multiple_of(BLOCK_SIZE)
         {
-            return self.verify_range(lower, first_sector, total_bytes);
+            return self.verify_range(lower, first_sector, total_bytes, performance_stats);
         }
 
         let first_block =
@@ -139,7 +144,7 @@ impl VerityTarget {
                 bytes_in_block += copy_len;
 
                 if bytes_in_block == BLOCK_SIZE {
-                    self.verify_data_block(lower, block_id, &data_block)?;
+                    self.verify_data_block(lower, block_id, &data_block, performance_stats)?;
                     self.stats.bio_data_blocks.fetch_add(1, Ordering::Relaxed);
                     block_id += 1;
                     bytes_in_block = 0;
@@ -160,6 +165,7 @@ impl VerityTarget {
         lower: &dyn BlockDevice,
         first_sector: u64,
         num_bytes: usize,
+        performance_stats: &DmAtomicPerformanceStats,
     ) -> Result<(), DmError> {
         let start_byte = first_sector
             .checked_mul(SECTOR_SIZE as u64)
@@ -177,8 +183,13 @@ impl VerityTarget {
             .data_reread_blocks
             .fetch_add(end_block - first_block, Ordering::Relaxed);
         for block_id in first_block..end_block {
-            let data = read_block(lower, block_id as usize)?;
-            self.verify_data_block(lower, block_id as usize, &data)?;
+            let data = read_block(
+                lower,
+                block_id as usize,
+                performance_stats,
+                IoStage::LowerWait,
+            )?;
+            self.verify_data_block(lower, block_id as usize, &data, performance_stats)?;
         }
         Ok(())
     }
@@ -188,30 +199,44 @@ impl VerityTarget {
         lower: &dyn BlockDevice,
         block_id: usize,
         data: &[u8; BLOCK_SIZE],
+        performance_stats: &DmAtomicPerformanceStats,
     ) -> Result<(), DmError> {
+        let sha_started = performance_stats.start();
         let mut digest = sha256(data);
+        performance_stats.record_stage(IoStage::DataSha256, sha_started);
         let mut digest_index = block_id;
         let mut newly_authenticated = Vec::new();
 
         for level in &self.levels {
+            performance_stats.record_tree_level();
             if digest_index >= level.digest_count {
                 return Err(DmError::OutOfRange);
             }
             let hash_block_index = digest_index / HASHES_PER_BLOCK;
             let digest_slot = digest_index % HASHES_PER_BLOCK;
             let physical_block = level.block_offset + hash_block_index;
+            let cache_started = performance_stats.start();
             let authenticated_cached_block = self.hash_cache.lock().get(physical_block);
+            performance_stats.record_stage(IoStage::CacheLookup, cache_started);
             let hash_block = if let Some(cached) = authenticated_cached_block.as_ref() {
                 self.stats.hash_cache_hits.fetch_add(1, Ordering::Relaxed);
                 Arc::clone(cached)
             } else {
                 self.stats.hash_cache_misses.fetch_add(1, Ordering::Relaxed);
-                let fetched = Arc::new(read_block(lower, physical_block)?);
+                let fetched = Arc::new(read_block(
+                    lower,
+                    physical_block,
+                    performance_stats,
+                    IoStage::HashWait,
+                )?);
                 newly_authenticated.push((physical_block, Arc::clone(&fetched)));
                 fetched
             };
             let digest_offset = digest_slot * HASH_SIZE;
-            if hash_block[digest_offset..digest_offset + HASH_SIZE] != digest {
+            let compare_started = performance_stats.start();
+            let matches = hash_block[digest_offset..digest_offset + HASH_SIZE] == digest;
+            performance_stats.record_stage(IoStage::DigestCompare, compare_started);
+            if !matches {
                 return Err(DmError::IntegrityViolation);
             }
             if authenticated_cached_block.is_some() {
@@ -219,7 +244,7 @@ impl VerityTarget {
                 // reached the trusted root. Matching the current digest
                 // against that immutable block therefore completes the
                 // authentication without rehashing the already trusted suffix.
-                self.cache_authenticated_blocks(newly_authenticated);
+                self.cache_authenticated_blocks(newly_authenticated, performance_stats);
                 self.stats
                     .authenticated_cache_shortcuts
                     .fetch_add(1, Ordering::Relaxed);
@@ -228,27 +253,38 @@ impl VerityTarget {
                     .fetch_add(1, Ordering::Relaxed);
                 return Ok(());
             }
+            let sha_started = performance_stats.start();
             digest = sha256(hash_block.as_ref());
+            performance_stats.record_stage(IoStage::HashSha256, sha_started);
             digest_index = hash_block_index;
         }
 
-        if digest != self.root_hash {
+        let compare_started = performance_stats.start();
+        let root_matches = digest == self.root_hash;
+        performance_stats.record_stage(IoStage::DigestCompare, compare_started);
+        if !root_matches {
             return Err(DmError::IntegrityViolation);
         }
         // Cache insertion happens only after the complete path reaches the
         // trusted root, so an unauthenticated hash block is never reused.
-        self.cache_authenticated_blocks(newly_authenticated);
+        self.cache_authenticated_blocks(newly_authenticated, performance_stats);
         self.stats
             .verified_data_blocks
             .fetch_add(1, Ordering::Relaxed);
         Ok(())
     }
 
-    fn cache_authenticated_blocks(&self, blocks: Vec<(usize, Arc<[u8; BLOCK_SIZE]>)>) {
+    fn cache_authenticated_blocks(
+        &self,
+        blocks: Vec<(usize, Arc<[u8; BLOCK_SIZE]>)>,
+        performance_stats: &DmAtomicPerformanceStats,
+    ) {
+        let cache_started = performance_stats.start();
         let mut cache = self.hash_cache.lock();
         for (block_id, block) in blocks {
             cache.insert_authenticated(block_id, block);
         }
+        performance_stats.record_stage(IoStage::CacheInsert, cache_started);
     }
 }
 
@@ -315,15 +351,24 @@ impl VerityAtomicStats {
     }
 }
 
-fn read_block(lower: &dyn BlockDevice, block_id: usize) -> Result<[u8; BLOCK_SIZE], DmError> {
+fn read_block(
+    lower: &dyn BlockDevice,
+    block_id: usize,
+    performance_stats: &DmAtomicPerformanceStats,
+    wait_stage: IoStage,
+) -> Result<[u8; BLOCK_SIZE], DmError> {
     let segment = BioSegment::alloc(1, BioDirection::FromDevice);
+    let wait_started = performance_stats.start();
     let status = lower
         .read_blocks(Bid::new(block_id as u64), segment.clone())
         .map_err(|_| DmError::Io)?;
+    performance_stats.record_stage(wait_stage, wait_started);
     if status != BioStatus::Complete {
         return Err(DmError::Io);
     }
     let mut block = [0u8; BLOCK_SIZE];
+    let copy_started = performance_stats.start();
     segment.read_bytes(0, &mut block).map_err(|_| DmError::Io)?;
+    performance_stats.record_stage(IoStage::Copy, copy_started);
     Ok(block)
 }

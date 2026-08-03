@@ -17,6 +17,7 @@ mod crypto;
 mod device;
 mod runtime;
 mod sha256;
+mod statistics;
 mod verity;
 
 use alloc::{string::String, sync::Arc, vec::Vec};
@@ -32,12 +33,15 @@ pub use runtime::{
     remove_runtime_mapper, runtime_mapper_list, runtime_mapper_status,
 };
 use spin::Once;
+pub use statistics::DmPerformanceStats;
 pub use verity::VerityStats;
 
 static CRYPT_DEVICE: Once<String> = Once::new();
 static CRYPT_NAME: Once<String> = Once::new();
 static CRYPT_KEY: Once<String> = Once::new();
 static CRYPT_SCRATCH_POOL: Once<usize> = Once::new();
+static PERF_STATS: Once<usize> = Once::new();
+static CRYPT_MAPPER: Once<Arc<DmDevice>> = Once::new();
 static PASSTHROUGH_DEVICE: Once<String> = Once::new();
 static PASSTHROUGH_NAME: Once<String> = Once::new();
 static VERITY_SCHEME: Once<String> = Once::new();
@@ -75,6 +79,16 @@ pub fn boot_verity_stats() -> Option<(usize, VerityStats)> {
     Some((VERITY_CACHE_BLOCKS.get().copied().unwrap_or(256), stats))
 }
 
+/// Returns a live stage-attribution snapshot for the boot-configured mapper.
+pub fn boot_performance_stats() -> Option<(&'static str, DmPerformanceStats)> {
+    if let Some(mapper) = CRYPT_MAPPER.get() {
+        return Some(("dm-crypt", mapper.performance_stats()));
+    }
+    VERITY_MAPPER
+        .get()
+        .map(|mapper| ("dm-verity", mapper.performance_stats()))
+}
+
 /// Returns the result of the boot-time dm-verity authenticated read.
 pub fn boot_verity_status() -> &'static str {
     match VERITY_BOOT_STATUS.load(Ordering::Relaxed) {
@@ -90,6 +104,7 @@ aster_cmdline::define_kv_param!("dm_crypt.device", CRYPT_DEVICE);
 aster_cmdline::define_kv_param!("dm_crypt.name", CRYPT_NAME);
 aster_cmdline::define_kv_param!("dm_crypt.key", CRYPT_KEY);
 aster_cmdline::define_kv_param!("dm_crypt.scratch_pool", CRYPT_SCRATCH_POOL);
+aster_cmdline::define_kv_param!("dm.perf_stats", PERF_STATS);
 aster_cmdline::define_kv_param!("dm_passthrough.device", PASSTHROUGH_DEVICE);
 aster_cmdline::define_kv_param!("dm_passthrough.name", PASSTHROUGH_NAME);
 aster_cmdline::define_kv_param!("rootfs_verity.scheme", VERITY_SCHEME);
@@ -120,6 +135,16 @@ pub enum DmError {
 #[init_component(process)]
 fn init() -> Result<(), ComponentInitError> {
     ostd::early_println!("[dm] process-stage initialization started");
+    let perf_stats_enabled = PERF_STATS.get().copied().unwrap_or(0) != 0;
+    statistics::set_enabled(perf_stats_enabled);
+    ostd::early_println!(
+        "[dm-perf] stage_stats={}",
+        if perf_stats_enabled {
+            "enabled"
+        } else {
+            "disabled"
+        }
+    );
     if DM_MAJOR.get().is_none() {
         let major = aster_block::allocate_major().map_err(|_| ComponentInitError::Unknown)?;
         DM_MAJOR.call_once(|| major);
@@ -158,9 +183,10 @@ fn init() -> Result<(), ComponentInitError> {
         let id = allocate_mapper_id().map_err(|_| ComponentInitError::Unknown)?;
         let scratch_pool_capacity = CRYPT_SCRATCH_POOL.get().copied().unwrap_or(32);
         ostd::early_println!("[dm] initializing AES-256-XTS mapper");
-        let mapper =
+        let mapper = Arc::new(
             DmDevice::new_crypt_with_pool(id, mapper_name, lower, &key, scratch_pool_capacity)
-                .map_err(|_| ComponentInitError::Unknown)?;
+                .map_err(|_| ComponentInitError::Unknown)?,
+        );
         ostd::early_println!(
             "[dm-perf] AES backend={} scratch_pool={}",
             if crypto::hardware_aes_available() {
@@ -181,7 +207,8 @@ fn init() -> Result<(), ComponentInitError> {
             "[dm-test] PASS AES-256-XTS decrypted a valid ext2 superblock through dm-crypt"
         );
         info!("registering AES-256-XTS device {}", mapper.name());
-        aster_block::register(Arc::new(mapper)).map_err(|_| ComponentInitError::Unknown)?;
+        CRYPT_MAPPER.call_once(|| Arc::clone(&mapper));
+        aster_block::register(mapper).map_err(|_| ComponentInitError::Unknown)?;
         ostd::early_println!("[dm] registered AES-256-XTS mapper");
     }
 

@@ -141,6 +141,9 @@ if [ -n "$DM_BENCH_RAW" ] && [ -n "$DM_BENCH_MAPPER" ]; then
                 DEVICE="$DM_BENCH_MAPPER"
             fi
             echo "[dm-bench] BEGIN label=$LABEL run=$RUN device=$DEVICE operation=$DM_BENCH_RW block_size=$DM_BENCH_BS queue_depth=$DM_BENCH_QD"
+            if [ -r /proc/dm-performance-stats ]; then
+                echo "[dm-bench] STATS_BEFORE label=$LABEL run=$RUN $(cat /proc/dm-performance-stats)"
+            fi
             /benchmark/bin/fio --name="${LABEL}-${RUN}" --filename="$DEVICE" \
                 --rw="$DM_BENCH_RW" --bs="$DM_BENCH_BS" --ioengine=sync \
                 --direct=1 --iodepth="$DM_BENCH_QD" \
@@ -149,9 +152,9 @@ if [ -n "$DM_BENCH_RAW" ] && [ -n "$DM_BENCH_MAPPER" ]; then
                 --numjobs=1 --group_reporting=1 --percentile_list=50:95:99:99.9 \
                 --output-format=json
             if [ "$DM_BENCH_LABEL" = "dm-verity" ] && [ -r /proc/dm-verity-stats ]; then
-                echo "[dm-bench] STATS label=$LABEL run=$RUN $(cat /proc/dm-verity-stats)"
+                echo "[dm-bench] STATS label=$LABEL run=$RUN $(cat /proc/dm-verity-stats) perf=$(cat /proc/dm-performance-stats 2>/dev/null || echo unavailable)"
             else
-                echo "[dm-bench] STATS label=$LABEL run=$RUN backend=$(cat /proc/dm-crypto-backend 2>/dev/null || echo unavailable)"
+                echo "[dm-bench] STATS label=$LABEL run=$RUN backend=$(cat /proc/dm-crypto-backend 2>/dev/null || echo unavailable) perf=$(cat /proc/dm-performance-stats 2>/dev/null || echo unavailable)"
             fi
             echo "[dm-bench] END label=$LABEL run=$RUN"
         done
