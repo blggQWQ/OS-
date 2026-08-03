@@ -153,6 +153,19 @@ fn run() -> Result<()> {
                 .unwrap_or(3);
             benchmark(blocks, iterations)?;
         }
+        "benchmark-table" => {
+            let default_blocks = 4096;
+            let default_iterations = 3;
+            let blocks = env::var("DM_BENCH_BLOCKS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(default_blocks);
+            let iterations = env::var("DM_BENCH_ITERATIONS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(default_iterations);
+            benchmark_table(blocks, iterations)?;
+        }
         _ => print_help(),
     }
 
@@ -282,7 +295,99 @@ fn print_help() {
     );
 }
 
+fn benchmark_table(blocks: u64, iterations: usize) -> Result<()> {
+    const BLOCK_SIZE: usize = 4096;
+    let block = vec![0x5a; BLOCK_SIZE];
+    let mut out = vec![0; BLOCK_SIZE];
+    let total_blocks = blocks * iterations as u64;
+
+    let plain = MemoryBlockDevice::new(blocks, BLOCK_SIZE)?;
+    for block_id in 0..blocks {
+        plain.write_block(block_id, &block)?;
+    }
+
+    let start = std::time::Instant::now();
+    let mut checksum = 0u64;
+    for _ in 0..iterations {
+        for block_id in 0..blocks {
+            plain.read_block(block_id, &mut out)?;
+            checksum = checksum.wrapping_add(out[0] as u64);
+        }
+    }
+    let plain_elapsed = start.elapsed().as_secs_f64();
+    let plain_mib_s = (total_blocks * BLOCK_SIZE as u64) as f64 / (1024.0 * 1024.0) / plain_elapsed;
+    let plain_us_per_block = plain_elapsed * 1_000_000.0 / total_blocks as f64;
+
+    let key_hex: String = (0u8..64).map(|byte| format!("{byte:02x}")).collect();
+    let table = DmCryptTable::from_str(&format!("aes-xts-plain64 {key_hex} 0 memory 0"))?;
+    let crypt = DmCryptDevice::from_table(plain.clone(), &table)?;
+    crypt.reset_stats();
+    let start = std::time::Instant::now();
+    let mut crypt_checksum = 0u64;
+    for _ in 0..iterations {
+        for block_id in 0..blocks {
+            crypt.read_block(block_id, &mut out)?;
+            crypt_checksum = crypt_checksum.wrapping_add(out[0] as u64);
+        }
+    }
+    let crypt_elapsed = start.elapsed().as_secs_f64();
+    let snap_crypt = crypt.stats_snapshot();
+    let crypt_mib_s = (total_blocks * BLOCK_SIZE as u64) as f64 / (1024.0 * 1024.0) / crypt_elapsed;
+    let crypt_us_per_block = crypt_elapsed * 1_000_000.0 / total_blocks as f64;
+    let crypt_lower_ns = snap_crypt.lower_read_ns as f64 / total_blocks as f64;
+    let crypt_transform_ns = snap_crypt.transform_read_ns as f64 / total_blocks as f64;
+
+    let plain2 = MemoryBlockDevice::new(blocks, BLOCK_SIZE)?;
+    for block_id in 0..blocks {
+        plain2.write_block(block_id, &block)?;
+    }
+    let verity = DmVerityDevice::build(plain2)?;
+    verity.reset_stats();
+    let start = std::time::Instant::now();
+    let mut verity_checksum = 0u64;
+    for _ in 0..iterations {
+        for block_id in 0..blocks {
+            verity.read_block(block_id, &mut out)?;
+            verity_checksum = verity_checksum.wrapping_add(out[0] as u64);
+        }
+    }
+    let verity_elapsed = start.elapsed().as_secs_f64();
+    let snap_verity = verity.stats_snapshot();
+    let verity_mib_s = (total_blocks * BLOCK_SIZE as u64) as f64 / (1024.0 * 1024.0) / verity_elapsed;
+    let verity_us_per_block = verity_elapsed * 1_000_000.0 / total_blocks as f64;
+    let verity_lower_ns = snap_verity.lower_read_ns as f64 / total_blocks as f64;
+    let verity_transform_ns = snap_verity.transform_read_ns as f64 / total_blocks as f64;
+
+    println!("| 配置 | 吞吐 (MiB/s) | 每块耗时 (μs) | lower (ns) | transform (ns) | checksum |");
+    println!("|------|-------------:|-------------:|-----------:|---------------:|---------:|");
+    println!(
+        "| plain read | {:.2} | {:.3} | {:.1} | 0 | {} |",
+        plain_mib_s, plain_us_per_block, plain_us_per_block * 1000.0, checksum
+    );
+    println!(
+        "| crypt read | {:.2} | {:.3} | {:.1} | {:.1} | {} |",
+        crypt_mib_s, crypt_us_per_block, crypt_lower_ns, crypt_transform_ns, crypt_checksum
+    );
+    println!(
+        "| verity read | {:.2} | {:.3} | {:.1} | {:.1} | {} |",
+        verity_mib_s, verity_us_per_block, verity_lower_ns, verity_transform_ns, verity_checksum
+    );
+
+    Ok(())
+}
+
 fn benchmark(blocks: u64, iterations: usize) -> Result<()> {
+
+    let blocks = env::var("DM_BENCH_BLOCKS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(blocks);
+
+    let iterations = env::var("DM_BENCH_ITERATIONS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(iterations);
+
     const BLOCK_SIZE: usize = 4096;
     if blocks == 0 || iterations == 0 {
         return Err(DmError::Io("blocks and iterations must be non-zero".into()));
@@ -295,7 +400,7 @@ fn benchmark(blocks: u64, iterations: usize) -> Result<()> {
     let mut out = vec![0; BLOCK_SIZE];
 
     println!(
-        "implementation,operation,block_size,bytes,seconds,mib_per_second,microseconds_per_block,checksum"
+        "implementation,operation,block_size,bytes,seconds,mib_per_second,microseconds_per_block,checksum,lower_ns_per_block,transform_ns_per_block"
     );
     let (elapsed, checksum) = timed_io(blocks, iterations, || {
         for block_id in 0..blocks {
@@ -303,7 +408,9 @@ fn benchmark(blocks: u64, iterations: usize) -> Result<()> {
         }
         Ok(0)
     })?;
-    print_bench("rust-plain", "write", blocks, iterations, elapsed, checksum);
+    let total_blocks = blocks * iterations as u64;
+    let ns_per_block = elapsed * 1_000_000_000.0 / total_blocks as f64;
+    print_bench("rust-plain", "write", blocks, iterations, elapsed, checksum, ns_per_block, 0.0);
 
     let (elapsed, checksum) = timed_io(blocks, iterations, || {
         let mut sum = 0u64;
@@ -313,7 +420,9 @@ fn benchmark(blocks: u64, iterations: usize) -> Result<()> {
         }
         Ok(sum)
     })?;
-    print_bench("rust-plain", "read", blocks, iterations, elapsed, checksum);
+    let total_blocks = blocks * iterations as u64;
+    let ns_per_block = elapsed * 1_000_000_000.0 / total_blocks as f64;
+    print_bench("rust-plain", "read", blocks, iterations, elapsed, checksum, ns_per_block, 0.0);
 
     let (elapsed, checksum) = timed_io(blocks, iterations, || {
         for block_id in 0..blocks {
@@ -328,38 +437,42 @@ fn benchmark(blocks: u64, iterations: usize) -> Result<()> {
         iterations,
         elapsed,
         checksum,
+        0.0,
+        0.0
     );
 
-    let (elapsed, checksum) = timed_io(blocks, iterations, || {
-        let mut sum = 0u64;
+   crypt.reset_stats();
+    let start = Instant::now();
+    let mut checksum = 0u64;
+    for _ in 0..iterations {
         for block_id in 0..blocks {
             crypt.read_block(block_id, &mut out)?;
-            sum = sum.wrapping_add(out[0] as u64);
+            checksum = checksum.wrapping_add(out[0] as u64);
         }
-        Ok(sum)
-    })?;
-    print_bench(
-        "rust-aes-xts",
-        "read",
-        blocks,
-        iterations,
-        elapsed,
-        checksum,
-    );
-
-    for block_id in 0..blocks {
-        plain.write_block(block_id, &block)?;
     }
-    let verity = DmVerityDevice::build(plain)?;
-    let (elapsed, checksum) = timed_io(blocks, iterations, || {
-        let mut sum = 0u64;
+    let elapsed = start.elapsed().as_secs_f64();
+    let snap = crypt.stats_snapshot();
+    let total_blocks = blocks * iterations as u64;
+    let lower_per_block = snap.lower_read_ns as f64 / total_blocks as f64;
+    let transform_per_block = snap.transform_read_ns as f64 / total_blocks as f64;
+    print_bench("rust-aes-xts", "read", blocks, iterations, elapsed, checksum, lower_per_block, transform_per_block);
+
+    let verity = DmVerityDevice::build(plain)?;  
+    let start = Instant::now();
+    let mut checksum = 0u64;
+    for _ in 0..iterations {
         for block_id in 0..blocks {
             verity.read_block(block_id, &mut out)?;
-            sum = sum.wrapping_add(out[0] as u64);
+            checksum = checksum.wrapping_add(out[0] as u64);
         }
-        Ok(sum)
-    })?;
-    print_bench("rust-verity", "read", blocks, iterations, elapsed, checksum);
+    }
+    let elapsed = start.elapsed().as_secs_f64();
+    let snap = verity.stats_snapshot();
+    let total_blocks = blocks * iterations as u64;
+    let lower_per_block = snap.lower_read_ns as f64 / total_blocks as f64;
+    let transform_per_block = snap.transform_read_ns as f64 / total_blocks as f64;
+    print_bench("rust-verity", "read", blocks, iterations, elapsed, checksum, lower_per_block, transform_per_block);
+
     Ok(())
 }
 
@@ -386,6 +499,8 @@ fn print_bench(
     iterations: usize,
     seconds: f64,
     checksum: u64,
+    lower_ns_per_block: f64,
+    transform_ns_per_block: f64,
 ) {
     const BLOCK_SIZE: usize = 4096;
     let bytes = blocks as f64 * iterations as f64 * BLOCK_SIZE as f64;
@@ -393,7 +508,7 @@ fn print_bench(
     let operations = blocks as f64 * iterations as f64;
     let microseconds_per_block = seconds * 1_000_000.0 / operations;
     println!(
-        "{implementation},{operation},{BLOCK_SIZE},{},{seconds:.6},{mib_per_second:.2},{microseconds_per_block:.3},{checksum}",
+        "{implementation},{operation},{BLOCK_SIZE},{},{seconds:.6},{mib_per_second:.2},{microseconds_per_block:.3},{checksum},{lower_ns_per_block:.3},{transform_ns_per_block:.3}",
         bytes as u64
     );
 }

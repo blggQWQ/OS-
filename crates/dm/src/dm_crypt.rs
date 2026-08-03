@@ -1,7 +1,10 @@
 use crate::block_device::BlockDevice;
 use crate::crypto::{Aes256XtsCipher, DemoStreamCipher};
 use crate::error::{DmError, Result};
+use std::sync::Arc;
+use std::time::Instant;
 use core::str::FromStr;
+use crate::statistics::{IoStats, IoStatsSnapshot};
 
 const DM_SECTOR_SIZE: usize = 512;
 
@@ -50,6 +53,7 @@ pub struct DmCryptDevice<D> {
     iv_offset: u64,
     data_offset_blocks: u64,
     logical_blocks: u64,
+    stats: Arc<IoStats>,
 }
 
 impl<D: BlockDevice> DmCryptDevice<D> {
@@ -62,6 +66,7 @@ impl<D: BlockDevice> DmCryptDevice<D> {
             iv_offset: 0,
             data_offset_blocks: 0,
             logical_blocks,
+            stats: Arc::new(IoStats::default()),
         })
     }
 
@@ -98,11 +103,20 @@ impl<D: BlockDevice> DmCryptDevice<D> {
             iv_offset: table.iv_offset,
             data_offset_blocks,
             logical_blocks,
+            stats: Arc::new(IoStats::default()),
         })
     }
 
     pub fn lower(&self) -> &D {
         &self.lower
+    }
+
+    pub fn reset_stats(&self) {
+        self.stats.reset();
+    }
+
+    pub fn stats_snapshot(&self) -> IoStatsSnapshot {
+        self.stats.snapshot()
     }
 
     fn transform(&self, block_id: u64, data: &mut [u8], encrypt: bool) -> Result<()> {
@@ -142,9 +156,18 @@ impl<D: BlockDevice> BlockDevice for DmCryptDevice<D> {
 
     fn read_block(&self, block_id: u64, buf: &mut [u8]) -> Result<()> {
         validate_io(self, block_id, buf.len())?;
-        self.lower
-            .read_block(block_id + self.data_offset_blocks, buf)?;
-        self.transform(block_id, buf, false)
+        
+        let start_lower = Instant::now();
+        self.lower.read_block(block_id + self.data_offset_blocks, buf)?;
+        let lower_elapsed = start_lower.elapsed().as_nanos() as u64;
+
+        let start_transform = Instant::now();
+        self.transform(block_id, buf, false)?;
+        let transform_elapsed = start_transform.elapsed().as_nanos() as u64;
+
+        self.stats.record_read_breakdown(lower_elapsed, transform_elapsed, false);
+
+        Ok(())
     }
 
     fn write_block(&self, block_id: u64, buf: &[u8]) -> Result<()> {
