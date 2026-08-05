@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MPL-2.0
 
-use alloc::{string::String, sync::Arc, vec, vec::Vec};
+use alloc::{boxed::Box, string::String, sync::Arc, vec, vec::Vec};
 use core::fmt::Debug;
 
 use aster_block::{
@@ -25,7 +25,7 @@ pub struct DmDevice {
     name: String,
     lower: Arc<dyn BlockDevice>,
     target: DmTarget,
-    performance_stats: DmAtomicPerformanceStats,
+    performance_stats: Arc<DmAtomicPerformanceStats>,
 }
 
 impl DmDevice {
@@ -36,7 +36,7 @@ impl DmDevice {
             name,
             lower,
             target: DmTarget::Passthrough,
-            performance_stats: DmAtomicPerformanceStats::default(),
+            performance_stats: Arc::new(DmAtomicPerformanceStats::default()),
         }
     }
 
@@ -116,13 +116,13 @@ impl DmDevice {
             name,
             lower,
             target: DmTarget::Crypt(CryptTarget {
-                cipher: AesXtsCipher::new(key)?,
+                cipher: Arc::new(AesXtsCipher::new(key)?),
                 iv_offset,
                 data_offset_sectors,
                 logical_sectors,
-                scratch_pool: Mutex::new(CryptScratchPool::new(scratch_pool_capacity)),
+                scratch_pool: Arc::new(Mutex::new(CryptScratchPool::new(scratch_pool_capacity))),
             }),
-            performance_stats: DmAtomicPerformanceStats::default(),
+            performance_stats: Arc::new(DmAtomicPerformanceStats::default()),
         })
     }
 
@@ -166,7 +166,7 @@ impl DmDevice {
                 root_hash,
                 hash_cache_blocks,
             )?),
-            performance_stats: DmAtomicPerformanceStats::default(),
+            performance_stats: Arc::new(DmAtomicPerformanceStats::default()),
         })
     }
 
@@ -234,31 +234,36 @@ impl DmDevice {
         self.lower.enqueue(bio)
     }
 
-    fn process_crypt(&self, bio: SubmittedBio, target: &CryptTarget) {
+    fn process_crypt(
+        &self,
+        bio: SubmittedBio,
+        target: &CryptTarget,
+    ) -> Result<(), BioEnqueueError> {
+        // Complete the upper BIO exactly once, after every transformation and
+        // lower-device operation has produced one final status.
         let operation_started = self.performance_stats.start();
         let bytes = bio.segments().iter().fold(0usize, |total, segment| {
             total.saturating_add(segment.nbytes())
         });
-        let status = self.execute_crypt(&bio, target);
-        self.performance_stats.record_operation(
-            operation_started,
-            bytes,
-            status != BioStatus::Complete,
-        );
-        bio.complete(status);
-    }
-
-    fn execute_crypt(&self, bio: &SubmittedBio, target: &CryptTarget) -> BioStatus {
         let bio_type = bio.type_();
         if bio_type == BioType::Flush {
             let lower_started = self.performance_stats.start();
             let status = self.lower.sync().unwrap_or(BioStatus::IoError);
             self.performance_stats
                 .record_stage(IoStage::LowerWait, lower_started);
-            return status;
+            self.performance_stats.record_operation(
+                operation_started,
+                bytes,
+                status != BioStatus::Complete,
+            );
+            bio.complete(status);
+            return Ok(());
         }
 
         let validation_started = self.performance_stats.start();
+        // Keep logical addressing, lower-device addressing, and the plain64 IV
+        // in separate domains. Checked arithmetic prevents a wrapped request
+        // from reaching a valid lower sector with the wrong XTS tweak.
         let geometry = (|| {
             let logical_first_sector = bio
                 .sid_range()
@@ -281,10 +286,16 @@ impl DmDevice {
         self.performance_stats
             .record_stage(IoStage::Validation, validation_started);
         let Some((lower_first_sector, iv_first_sector)) = geometry else {
-            return BioStatus::IoError;
+            self.performance_stats
+                .record_operation(operation_started, bytes, true);
+            bio.complete(BioStatus::IoError);
+            return Ok(());
         };
 
         let lower_segments = if bio_type == BioType::Write {
+            // Writes use bounce segments so plaintext is never submitted to the
+            // backing device. Scratch buffers are recycled only after encrypted
+            // bytes have been copied into DMA-backed lower segments.
             let mut sector_cursor = iv_first_sector;
             let mut bounce_segments = Vec::with_capacity(bio.segments().len());
             for segment in bio.segments() {
@@ -309,7 +320,10 @@ impl DmDevice {
                     .record_stage(IoStage::Crypto, crypto_started);
                 if !encrypted {
                     target.recycle_scratch(ciphertext);
-                    return BioStatus::IoError;
+                    self.performance_stats
+                        .record_operation(operation_started, bytes, true);
+                    bio.complete(BioStatus::IoError);
+                    return Ok(());
                 }
                 let copy_started = self.performance_stats.start();
                 let bounce = BioSegment::alloc_bytes(segment.nbytes(), BioDirection::ToDevice);
@@ -318,7 +332,10 @@ impl DmDevice {
                     .record_stage(IoStage::Copy, copy_started);
                 if !copied {
                     target.recycle_scratch(ciphertext);
-                    return BioStatus::IoError;
+                    self.performance_stats
+                        .record_operation(operation_started, bytes, true);
+                    bio.complete(BioStatus::IoError);
+                    return Ok(());
                 }
                 let scratch_started = self.performance_stats.start();
                 target.recycle_scratch(ciphertext);
@@ -332,59 +349,105 @@ impl DmDevice {
             bio.segments().to_vec()
         };
 
-        let lower_bio = Bio::new(bio_type, Sid::new(lower_first_sector), lower_segments, None);
-        let lower_started = self.performance_stats.start();
-        let lower_status = lower_bio
-            .submit_and_wait(self.lower.as_ref())
-            .unwrap_or(BioStatus::IoError);
-        self.performance_stats
-            .record_stage(IoStage::LowerWait, lower_started);
-        if lower_status != BioStatus::Complete {
-            return lower_status;
+        // Acquire read scratch buffers before submission. The lower completion
+        // callback may run in interrupt context and must not allocate memory.
+        let mut read_scratch = Vec::new();
+        if bio_type == BioType::Read {
+            read_scratch.reserve(bio.segments().len());
+            for segment in bio.segments() {
+                let scratch_started = self.performance_stats.start();
+                read_scratch.push(target.take_scratch(segment.nbytes()));
+                self.performance_stats
+                    .record_stage(IoStage::Scratch, scratch_started);
+            }
         }
 
-        match bio_type {
-            BioType::Read => {
-                let mut sector_cursor = iv_first_sector;
-                let mut status = BioStatus::Complete;
-                for segment in bio.segments() {
-                    let scratch_started = self.performance_stats.start();
-                    let mut plaintext = target.take_scratch(segment.nbytes());
-                    self.performance_stats
-                        .record_stage(IoStage::Scratch, scratch_started);
-                    let copy_started = self.performance_stats.start();
-                    let copied_in = segment
-                        .inner_dma_slice()
-                        .read_bytes(0, &mut plaintext)
-                        .is_ok();
-                    self.performance_stats
-                        .record_stage(IoStage::Copy, copy_started);
-                    let crypto_started = self.performance_stats.start();
-                    let decrypted =
-                        copied_in && target.cipher.decrypt(sector_cursor, &mut plaintext).is_ok();
-                    self.performance_stats
-                        .record_stage(IoStage::Crypto, crypto_started);
-                    let copy_started = self.performance_stats.start();
-                    let copied_out =
-                        decrypted && segment.inner_dma_slice().write_bytes(0, &plaintext).is_ok();
-                    self.performance_stats
-                        .record_stage(IoStage::Copy, copy_started);
-                    if !copied_out {
-                        target.recycle_scratch(plaintext);
-                        status = BioStatus::IoError;
-                        break;
-                    }
-                    let scratch_started = self.performance_stats.start();
-                    target.recycle_scratch(plaintext);
-                    self.performance_stats
-                        .record_stage(IoStage::Scratch, scratch_started);
-                    sector_cursor += segment.nsectors().to_raw();
-                }
-                status
-            }
-            BioType::Write => BioStatus::Complete,
-            BioType::Flush => unreachable!(),
+        // Keep the upper BIO alive until the lower completion callback has
+        // transformed the data and propagated one final status.
+        let upper_slot = Arc::new(Mutex::new(Some(bio)));
+        let callback_upper_slot = Arc::clone(&upper_slot);
+        let cipher = Arc::clone(&target.cipher);
+        let scratch_pool = Arc::clone(&target.scratch_pool);
+        let performance_stats = Arc::clone(&self.performance_stats);
+        let lower_started = self.performance_stats.start();
+        let complete_fn = Box::new(move |lower_status| {
+            performance_stats.record_stage(IoStage::LowerWait, lower_started);
+            let upper_bio = callback_upper_slot.lock().take();
+            let Some(upper_bio) = upper_bio else {
+                return;
+            };
+            let status = if lower_status != BioStatus::Complete {
+                lower_status
+            } else if bio_type == BioType::Read {
+                Self::decrypt_completed_read(
+                    &upper_bio,
+                    cipher.as_ref(),
+                    scratch_pool.as_ref(),
+                    performance_stats.as_ref(),
+                    iv_first_sector,
+                    read_scratch,
+                )
+            } else {
+                BioStatus::Complete
+            };
+            performance_stats.record_operation(
+                operation_started,
+                bytes,
+                status != BioStatus::Complete,
+            );
+            upper_bio.complete(status);
+        });
+        let lower_bio = Bio::new(
+            bio_type,
+            Sid::new(lower_first_sector),
+            lower_segments,
+            Some(complete_fn),
+        );
+        if let Err(error) = lower_bio.submit_without_wait(self.lower.as_ref()) {
+            // Submission failed before ownership reached the lower device. Drop
+            // our submitted handle and let the caller revert the upper BIO from
+            // `Submit` to `Init` while returning the enqueue error.
+            let _ = upper_slot.lock().take();
+            return Err(error);
         }
+        Ok(())
+    }
+
+    fn decrypt_completed_read(
+        bio: &SubmittedBio,
+        cipher: &AesXtsCipher,
+        scratch_pool: &Mutex<CryptScratchPool>,
+        performance_stats: &DmAtomicPerformanceStats,
+        iv_first_sector: u64,
+        scratch_buffers: Vec<Vec<u8>>,
+    ) -> BioStatus {
+        let mut sector_cursor = iv_first_sector;
+        let mut status = BioStatus::Complete;
+        for (segment, mut plaintext) in bio.segments().iter().zip(scratch_buffers) {
+            if status == BioStatus::Complete {
+                let copy_started = performance_stats.start();
+                let copied_in = segment
+                    .inner_dma_slice()
+                    .read_bytes(0, &mut plaintext)
+                    .is_ok();
+                performance_stats.record_stage(IoStage::Copy, copy_started);
+                let crypto_started = performance_stats.start();
+                let decrypted = copied_in && cipher.decrypt(sector_cursor, &mut plaintext).is_ok();
+                performance_stats.record_stage(IoStage::Crypto, crypto_started);
+                let copy_started = performance_stats.start();
+                let copied_out =
+                    decrypted && segment.inner_dma_slice().write_bytes(0, &plaintext).is_ok();
+                performance_stats.record_stage(IoStage::Copy, copy_started);
+                if !copied_out {
+                    status = BioStatus::IoError;
+                }
+                sector_cursor += segment.nsectors().to_raw();
+            }
+            let scratch_started = performance_stats.start();
+            scratch_pool.lock().recycle(plaintext);
+            performance_stats.record_stage(IoStage::Scratch, scratch_started);
+        }
+        status
     }
 
     fn process_verity(&self, bio: SubmittedBio, target: &VerityTarget) {
@@ -416,6 +479,9 @@ impl DmDevice {
             bio.segments().to_vec(),
             None,
         );
+        // Read data once into the caller's segments. `verify_segments` hashes
+        // these completed bytes directly for aligned requests, avoiding a
+        // second lower-device read of every data block.
         let lower_started = self.performance_stats.start();
         let lower_status = lower_bio
             .submit_and_wait(self.lower.as_ref())
@@ -429,6 +495,8 @@ impl DmDevice {
             return;
         }
 
+        // Authentication must finish before the upper BIO is completed; callers
+        // must never observe data whose Merkle path failed verification.
         let status = if target
             .verify_segments(
                 self.lower.as_ref(),
@@ -455,10 +523,7 @@ impl BlockDevice for DmDevice {
     fn enqueue(&self, bio: SubmittedBio) -> Result<(), BioEnqueueError> {
         match &self.target {
             DmTarget::Passthrough => self.process_passthrough(bio),
-            DmTarget::Crypt(target) => {
-                self.process_crypt(bio, target);
-                Ok(())
-            }
+            DmTarget::Crypt(target) => self.process_crypt(bio, target),
             DmTarget::Verity(target) => {
                 self.process_verity(bio, target);
                 Ok(())
@@ -512,11 +577,11 @@ enum DmTarget {
 }
 
 struct CryptTarget {
-    cipher: AesXtsCipher,
+    cipher: Arc<AesXtsCipher>,
     iv_offset: u64,
     data_offset_sectors: u64,
     logical_sectors: usize,
-    scratch_pool: Mutex<CryptScratchPool>,
+    scratch_pool: Arc<Mutex<CryptScratchPool>>,
 }
 
 impl CryptTarget {

@@ -150,6 +150,20 @@ impl Bio {
         Ok(())
     }
 
+    /// Submits self asynchronously without registering a synchronous waiter.
+    ///
+    /// The completion callback, when present, is responsible for propagating
+    /// the result to the owner of a layered BIO. This is useful for mapper
+    /// targets that must not block an internal worker while the lower device is
+    /// processing the request.
+    pub fn submit_without_wait(
+        self,
+        block_device: &dyn BlockDevice,
+    ) -> Result<(), BioEnqueueError> {
+        let mut io_batch = IoBatch::with_capacity(1);
+        self.submit(block_device, &mut io_batch)
+    }
+
     /// Submits self to the `block_device` and waits for the result synchronously.
     ///
     /// Returns the result status of the `Bio`.
@@ -175,6 +189,60 @@ impl Debug for Bio {
             .field("metadata", &self.metadata)
             .field("segments", &self.segments)
             .finish()
+    }
+}
+
+#[cfg(ktest)]
+mod async_submission_tests {
+    use alloc::{boxed::Box, sync::Arc, vec};
+    use core::sync::atomic::{AtomicBool, Ordering};
+
+    use device_id::{DeviceId, MajorId, MinorId};
+    use ostd::prelude::ktest;
+
+    use super::{Bio, BioEnqueueError, BioStatus, BioType, BlockDevice, Sid, SubmittedBio};
+    use crate::BlockDeviceMeta;
+
+    #[derive(Debug)]
+    struct ImmediateDevice;
+
+    impl BlockDevice for ImmediateDevice {
+        fn enqueue(&self, bio: SubmittedBio) -> Result<(), BioEnqueueError> {
+            // Deliberately finish before enqueue returns. Layered devices must
+            // handle this legal completion ordering without losing a wakeup.
+            bio.complete(BioStatus::Complete);
+            Ok(())
+        }
+
+        fn metadata(&self) -> BlockDeviceMeta {
+            BlockDeviceMeta {
+                max_nr_segments_per_bio: 1,
+                nr_sectors: 1,
+            }
+        }
+
+        fn name(&self) -> &str {
+            "immediate-test-device"
+        }
+
+        fn id(&self) -> DeviceId {
+            DeviceId::new(MajorId::new(240), MinorId::new(0))
+        }
+    }
+
+    #[ktest]
+    fn callback_can_complete_before_submit_returns() {
+        let callback_ran = Arc::new(AtomicBool::new(false));
+        let callback_flag = Arc::clone(&callback_ran);
+        let callback = Box::new(move |status| {
+            assert_eq!(status, BioStatus::Complete);
+            callback_flag.store(true, Ordering::Release);
+        });
+        let bio = Bio::new(BioType::Flush, Sid::new(0), vec![], Some(callback));
+
+        bio.submit_without_wait(&ImmediateDevice).unwrap();
+
+        assert!(callback_ran.load(Ordering::Acquire));
     }
 }
 

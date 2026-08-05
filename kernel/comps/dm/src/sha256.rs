@@ -92,6 +92,8 @@ fn compress(state: &mut [u32; 8], chunk: &[u8]) {
 
 #[cfg(ktest)]
 mod tests {
+    use ostd::prelude::ktest;
+
     use super::sha256;
 
     #[ktest]

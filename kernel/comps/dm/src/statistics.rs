@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: MPL-2.0
 
 //! Low-overhead, opt-in attribution for Device Mapper I/O stages.
+//!
+//! Counters are cumulative because resetting them while I/O is in flight would
+//! make a sample ambiguous. The benchmark reads procfs immediately before and
+//! after each fio run and subtracts the snapshots instead.
 
 use core::{
     sync::atomic::{AtomicBool, AtomicU64, Ordering},
@@ -9,6 +13,9 @@ use core::{
 
 use aster_time::read_monotonic_time;
 
+// This is a diagnostic switch, not synchronization for mapper state. Relaxed
+// ordering is sufficient because enabling statistics does not publish data to
+// an I/O worker; it only decides whether that worker updates counters.
 static ENABLED: AtomicBool = AtomicBool::new(false);
 
 /// Enables or disables stage attribution for subsequently executed I/O.
@@ -24,10 +31,13 @@ fn enabled() -> bool {
 #[derive(Clone, Copy)]
 pub(crate) enum IoStage {
     Validation,
+    // Mapper-specific preparation, data movement, and transformation.
     Scratch,
     Copy,
     Crypto,
+    // Synchronous completion of a request submitted to the lower device.
     LowerWait,
+    // dm-verity data and Merkle-tree authentication stages.
     DataSha256,
     CacheLookup,
     HashWait,
@@ -81,6 +91,10 @@ pub(crate) struct DmAtomicPerformanceStats {
 }
 
 impl DmAtomicPerformanceStats {
+    /// Captures a timestamp only when attribution is enabled.
+    ///
+    /// Returning `None` keeps the same call sites in normal and instrumented
+    /// builds without paying for a clock read when statistics are disabled.
     pub(crate) fn start(&self) -> Option<Duration> {
         enabled().then(read_monotonic_time)
     }
@@ -103,6 +117,8 @@ impl DmAtomicPerformanceStats {
             IoStage::DigestCompare => &self.digest_compare_ns,
             IoStage::CacheInsert => &self.cache_insert_ns,
         };
+        // Exact ordering between concurrent BIOs is irrelevant: procfs exposes
+        // aggregate time, and the benchmark samples only after fio has stopped.
         counter.fetch_add(elapsed, Ordering::Relaxed);
     }
 
@@ -113,6 +129,9 @@ impl DmAtomicPerformanceStats {
         let elapsed = started.map(elapsed_ns).unwrap_or(0);
         self.operations.fetch_add(1, Ordering::Relaxed);
         self.bytes.fetch_add(bytes as u64, Ordering::Relaxed);
+        // `total_ns` measures the target's wall time. Named stage totals need
+        // not equal it exactly because clock reads, atomic updates, and control
+        // flow between stages remain intentionally unclassified.
         self.total_ns.fetch_add(elapsed, Ordering::Relaxed);
         self.max_total_ns.fetch_max(elapsed, Ordering::Relaxed);
         if failed {

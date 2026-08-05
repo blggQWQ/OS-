@@ -129,6 +129,9 @@ impl VerityTarget {
         let mut data_block = [0u8; BLOCK_SIZE];
         let mut bytes_in_block = 0usize;
         let mut block_id = first_block;
+        // A BIO may contain several non-contiguous DMA segments. Assemble one
+        // logical 4-KiB block at a time so SHA-256 sees exactly the bytes covered
+        // by the corresponding leaf digest, independent of segment boundaries.
         for segment in segments {
             let mut segment_offset = 0usize;
             while segment_offset < segment.nbytes() {
@@ -208,6 +211,9 @@ impl VerityTarget {
         let mut newly_authenticated = Vec::new();
 
         for level in &self.levels {
+            // `digest_index` names the child at this level. Integer division
+            // selects its containing hash block and modulo selects the 32-byte
+            // digest slot inside that block.
             performance_stats.record_tree_level();
             if digest_index >= level.digest_count {
                 return Err(DmError::OutOfRange);
@@ -244,6 +250,8 @@ impl VerityTarget {
                 // reached the trusted root. Matching the current digest
                 // against that immutable block therefore completes the
                 // authentication without rehashing the already trusted suffix.
+                // The current data digest is still compared first, so this
+                // shortcut cannot turn a stale cache entry into accepted data.
                 self.cache_authenticated_blocks(newly_authenticated, performance_stats);
                 self.stats
                     .authenticated_cache_shortcuts
