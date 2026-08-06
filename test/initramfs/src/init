@@ -24,6 +24,8 @@ DM_BENCH_REQUESTED=0
 DM_BENCH_RW=read
 DM_BENCH_BS=4k
 DM_BENCH_QD=1
+DM_BENCH_IOENGINE=sync
+DM_BENCH_JOBS=1
 DM_BENCH_SIZE=8m
 DM_BENCH_RUNTIME=2
 DM_BENCH_RUNS=5
@@ -47,6 +49,8 @@ if [ "$DM_BENCH_REQUESTED" -eq 1 ]; then
     DM_BENCH_RUNTIME="${8:-2}"
     DM_BENCH_RUNS="${9:-5}"
     DM_BENCH_RAMP="${10:-1}"
+    DM_BENCH_IOENGINE="${11:-sync}"
+    DM_BENCH_JOBS="${12:-1}"
         # Keep the historical argument layout compatible: the extended
         # benchmark fields are read above, while only the three mode fields
         # need to be removed before the payload command is inspected.
@@ -126,7 +130,7 @@ if [ -n "$DM_BENCH_RAW" ] && [ -n "$DM_BENCH_MAPPER" ]; then
             ;;
     esac
     echo "[dm-bench] fio=$(/benchmark/bin/fio --version)"
-    echo "[dm-bench] matrix=raw,$DM_BENCH_LABEL runs=$DM_BENCH_RUNS rw=$DM_BENCH_RW bs=$DM_BENCH_BS qd=$DM_BENCH_QD size=$DM_BENCH_SIZE runtime=${DM_BENCH_RUNTIME}s ramp=${DM_BENCH_RAMP}s"
+    echo "[dm-bench] matrix=raw,$DM_BENCH_LABEL runs=$DM_BENCH_RUNS rw=$DM_BENCH_RW bs=$DM_BENCH_BS ioengine=$DM_BENCH_IOENGINE qd=$DM_BENCH_QD jobs=$DM_BENCH_JOBS size=$DM_BENCH_SIZE runtime=${DM_BENCH_RUNTIME}s ramp=${DM_BENCH_RAMP}s"
     RUN=1
     while [ "$RUN" -le "$DM_BENCH_RUNS" ]; do
         if [ $((RUN % 2)) -eq 1 ]; then
@@ -140,16 +144,16 @@ if [ -n "$DM_BENCH_RAW" ] && [ -n "$DM_BENCH_MAPPER" ]; then
             else
                 DEVICE="$DM_BENCH_MAPPER"
             fi
-            echo "[dm-bench] BEGIN label=$LABEL run=$RUN device=$DEVICE operation=$DM_BENCH_RW block_size=$DM_BENCH_BS queue_depth=$DM_BENCH_QD"
+            echo "[dm-bench] BEGIN label=$LABEL run=$RUN device=$DEVICE operation=$DM_BENCH_RW block_size=$DM_BENCH_BS ioengine=$DM_BENCH_IOENGINE queue_depth=$DM_BENCH_QD jobs=$DM_BENCH_JOBS"
             if [ -r /proc/dm-performance-stats ]; then
                 echo "[dm-bench] STATS_BEFORE label=$LABEL run=$RUN $(cat /proc/dm-performance-stats)"
             fi
             /benchmark/bin/fio --name="${LABEL}-${RUN}" --filename="$DEVICE" \
-                --rw="$DM_BENCH_RW" --bs="$DM_BENCH_BS" --ioengine=sync \
+                --rw="$DM_BENCH_RW" --bs="$DM_BENCH_BS" --ioengine="$DM_BENCH_IOENGINE" \
                 --direct=1 --iodepth="$DM_BENCH_QD" \
                 --size="$DM_BENCH_SIZE" --time_based=1 \
                 --ramp_time="$DM_BENCH_RAMP" --runtime="$DM_BENCH_RUNTIME" \
-                --numjobs=1 --group_reporting=1 --percentile_list=50:95:99:99.9 \
+                --numjobs="$DM_BENCH_JOBS" --group_reporting=1 --percentile_list=50:95:99:99.9 \
                 --output-format=json
             if [ "$DM_BENCH_LABEL" = "dm-verity" ] && [ -r /proc/dm-verity-stats ]; then
                 echo "[dm-bench] STATS label=$LABEL run=$RUN $(cat /proc/dm-verity-stats) perf=$(cat /proc/dm-performance-stats 2>/dev/null || echo unavailable)"
