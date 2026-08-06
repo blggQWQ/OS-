@@ -50,8 +50,17 @@ impl DmCompletionQueue {
     fn enqueue(&self, work: Arc<DmCompletionWork>) {
         // Each work item owns its intrusive link, so queue insertion cannot
         // grow a container or allocate while the VirtIO interrupt is disabled.
-        self.pending.disable_irq().lock().push_back(work);
-        self.wait_queue.wake_one();
+        let should_wake = {
+            let mut pending = self.pending.disable_irq().lock();
+            let was_empty = pending.is_empty();
+            pending.push_back(work);
+            was_empty
+        };
+        // Once the worker is draining a non-empty queue, further wakeups carry
+        // no information and only add atomic/waker traffic on the IRQ path.
+        if should_wake {
+            self.wait_queue.wake_one();
+        }
     }
 
     fn dequeue(&self) -> Option<Arc<DmCompletionWork>> {
@@ -62,6 +71,11 @@ impl DmCompletionQueue {
         loop {
             let work = self.wait_queue.wait_until(|| self.dequeue());
             work.run();
+            // Amortize the wait/wakeup path across a burst. `dequeue` drops the
+            // IRQ-safe queue lock before `run` performs crypto or completes BIOs.
+            while let Some(work) = self.dequeue() {
+                work.run();
+            }
         }
     }
 }
