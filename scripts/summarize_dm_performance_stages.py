@@ -27,6 +27,7 @@ COUNTERS = (
     "copy_ns",
     "crypto_ns",
     "lower_wait_ns",
+    "completion_queue_ns",
     "data_sha256_ns",
     "cache_lookup_ns",
     "hash_wait_ns",
@@ -89,6 +90,16 @@ def parse(path: Path, target: str) -> list[dict[str, object]]:
             "target": final.get("target", "unknown"),
             **deltas,
         }
+        accounted = sum(deltas[stage] for stage in STAGES)
+        if accounted > total:
+            raise ValueError(
+                f"{path}: named stages exceed total time for {label} run {run}"
+            )
+        unaccounted = total - accounted
+        row["accounted_ns"] = accounted
+        row["unaccounted_ns"] = unaccounted
+        row["accounted_percent"] = 100.0 * accounted / total if total else 0.0
+        row["unaccounted_percent"] = 100.0 * unaccounted / total if total else 0.0
         for stage in STAGES:
             row[f"{stage.removesuffix('_ns')}_percent"] = (
                 100.0 * deltas[stage] / total if total else 0.0
@@ -115,7 +126,7 @@ def main() -> None:
     rows = parse(args.serial_log, args.target)
     args.output_csv.parent.mkdir(parents=True, exist_ok=True)
     with args.output_csv.open("w", newline="", encoding="utf-8") as output:
-        writer = csv.DictWriter(output, fieldnames=list(rows[0]))
+        writer = csv.DictWriter(output, fieldnames=list(rows[0]), lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
     print(f"stage_csv={args.output_csv}")

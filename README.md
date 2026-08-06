@@ -291,6 +291,28 @@ dm-crypt 提供透明块级加密，专注 AES-256-XTS，严格兼容 Linux dm-c
 
 ## 性能优化策略
 
+最新的 dm-crypt 专用完成 worker 已在 `codex/dm-completion-worker` 分支实现：VirtIO
+回调只登记完成，AES-XTS 解密与上层 BIO 完成移到任务上下文；QD1 五轮吞吐基本持平，
+旧路径会停住的 32-job 并发已能连续完成五轮。实现原理、阶段占比、A/B 数据和答辩讲法见
+[dm-crypt 完成 worker：实现、结果与答辩说明](docs/dm_completion_worker.md)。这里严格称为
+“32-job 并发”，不把 fio 用户侧的 iodepth 显示误报为 dm 层真实 QD32。
+
+最新优化分为两个可独立复核的提交：`6b3ca2407` 批量清空完成队列并抑制重复唤醒；
+`9a3483571` 在多核环境为每个 CPU 创建一个完成 worker。下表只报告同一批次逐轮配对
+raw 后的保持率，避免把宿主机同时变快包装成 dm 优化收益：
+
+| 配置 | dm/raw before | dm/raw after | 归一化变化 | dm-crypt p95 变化 |
+|---|---:|---:|---:|---:|
+| 1 vCPU、QD1、批量 wake/drain | 99.32% | 106.93% | +7.66% | -30.05% |
+| 1 vCPU、32-job、批量 wake/drain | 92.63% | 99.18% | +7.07% | -26.79% |
+| 4 vCPU、QD1、每 CPU 一 worker | 98.36% | 94.32% | -4.10% | -37.69% |
+| 4 vCPU、32-job、每 CPU 一 worker | 91.72% | 95.80% | +4.45% | -43.62% |
+
+因此，1 vCPU 正式主合同推荐批量单 worker；每 CPU 一 worker 只作为多核高并发优化，
+不声称对 QD1 吞吐普遍有利。完整 CSV 和串口日志见
+[batch A/B](docs/evidence/formal-256m-batch/README.md) 与
+[per-CPU worker A/B](docs/evidence/formal-256m-pool/README.md)。
+
 ### 关键性能指标（KPI）
 
 - **吞吐量**：顺序读/写速度（MiB/s）
@@ -306,8 +328,12 @@ dm-crypt 提供透明块级加密，专注 AES-256-XTS，严格兼容 Linux dm-c
 | 完成 BIO 数据复用 | `asterinas/kernel/comps/dm/src/verity.rs` | 两组 A/B 均为 `data_rereads=0` |
 | AES-NI 后端 | `asterinas/kernel/comps/dm/src/crypto.rs` | 五轮 dm-crypt 日志均确认 `backend=AES-NI`；尚无同条件软件 AES A/B |
 | dm-crypt 有界临时缓冲池 | `asterinas/kernel/comps/dm/src/device.rs` | 已实现；`scratch_pool=0/32` A/B 待 KVM 量化 |
+| dm-crypt 异步下层 BIO（实验分支） | `Bio::submit_without_wait`、`DmDevice::process_crypt` | clean release-LTO 五轮完成；相对 raw 无可归因吞吐收益，暂不建议合入基线 |
+| dm-crypt 专用完成 worker | `completion.rs`、`dm_completion.rs` | IRQ 只登记完成；旧路径停滞的 32-job 已五轮通过，`max_in_flight=32` |
+| 完成队列批量 wake/drain | `DmCompletionQueue::enqueue/run` | 1 vCPU：QD1/32-job 归一化保持率分别 +7.66%/+7.07% |
+| 每 CPU 一个完成 worker | `init_in_first_kthread` | 4 vCPU、32-job：队列占比 29.15%→6.55%，p95 -43.62%；QD1 保持率 -4.10% |
 | verity 已认证路径捷径 | `asterinas/kernel/comps/dm/src/verity.rs` | 已实现并输出 `auth_shortcuts`；新增收益待 KVM 量化 |
-| 内核 I/O 分阶段归因 | `asterinas/kernel/comps/dm/src/statistics.rs` | 已完成正式 256 MiB KVM 五轮：crypt 下层等待中位占比 98.07%，verity 为 93.79% |
+| 内核 I/O 分阶段归因 | `asterinas/kernel/comps/dm/src/statistics.rs` | 已完成正式 256 MiB KVM 五轮：crypt 下层等待中位占比 97.84%，verity 为 93.01% |
 
 ![性能比较逻辑图](docs/document/figures/performance_comparison_logic.png)
 
@@ -375,19 +401,29 @@ sudo bash scripts/run_formal_dm_benchmark.sh --build-images
 
 | 设备 | 五轮中位吞吐（MiB/s） | 中位 p50（us） | 中位 p95（us） | 相对配对 raw |
 |---|---:|---:|---:|---:|
-| raw（两组共十轮） | 5.628 | 655.360 | 974.848 | 100.0% |
-| dm-crypt | 4.936 | 724.992 | 1220.608 | 102.0% |
-| dm-verity | 6.217 | 585.728 | 905.216 | 100.6% |
+| raw（两组共十轮） | 4.249 | 892.928 | 1277.952 | 100.0% |
+| dm-crypt | 4.059 | 921.600 | 1318.912 | 95.6% |
+| dm-verity | 3.815 | 954.368 | 1433.600 | 87.3% |
 
-`102.0%` 和 `100.6%` 只表示本轮中位数落在 raw 附近，不声称映射层能加速设备。
-阶段差值显示 dm-crypt 的下层等待中位占 98.07%、AES-XTS 占 1.66%；dm-verity 的
-下层等待中位占 93.79%、数据 SHA-256 占 5.81%。因此当前瓶颈是同步下层 I/O 等待，
-不是 AES-NI、复制、cache 查找或哈希树计算；把路径改为异步完成需要重新证明 BIO
-回调上下文中的锁、分配和解密安全性，本轮不把高风险架构改动包装成小优化。
+目标百分比使用各自同镜像、同参数的配对 raw 五轮中位数，不使用十轮 pooled raw 计算。
+阶段差值显示 dm-crypt 的下层等待中位占 97.84%、AES-XTS 占 1.82%；dm-verity 的
+下层等待中位占 93.01%、数据 SHA-256 占 5.74%。因此当前瓶颈是下层 I/O 等待，
+不是 AES-NI、复制、cache 查找或哈希树计算。第一步实验 `codex/dm-async-bio` 将
+`submit_and_wait` 改为下层完成回调，但逐轮配对效率没有改善，因此没有把宿主漂移
+包装成异步收益。随后 `codex/dm-completion-worker` 把解密从 VirtIO 硬中断回调迁到
+预分配的专用 worker，使旧路径会停滞的 32-job 并发五轮通过；`codex/dm-completion-batch`
+进一步批量 drain 并减少重复 wake，在 1 vCPU 的 QD1/32-job 合同中分别取得 +7.66%/
++7.07% 的 raw 归一化保持率变化。4 vCPU 的 `codex/dm-completion-pool` 将 32-job
+完成队列占比从 29.15% 降至 6.55%，但 QD1 保持率下降 4.10%，所以只作为多核并发方案。
+所有已命名阶段之外的余量也单独记为 `unaccounted_ns`：crypt 五轮为 0.14%--0.15%，
+verity 为 0.23%--0.33%，没有把计时与函数衔接开销强行归给某个子过程。
 
 正式证据：[统一三行表](docs/evidence/formal-256m/raw-crypt-verity.csv)、
 [dm-crypt 阶段 CSV](docs/evidence/formal-256m/dm-crypt-stages.csv)、
-[dm-verity 阶段 CSV](docs/evidence/formal-256m/dm-verity-stages.csv)。下列 8 MiB/16 MiB
+[dm-verity 阶段 CSV](docs/evidence/formal-256m/dm-verity-stages.csv)、
+[异步 BIO A/B](docs/evidence/formal-256m-async-after/dm-crypt-async-ab.csv)、
+[批量 worker A/B](docs/evidence/formal-256m-batch/README.md)、
+[多 worker A/B](docs/evidence/formal-256m-pool/README.md)。下列 8 MiB/16 MiB
 结果仅作为历史证据，不与新合同混合出表。
 
 **历史 Asterinas dm-crypt 五轮基准（KVM、CPU=host、AES-NI、4 KiB、QD1、direct、
