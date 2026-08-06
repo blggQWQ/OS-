@@ -13,6 +13,7 @@ macro_rules! __log_prefix {
     };
 }
 
+mod completion;
 mod crypto;
 mod device;
 mod runtime;
@@ -24,6 +25,9 @@ use alloc::{string::String, sync::Arc, vec::Vec};
 use core::sync::atomic::{AtomicU8, AtomicU32, Ordering};
 
 use aster_block::{BlockDevice, MajorIdOwner};
+pub use completion::{
+    CompletionJob, CompletionWork, CompletionWorkFactory, register_completion_work_factory,
+};
 use component::{ComponentInitError, init_component};
 pub use device::DmDevice;
 use device_id::{DeviceId, MinorId};

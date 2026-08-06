@@ -14,6 +14,7 @@ use spin::Mutex;
 
 use crate::{
     DmError,
+    completion::CompletionDispatch,
     crypto::AesXtsCipher,
     statistics::{DmAtomicPerformanceStats, DmPerformanceStats, IoStage},
     verity::{VerityStats, VerityTarget},
@@ -369,9 +370,14 @@ impl DmDevice {
         let cipher = Arc::clone(&target.cipher);
         let scratch_pool = Arc::clone(&target.scratch_pool);
         let performance_stats = Arc::clone(&self.performance_stats);
+        let completion_queued = Arc::new(Mutex::new(None));
+        let worker_completion_queued = Arc::clone(&completion_queued);
         let lower_started = self.performance_stats.start();
-        let complete_fn = Box::new(move |lower_status| {
-            performance_stats.record_stage(IoStage::LowerWait, lower_started);
+        let completion = CompletionDispatch::new(move |lower_status| {
+            performance_stats.record_stage(
+                IoStage::CompletionQueue,
+                worker_completion_queued.lock().take(),
+            );
             let upper_bio = callback_upper_slot.lock().take();
             let Some(upper_bio) = upper_bio else {
                 return;
@@ -395,7 +401,17 @@ impl DmDevice {
                 bytes,
                 status != BioStatus::Complete,
             );
+            performance_stats.record_in_flight_end();
             upper_bio.complete(status);
+        });
+        // The hard-IRQ callback only publishes the status and schedules a
+        // preallocated work item. AES and upper-BIO completion run in the
+        // dedicated dm worker's task context.
+        let interrupt_performance_stats = Arc::clone(&self.performance_stats);
+        let complete_fn = Box::new(move |lower_status| {
+            interrupt_performance_stats.record_stage(IoStage::LowerWait, lower_started);
+            *completion_queued.lock() = interrupt_performance_stats.start();
+            completion.complete(lower_status);
         });
         let lower_bio = Bio::new(
             bio_type,
@@ -403,10 +419,12 @@ impl DmDevice {
             lower_segments,
             Some(complete_fn),
         );
+        self.performance_stats.record_in_flight_start();
         if let Err(error) = lower_bio.submit_without_wait(self.lower.as_ref()) {
             // Submission failed before ownership reached the lower device. Drop
             // our submitted handle and let the caller revert the upper BIO from
             // `Submit` to `Init` while returning the enqueue error.
+            self.performance_stats.record_in_flight_end();
             let _ = upper_slot.lock().take();
             return Err(error);
         }

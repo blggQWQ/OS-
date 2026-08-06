@@ -35,8 +35,10 @@ pub(crate) enum IoStage {
     Scratch,
     Copy,
     Crypto,
-    // Synchronous completion of a request submitted to the lower device.
+    // Time from lower-device submission to its hardware completion callback.
     LowerWait,
+    // Time between the lower interrupt and task-context completion work.
+    CompletionQueue,
     // dm-verity data and Merkle-tree authentication stages.
     DataSha256,
     CacheLookup,
@@ -55,11 +57,14 @@ pub struct DmPerformanceStats {
     pub failures: u64,
     pub total_ns: u64,
     pub max_total_ns: u64,
+    pub current_in_flight: u64,
+    pub max_in_flight: u64,
     pub validation_ns: u64,
     pub scratch_ns: u64,
     pub copy_ns: u64,
     pub crypto_ns: u64,
     pub lower_wait_ns: u64,
+    pub completion_queue_ns: u64,
     pub data_sha256_ns: u64,
     pub cache_lookup_ns: u64,
     pub hash_wait_ns: u64,
@@ -76,11 +81,14 @@ pub(crate) struct DmAtomicPerformanceStats {
     failures: AtomicU64,
     total_ns: AtomicU64,
     max_total_ns: AtomicU64,
+    current_in_flight: AtomicU64,
+    max_in_flight: AtomicU64,
     validation_ns: AtomicU64,
     scratch_ns: AtomicU64,
     copy_ns: AtomicU64,
     crypto_ns: AtomicU64,
     lower_wait_ns: AtomicU64,
+    completion_queue_ns: AtomicU64,
     data_sha256_ns: AtomicU64,
     cache_lookup_ns: AtomicU64,
     hash_wait_ns: AtomicU64,
@@ -110,6 +118,7 @@ impl DmAtomicPerformanceStats {
             IoStage::Copy => &self.copy_ns,
             IoStage::Crypto => &self.crypto_ns,
             IoStage::LowerWait => &self.lower_wait_ns,
+            IoStage::CompletionQueue => &self.completion_queue_ns,
             IoStage::DataSha256 => &self.data_sha256_ns,
             IoStage::CacheLookup => &self.cache_lookup_ns,
             IoStage::HashWait => &self.hash_wait_ns,
@@ -139,6 +148,21 @@ impl DmAtomicPerformanceStats {
         }
     }
 
+    pub(crate) fn record_in_flight_start(&self) {
+        if !enabled() {
+            return;
+        }
+        let current = self.current_in_flight.fetch_add(1, Ordering::Relaxed) + 1;
+        self.max_in_flight.fetch_max(current, Ordering::Relaxed);
+    }
+
+    pub(crate) fn record_in_flight_end(&self) {
+        if enabled() {
+            let previous = self.current_in_flight.fetch_sub(1, Ordering::Relaxed);
+            debug_assert!(previous > 0);
+        }
+    }
+
     pub(crate) fn record_tree_level(&self) {
         if enabled() {
             self.tree_levels.fetch_add(1, Ordering::Relaxed);
@@ -153,11 +177,14 @@ impl DmAtomicPerformanceStats {
             failures: self.failures.load(Ordering::Relaxed),
             total_ns: self.total_ns.load(Ordering::Relaxed),
             max_total_ns: self.max_total_ns.load(Ordering::Relaxed),
+            current_in_flight: self.current_in_flight.load(Ordering::Relaxed),
+            max_in_flight: self.max_in_flight.load(Ordering::Relaxed),
             validation_ns: self.validation_ns.load(Ordering::Relaxed),
             scratch_ns: self.scratch_ns.load(Ordering::Relaxed),
             copy_ns: self.copy_ns.load(Ordering::Relaxed),
             crypto_ns: self.crypto_ns.load(Ordering::Relaxed),
             lower_wait_ns: self.lower_wait_ns.load(Ordering::Relaxed),
+            completion_queue_ns: self.completion_queue_ns.load(Ordering::Relaxed),
             data_sha256_ns: self.data_sha256_ns.load(Ordering::Relaxed),
             cache_lookup_ns: self.cache_lookup_ns.load(Ordering::Relaxed),
             hash_wait_ns: self.hash_wait_ns.load(Ordering::Relaxed),
