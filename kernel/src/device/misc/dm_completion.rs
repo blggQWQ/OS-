@@ -7,7 +7,10 @@ use core::sync::atomic::{AtomicBool, Ordering};
 
 use aster_dm::{CompletionJob, CompletionWork, CompletionWorkFactory};
 use intrusive_collections::{LinkedList, LinkedListAtomicLink, intrusive_adapter};
-use ostd::sync::{SpinLock, WaitQueue};
+use ostd::{
+    cpu::{CpuSet, all_cpus, num_cpus},
+    sync::{SpinLock, WaitQueue},
+};
 
 use crate::thread::kernel_thread::ThreadOptions;
 
@@ -18,6 +21,7 @@ struct DmCompletionQueue {
     // Producers only wake this queue after releasing `pending`; the consumer
     // can therefore sleep without holding an IRQ-disabling spin lock.
     wait_queue: WaitQueue,
+    worker_count: usize,
 }
 
 struct DmCompletionWork {
@@ -40,10 +44,12 @@ struct DmCompletionWorkFactory {
 }
 
 impl DmCompletionQueue {
-    fn new() -> Arc<Self> {
+    fn new(worker_count: usize) -> Arc<Self> {
+        debug_assert!(worker_count > 0);
         Arc::new(Self {
             pending: SpinLock::new(LinkedList::new(DmCompletionWorkAdapter::NEW)),
             wait_queue: WaitQueue::new(),
+            worker_count,
         })
     }
 
@@ -58,7 +64,7 @@ impl DmCompletionQueue {
         };
         // Once the worker is draining a non-empty queue, further wakeups carry
         // no information and only add atomic/waker traffic on the IRQ path.
-        if should_wake {
+        if should_wake || self.worker_count > 1 {
             self.wait_queue.wake_one();
         }
     }
@@ -128,11 +134,20 @@ impl CompletionWorkFactory for DmCompletionWorkFactory {
 }
 
 pub(super) fn init_in_first_kthread() {
-    let queue = DmCompletionQueue::new();
-    let worker_queue = Arc::clone(&queue);
-    ThreadOptions::new(move || worker_queue.run()).spawn();
+    let worker_count = num_cpus();
+    let queue = DmCompletionQueue::new(worker_count);
+    // Bind one completion worker to each CPU. All workers share the IRQ-safe
+    // queue, so no request is stranded when its submitting CPU goes idle.
+    for cpu in all_cpus() {
+        let worker_queue = Arc::clone(&queue);
+        let mut affinity = CpuSet::new_empty();
+        affinity.add(cpu);
+        ThreadOptions::new(move || worker_queue.run())
+            .cpu_affinity(affinity)
+            .spawn();
+    }
     let result =
         aster_dm::register_completion_work_factory(Arc::new(DmCompletionWorkFactory { queue }));
     assert!(result.is_ok());
-    ostd::early_println!("[dm] completion worker ready");
+    ostd::early_println!("[dm] completion workers ready: {}", worker_count);
 }
