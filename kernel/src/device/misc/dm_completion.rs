@@ -12,14 +12,21 @@ use ostd::sync::{SpinLock, WaitQueue};
 use crate::thread::kernel_thread::ThreadOptions;
 
 struct DmCompletionQueue {
+    // The intrusive list stores links inside work items, so IRQ-side enqueue
+    // never needs to resize or allocate a separate queue node.
     pending: SpinLock<LinkedList<DmCompletionWorkAdapter>>,
+    // Producers only wake this queue after releasing `pending`; the consumer
+    // can therefore sleep without holding an IRQ-disabling spin lock.
     wait_queue: WaitQueue,
 }
 
 struct DmCompletionWork {
+    // `Option::take` gives the one-shot job a single execution point even if a
+    // buggy lower layer attempts to signal completion more than once.
     job: SpinLock<Option<CompletionJob>>,
     queue: Weak<DmCompletionQueue>,
     weak_self: Weak<Self>,
+    // This guards the intrusive link against being inserted twice at once.
     is_pending: AtomicBool,
     link: LinkedListAtomicLink,
 }
@@ -71,6 +78,8 @@ impl DmCompletionWork {
     }
 
     fn run(&self) {
+        // Clear the queue-membership flag before running arbitrary completion
+        // code, and run that code after dropping every queue/job spin lock.
         self.is_pending.store(false, Ordering::Release);
         let job = self.job.disable_irq().lock().take();
         if let Some(job) = job {
