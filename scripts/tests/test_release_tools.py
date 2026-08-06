@@ -25,6 +25,7 @@ compare = load_script("compare_cross_guest_dm_crypt.py")
 boot = load_script("benchmark_boot_time.py")
 stages = load_script("summarize_dm_performance_stages.py")
 unified = load_script("build_unified_dm_table.py")
+async_ab = load_script("compare_dm_crypt_async_ab.py")
 
 
 class ComparisonTests(unittest.TestCase):
@@ -107,6 +108,9 @@ class DmStageTimingTests(unittest.TestCase):
             self.assertEqual(len(mapped), 5)
             self.assertTrue(all(row["operations"] == 10 for row in mapped))
             self.assertTrue(all(row["total_ns"] == 1000 for row in mapped))
+            self.assertTrue(all(row["accounted_ns"] == 0 for row in mapped))
+            self.assertTrue(all(row["unaccounted_ns"] == 1000 for row in mapped))
+            self.assertTrue(all(row["unaccounted_percent"] == 100.0 for row in mapped))
 
 
 class UnifiedDmTableTests(unittest.TestCase):
@@ -118,6 +122,44 @@ class UnifiedDmTableTests(unittest.TestCase):
                 unified.read_metadata(path),
                 {"build_profile": "release-lto", "size_mib": "256"},
             )
+
+
+class AsyncBioComparisonTests(unittest.TestCase):
+    def test_contract_rejects_different_images(self) -> None:
+        before = {field: "same" for field in async_ab.CONTRACT_FIELDS}
+        after = dict(before)
+        before["git_dirty"] = after["git_dirty"] = "0"
+        after["image_region_sha256"] = "different"
+        with self.assertRaisesRegex(ValueError, "image_region_sha256"):
+            async_ab.require_same_contract(before, after)
+
+    def test_contract_rejects_different_job_counts(self) -> None:
+        before = {field: "same" for field in async_ab.CONTRACT_FIELDS}
+        after = dict(before)
+        before["git_dirty"] = after["git_dirty"] = "0"
+        after["jobs"] = "32"
+        with self.assertRaisesRegex(ValueError, "jobs"):
+            async_ab.require_same_contract(before, after)
+
+    def test_change_normalizes_crypt_speedup_by_raw_drift(self) -> None:
+        before = {
+            "commit": "before",
+            "raw_bw_mib_s_median": 4.0,
+            "crypt_bw_mib_s_median": 2.0,
+            "crypt_over_raw_percent_median": 50.0,
+            "crypt_p95_us_median": 10.0,
+        }
+        after = {
+            "commit": "after",
+            "raw_bw_mib_s_median": 8.0,
+            "crypt_bw_mib_s_median": 4.0,
+            "crypt_over_raw_percent_median": 50.0,
+            "crypt_p95_us_median": 5.0,
+        }
+        change = async_ab.compare(before, after)
+        self.assertEqual(change["crypt_bw_mib_s_median"], 100.0)
+        self.assertEqual(change["raw_bw_mib_s_median"], 100.0)
+        self.assertEqual(change["crypt_over_raw_percent_median"], 0.0)
 
 
 if __name__ == "__main__":
