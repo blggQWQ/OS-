@@ -358,12 +358,34 @@ bash scripts/benchmark.sh
 
 ### 功能正确性测试
 
-**最新测试进度（2026-08-10）：**
+**完整测试进度（更新于 2026-08-10）：**
 
-- 使用仓库固定镜像 `asterinas/asterinas:0.18.0-20260618` 和 pinned Rust toolchain，`make kernel TARGET_ARCH=x86_64` 已通过，构建日志确认 `aster-dm` 被实际编译进内核；
-- QEMU/KVM 下真实 `cryptsetup open`、mapper 读取及 `cryptsetup close` smoke 已通过；
-- dm-crypt 加密 rootfs 与 dm-verity 校验 rootfs 的最小启动回归均已通过，受保护 mapper 根切换成功；
-- 本轮仅执行兼容性 smoke，没有运行完整 fio，也没有修改 dm-crypt/dm-verity 算法逻辑。
+状态说明：`PASS（本轮）` 表示在当前兼容性修改后重新执行；`PASS（已有证据）` 表示仓库中已有可复核日志或 CSV，但本轮没有重复运行；`未运行` 不代表失败。
+
+| 测试项 | 当前状态 | 进度与范围 |
+|---|---|---|
+| Rust 格式检查 | PASS（本轮） | `cargo fmt` / `cargo fmt --check -p aster-dm` 通过 |
+| Rust workspace reference tests | PASS（本轮） | 官方容器中 21 passed、0 failed；Docker 命名管道异常后的归档重试失败日志仍保留 |
+| Python release tools 单测 | PASS（本轮） | 8 passed、0 failed |
+| KVM evidence validator | PASS（本轮） | 4 份版本化 KVM 日志结构和 PASS 标记校验通过 |
+| Release package check | PASS（本轮） | evidence、五轮结构、claims、links、LF、仓库 hygiene 与 diff 检查通过 |
+| Asterinas x86_64 kernel build | PASS（本轮） | 固定镜像和 pinned toolchain 下 `make kernel TARGET_ARCH=x86_64` 成功；确认 `aster-dm` 被实际编译并生成 kernel ISO |
+| cryptsetup runtime crypt | PASS（本轮） | QEMU/KVM 下真实 `cryptsetup open`、mapper 读取与 `cryptsetup close` 全链路通过 |
+| dm-crypt rootfs smoke | PASS（本轮） | AES-NI backend、加密 mapper 挂载、`pivot_root` 和 initramfs runtime 保留通过 |
+| dm-verity rootfs smoke | PASS（本轮） | `status=verified`、校验 mapper 挂载、`pivot_root` 和 initramfs runtime 保留通过 |
+| dm-verity 篡改拒绝 | PASS（已有证据） | 正常 rootfs 与 tampered rootfs 的版本化 KVM 正反例日志均存在并通过证据校验 |
+| Linux AES-XTS/plain64 逐字节兼容 | PASS（已有证据） | Linux dm-crypt 与 Rust 实现的固定向量 SHA-256 一致 |
+| dm-crypt / dm-verity 五轮 fio | PASS（已有证据） | 已有正式 256 MiB、4 KiB、QD1、KVM 五轮日志与 CSV；本轮未重跑性能测试 |
+| verity cache=0 / cache=256 A/B | PASS（已有证据） | 两组五轮 KVM 日志与汇总 CSV 已版本化 |
+| Linux guest / Asterinas 对照 | PASS（已有证据） | 同宿主、同数据区和同 I/O 合同的五轮对照及 metadata 已版本化 |
+| plain / verity boot time | PASS（已有证据） | 各五轮冷启动日志、逐轮 CSV 与汇总 CSV 已版本化 |
+| 完整 fio 参数矩阵 | 未运行 | 本轮未执行 4K/32K/256K × QD1/4/16 全矩阵，不补写或推算结果 |
+| kernel correctness / boundary 全矩阵 | 未运行 | first/last block、大 BIO、多 segment、完整 invalid-parameter、hash-area corruption 等仍需新的 KVM 原始日志 |
+| verity cache=1/16/64 与 eviction | 未运行 | 尚缺完整容量、淘汰和污染安全矩阵 |
+| Filebench | 未运行 | 当前没有可执行结果或版本化数据 |
+| SQLite workload | 未运行 | 当前没有版本化 workload 结果 |
+
+本轮只恢复官方 Asterinas 构建并执行三项最小 KVM smoke；没有运行完整 fio，也没有修改 dm-crypt/dm-verity 算法逻辑。
 
 **dm-verity：**
 
