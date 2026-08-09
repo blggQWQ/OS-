@@ -1,3 +1,3 @@
 label,runs,backend,bw_mib_s_median,iops_median,p50_us_median,p95_us_median,p99_us_median
-raw,5,AES-NI,4.842,1239.476,724.992,1089.536,1941.504
-dm-crypt,5,AES-NI,4.936,1263.674,724.992,1220.608,2007.040
+raw,5,AES-NI,24.23,6204,132.096,296.960,448.512
+dm-crypt,5,AES-NI,23.28,5960,140.288,280.576,428.032

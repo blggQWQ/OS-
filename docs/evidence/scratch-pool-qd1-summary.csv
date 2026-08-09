@@ -1,0 +1,5 @@
+label,pool_size,runs,backend,bw_mib_s_median,iops_median,p50_us_median,p95_us_median,p99_us_median
+raw,0,5,AES-NI,22.68,5800,136.192,337.920,602.112
+dm-crypt,0,5,AES-NI,13.30,3404,236.544,505.856,864.256
+raw,32,5,AES-NI,22.68,5800,136.192,337.920,602.112
+dm-crypt,32,5,AES-NI,13.24,3389,238.592,497.664,774.144
