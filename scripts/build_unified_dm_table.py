@@ -10,6 +10,8 @@ from pathlib import Path
 
 
 CONTRACT_FIELDS = (
+    "git_commit",
+    "git_dirty",
     "build_profile",
     "vcpus",
     "memory",
@@ -70,10 +72,16 @@ def main() -> None:
     if mismatches:
         raise ValueError("benchmark contract mismatch: " + ", ".join(mismatches))
     expected = {
+        "git_dirty": "0",
         "build_profile": "release-lto",
         "accelerator": "kvm",
         "cpu_model": "host",
+        "block_size": "4k",
+        "ioengine": "sync",
+        "direct": "1",
+        "queue_depth": "1",
         "size_mib": "256",
+        "ramp_seconds": "2",
         "runtime_seconds": "10",
         "runs": "5",
     }
@@ -104,7 +112,9 @@ def main() -> None:
     ]
     args.output_csv.parent.mkdir(parents=True, exist_ok=True)
     with args.output_csv.open("w", newline="", encoding="utf-8") as output:
-        writer = csv.DictWriter(output, fieldnames=list(output_rows[0]))
+        writer = csv.DictWriter(
+            output, fieldnames=list(output_rows[0]), lineterminator="\n"
+        )
         writer.writeheader()
         writer.writerows(output_rows)
     print(f"unified_csv={args.output_csv}")

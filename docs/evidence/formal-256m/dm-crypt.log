@@ -1,14 +1,14 @@
-[dm-bench-meta] commit=a7b566d68b2d4cf7d838eda50f074f3f3b22b73b dirty=1 profile=release-lto stage_stats=1 timestamp_utc=2026-08-03T09:21:04Z
+[dm-bench-meta] commit=f9da5469f269f1de57b3059e8620c437a07d14de dirty=0 profile=release-lto stage_stats=1 timestamp_utc=2026-08-05T11:56:26Z
 [dm-bench-meta] accelerator=kvm cpu_model=host vcpus=1 memory=8G device_model=virtio-blk
 [dm-bench-meta] rw=read block_size=4k queue_depth=1 size=256m runtime=10 ramp=2 runs=5
-/nix/store/8nkv55ljwlwzcrz022xv5k6mk2lyhr1d-initramfs
-/nix/store/g8si69zq18jm88fhl178762np9flw3g1-initramfs-image
-[Info] [normal] Forwarded QEMU guest port: 43150->22; 13579->8080 5823->6379 63112->5201 23974->31234 54032->31236 51807->11211
-[Info] [test] Forwarded QEMU guest port: 63987->22; 9374->8080 4538->6379 47925->5201 54494->31234 62137->31236 52862->11211
+/nix/store/kjn9wcp8b1yz19lnjs9jhklbql5casbv-initramfs
+/nix/store/vnvxz7b1nr7dp0lwlp9qc43dcs8gwpc1-initramfs-image
+[Info] [normal] Forwarded QEMU guest port: 5116->22; 2388->8080 4098->6379 61993->5201 38714->31234 36039->31236 64879->11211
+[Info] [test] Forwarded QEMU guest port: 4641->22; 56553->8080 64387->6379 36822->5201 25242->31234 59576->31236 4934->11211
 [2J[01;01H[=3h[2J[01;01H[2J[01;01H[8;042;160t0[2J[01;01H[2J[01;01H[8;056;240t0[2J[01;01H[2J[01;01H[8;042;160t0[2J[01;01H[2J[01;01H[8;056;240t0[2J[01;01HBdsDxe: loading Boot0002 "UEFI QEMU DVD-ROM QM00005 " from PciRoot(0x0)/Pci(0x1F,0x2)/Sata(0x2,0xFFFF,0x0)
 BdsDxe: starting Boot0002 "UEFI QEMU DVD-ROM QM00005 " from PciRoot(0x0)/Pci(0x1F,0x2)/Sata(0x2,0xFFFF,0x0)
 WARNING: no console will be available to OS
-error: no suitable video mode foundSpawn the first kernel thread
+error: no sSpawn the first kernel thread
 [kernel] unpacking initramfs.cpio.gz to rootfs ...
 [kernel] rootfs is ready
 
@@ -48,17 +48,17 @@ mount: mounting /dev/vdb on /exfat failed: Invalid argument
 [dm-bench] fio=fio-3.39
 [dm-bench] matrix=raw,dm-crypt runs=5 rw=read bs=4k qd=1 size=256m runtime=10s ramp=2s
 [dm-bench] BEGIN label=raw run=1 device=/dev/vdc operation=read block_size=4k queue_depth=1
-[dm-bench] STATS_BEFORE label=raw run=1 target=dm-crypt enabled=1 operations=1 bytes=4096 failures=0 total_ns=874163 max_total_ns=874163 validation_ns=265 scratch_ns=2679 copy_ns=984 crypto_ns=13543 lower_wait_ns=855244 data_sha256_ns=0 cache_lookup_ns=0 hash_wait_ns=0 hash_sha256_ns=0 digest_compare_ns=0 cache_insert_ns=0 tree_levels=0
+[dm-bench] STATS_BEFORE label=raw run=1 target=dm-crypt enabled=1 operations=1 bytes=4096 failures=0 total_ns=678102 max_total_ns=678102 validation_ns=390 scratch_ns=5148 copy_ns=3417 crypto_ns=14244 lower_wait_ns=653569 data_sha256_ns=0 cache_lookup_ns=0 hash_wait_ns=0 hash_sha256_ns=0 digest_compare_ns=0 cache_insert_ns=0 tree_levels=0
 {
   "fio version" : "fio-3.39",
-  "timestamp" : 1785749036,
-  "timestamp_ms" : 1785749036221,
-  "time" : "Mon Aug  3 09:23:56 2026",
+  "timestamp" : 1785932107,
+  "timestamp_ms" : 1785932107006,
+  "time" : "Wed Aug  5 12:15:07 2026",
   "jobs" : [
     {
       "jobname" : "raw-1",
       "groupid" : 0,
-      "job_start" : 1785749026174,
+      "job_start" : 1785932096809,
       "error" : 0,
       "eta" : 0,
       "elapsed" : 13,
@@ -79,13 +79,13 @@ mount: mounting /dev/vdb on /exfat failed: Invalid argument
         "percentile_list" : "50:95:99:99.9"
       },
       "read" : {
-        "io_bytes" : 57077760,
-        "io_kbytes" : 55740,
-        "bw_bytes" : 5707205,
-        "bw" : 5573,
-        "iops" : 1393.360664,
-        "runtime" : 10001,
-        "total_ios" : 13935,
+        "io_bytes" : 43077632,
+        "io_kbytes" : 42068,
+        "bw_bytes" : 4306901,
+        "bw" : 4205,
+        "iops" : 1051.489702,
+        "runtime" : 10002,
+        "total_ios" : 10517,
         "short_ios" : 0,
         "drop_ios" : 0,
         "slat_ns" : {
@@ -96,35 +96,35 @@ mount: mounting /dev/vdb on /exfat failed: Invalid argument
           "N" : 0
         },
         "clat_ns" : {
-          "min" : 429828,
-          "max" : 4459764,
-          "mean" : 714830.560029,
-          "stddev" : 165594.150167,
-          "N" : 13935,
+          "min" : 482458,
+          "max" : 11801760,
+          "mean" : 944073.115717,
+          "stddev" : 403049.241538,
+          "N" : 10517,
           "percentile" : {
-            "50.000000" : 675840,
-            "95.000000" : 987136,
-            "99.000000" : 1253376,
-            "99.900000" : 2056192
+            "50.000000" : 888832,
+            "95.000000" : 1351680,
+            "99.000000" : 2441216,
+            "99.900000" : 5865472
           }
         },
         "lat_ns" : {
-          "min" : 430192,
-          "max" : 4460295,
-          "mean" : 715197.174309,
-          "stddev" : 165700.940329,
-          "N" : 13935
+          "min" : 482642,
+          "max" : 11802535,
+          "mean" : 944729.255396,
+          "stddev" : 404749.234133,
+          "N" : 10517
         },
-        "bw_min" : 5322,
-        "bw_max" : 5898,
+        "bw_min" : 1693,
+        "bw_max" : 4798,
         "bw_agg" : 100.000000,
-        "bw_mean" : 5580.263158,
-        "bw_dev" : 127.174789,
+        "bw_mean" : 4240.157895,
+        "bw_dev" : 648.313047,
         "bw_samples" : 19,
-        "iops_min" : 1330,
-        "iops_max" : 1474,
-        "iops_mean" : 1394.684211,
-        "iops_stddev" : 31.826007,
+        "iops_min" : 423,
+        "iops_max" : 1199,
+        "iops_mean" : 1059.789474,
+        "iops_stddev" : 162.095506,
         "iops_samples" : 19
       },
       "write" : {
@@ -223,9 +223,9 @@ mount: mounting /dev/vdb on /exfat failed: Invalid argument
           "N" : 0
         }
       },
-      "job_runtime" : 10000,
-      "usr_cpu" : 0.730000,
-      "sys_cpu" : 12.650000,
+      "job_runtime" : 10001,
+      "usr_cpu" : 1.389861,
+      "sys_cpu" : 16.958304,
       "ctx" : 0,
       "majf" : 0,
       "minf" : 0,
@@ -276,15 +276,15 @@ mount: mounting /dev/vdb on /exfat failed: Invalid argument
         "50" : 0.000000,
         "100" : 0.000000,
         "250" : 0.000000,
-        "500" : 0.782203,
-        "750" : 67.369932,
-        "1000" : 27.190527
+        "500" : 0.057050,
+        "750" : 20.547685,
+        "1000" : 52.248740
       },
       "latency_ms" : {
-        "2" : 4.542519,
-        "4" : 0.100466,
-        "10" : 0.014352,
-        "20" : 0.000000,
+        "2" : 25.349434,
+        "4" : 1.502330,
+        "10" : 0.275744,
+        "20" : 0.019017,
         "50" : 0.000000,
         "100" : 0.000000,
         "250" : 0.000000,
@@ -301,20 +301,20 @@ mount: mounting /dev/vdb on /exfat failed: Invalid argument
     }
   ]
 }
-[dm-bench] STATS label=raw run=1 backend=AES-NI perf=target=dm-crypt enabled=1 operations=1 bytes=4096 failures=0 total_ns=874163 max_total_ns=874163 validation_ns=265 scratch_ns=2679 copy_ns=984 crypto_ns=13543 lower_wait_ns=855244 data_sha256_ns=0 cache_lookup_ns=0 hash_wait_ns=0 hash_sha256_ns=0 digest_compare_ns=0 cache_insert_ns=0 tree_levels=0
+[dm-bench] STATS label=raw run=1 backend=AES-NI perf=target=dm-crypt enabled=1 operations=1 bytes=4096 failures=0 total_ns=678102 max_total_ns=678102 validation_ns=390 scratch_ns=5148 copy_ns=3417 crypto_ns=14244 lower_wait_ns=653569 data_sha256_ns=0 cache_lookup_ns=0 hash_wait_ns=0 hash_sha256_ns=0 digest_compare_ns=0 cache_insert_ns=0 tree_levels=0
 [dm-bench] END label=raw run=1
 [dm-bench] BEGIN label=dm-crypt run=1 device=/dev/dm-crypt0 operation=read block_size=4k queue_depth=1
-[dm-bench] STATS_BEFORE label=dm-crypt run=1 target=dm-crypt enabled=1 operations=1 bytes=4096 failures=0 total_ns=874163 max_total_ns=874163 validation_ns=265 scratch_ns=2679 copy_ns=984 crypto_ns=13543 lower_wait_ns=855244 data_sha256_ns=0 cache_lookup_ns=0 hash_wait_ns=0 hash_sha256_ns=0 digest_compare_ns=0 cache_insert_ns=0 tree_levels=0
+[dm-bench] STATS_BEFORE label=dm-crypt run=1 target=dm-crypt enabled=1 operations=1 bytes=4096 failures=0 total_ns=678102 max_total_ns=678102 validation_ns=390 scratch_ns=5148 copy_ns=3417 crypto_ns=14244 lower_wait_ns=653569 data_sha256_ns=0 cache_lookup_ns=0 hash_wait_ns=0 hash_sha256_ns=0 digest_compare_ns=0 cache_insert_ns=0 tree_levels=0
 {
   "fio version" : "fio-3.39",
-  "timestamp" : 1785749049,
-  "timestamp_ms" : 1785749049120,
-  "time" : "Mon Aug  3 09:24:09 2026",
+  "timestamp" : 1785932120,
+  "timestamp_ms" : 1785932120142,
+  "time" : "Wed Aug  5 12:15:20 2026",
   "jobs" : [
     {
       "jobname" : "dm-crypt-1",
       "groupid" : 0,
-      "job_start" : 1785749039072,
+      "job_start" : 1785932109995,
       "error" : 0,
       "eta" : 0,
       "elapsed" : 13,
@@ -335,13 +335,13 @@ mount: mounting /dev/vdb on /exfat failed: Invalid argument
         "percentile_list" : "50:95:99:99.9"
       },
       "read" : {
-        "io_bytes" : 53272576,
-        "io_kbytes" : 52024,
-        "bw_bytes" : 5326724,
-        "bw" : 5201,
-        "iops" : 1300.469953,
+        "io_bytes" : 41955328,
+        "io_kbytes" : 40972,
+        "bw_bytes" : 4195113,
+        "bw" : 4096,
+        "iops" : 1024.197580,
         "runtime" : 10001,
-        "total_ios" : 13006,
+        "total_ios" : 10243,
         "short_ios" : 0,
         "drop_ios" : 0,
         "slat_ns" : {
@@ -352,35 +352,35 @@ mount: mounting /dev/vdb on /exfat failed: Invalid argument
           "N" : 0
         },
         "clat_ns" : {
-          "min" : 466127,
-          "max" : 6316062,
-          "mean" : 765744.334538,
-          "stddev" : 189042.468859,
-          "N" : 13006,
+          "min" : 489659,
+          "max" : 30220119,
+          "mean" : 972060.687494,
+          "stddev" : 440331.323898,
+          "N" : 10243,
           "percentile" : {
-            "50.000000" : 724992,
-            "95.000000" : 1089536,
-            "99.000000" : 1368064,
-            "99.900000" : 2146304
+            "50.000000" : 937984,
+            "95.000000" : 1335296,
+            "99.000000" : 2023424,
+            "99.900000" : 4751360
           }
         },
         "lat_ns" : {
-          "min" : 466334,
-          "max" : 6316424,
-          "mean" : 766133.786329,
-          "stddev" : 189140.698213,
-          "N" : 13006
+          "min" : 489887,
+          "max" : 30220446,
+          "mean" : 972594.775847,
+          "stddev" : 440400.183615,
+          "N" : 10243
         },
-        "bw_min" : 4139,
-        "bw_max" : 5625,
-        "bw_agg" : 99.848537,
-        "bw_mean" : 5194.368421,
-        "bw_dev" : 395.166380,
+        "bw_min" : 3564,
+        "bw_max" : 4538,
+        "bw_agg" : 100.000000,
+        "bw_mean" : 4101.473684,
+        "bw_dev" : 317.054389,
         "bw_samples" : 19,
-        "iops_min" : 1034,
-        "iops_max" : 1406,
-        "iops_mean" : 1298.157895,
-        "iops_stddev" : 98.862004,
+        "iops_min" : 891,
+        "iops_max" : 1134,
+        "iops_mean" : 1024.947368,
+        "iops_stddev" : 79.169631,
         "iops_samples" : 19
       },
       "write" : {
@@ -480,8 +480,8 @@ mount: mounting /dev/vdb on /exfat failed: Invalid argument
         }
       },
       "job_runtime" : 10000,
-      "usr_cpu" : 1.040000,
-      "sys_cpu" : 15.300000,
+      "usr_cpu" : 1.010000,
+      "sys_cpu" : 19.280000,
       "ctx" : 0,
       "majf" : 0,
       "minf" : 0,
@@ -532,16 +532,16 @@ mount: mounting /dev/vdb on /exfat failed: Invalid argument
         "50" : 0.000000,
         "100" : 0.000000,
         "250" : 0.000000,
-        "500" : 0.199908,
-        "750" : 55.981855,
-        "1000" : 34.161156
+        "500" : 0.010000,
+        "750" : 14.556282,
+        "1000" : 49.087181
       },
       "latency_ms" : {
-        "2" : 9.518684,
-        "4" : 0.130709,
-        "10" : 0.010000,
-        "20" : 0.000000,
-        "50" : 0.000000,
+        "2" : 35.331446,
+        "4" : 0.878649,
+        "10" : 0.117153,
+        "20" : 0.010000,
+        "50" : 0.010000,
         "100" : 0.000000,
         "250" : 0.000000,
         "500" : 0.000000,
@@ -557,20 +557,20 @@ mount: mounting /dev/vdb on /exfat failed: Invalid argument
     }
   ]
 }
-[dm-bench] STATS label=dm-crypt run=1 backend=AES-NI perf=target=dm-crypt enabled=1 operations=15375 bytes=62976000 failures=0 total_ns=10291821052 max_total_ns=6133757 validation_ns=1263865 scratch_ns=6197992 copy_ns=6331921 crypto_ns=173033654 lower_wait_ns=10092077617 data_sha256_ns=0 cache_lookup_ns=0 hash_wait_ns=0 hash_sha256_ns=0 digest_compare_ns=0 cache_insert_ns=0 tree_levels=0
+[dm-bench] STATS label=dm-crypt run=1 backend=AES-NI perf=target=dm-crypt enabled=1 operations=12157 bytes=49795072 failures=0 total_ns=10118465719 max_total_ns=30074001 validation_ns=1623397 scratch_ns=8013354 copy_ns=7008332 crypto_ns=182790089 lower_wait_ns=9905038851 data_sha256_ns=0 cache_lookup_ns=0 hash_wait_ns=0 hash_sha256_ns=0 digest_compare_ns=0 cache_insert_ns=0 tree_levels=0
 [dm-bench] END label=dm-crypt run=1
 [dm-bench] BEGIN label=dm-crypt run=2 device=/dev/dm-crypt0 operation=read block_size=4k queue_depth=1
-[dm-bench] STATS_BEFORE label=dm-crypt run=2 target=dm-crypt enabled=1 operations=15375 bytes=62976000 failures=0 total_ns=10291821052 max_total_ns=6133757 validation_ns=1263865 scratch_ns=6197992 copy_ns=6331921 crypto_ns=173033654 lower_wait_ns=10092077617 data_sha256_ns=0 cache_lookup_ns=0 hash_wait_ns=0 hash_sha256_ns=0 digest_compare_ns=0 cache_insert_ns=0 tree_levels=0
+[dm-bench] STATS_BEFORE label=dm-crypt run=2 target=dm-crypt enabled=1 operations=12157 bytes=49795072 failures=0 total_ns=10118465719 max_total_ns=30074001 validation_ns=1623397 scratch_ns=8013354 copy_ns=7008332 crypto_ns=182790089 lower_wait_ns=9905038851 data_sha256_ns=0 cache_lookup_ns=0 hash_wait_ns=0 hash_sha256_ns=0 digest_compare_ns=0 cache_insert_ns=0 tree_levels=0
 {
   "fio version" : "fio-3.39",
-  "timestamp" : 1785749062,
-  "timestamp_ms" : 1785749062017,
-  "time" : "Mon Aug  3 09:24:22 2026",
+  "timestamp" : 1785932133,
+  "timestamp_ms" : 1785932133132,
+  "time" : "Wed Aug  5 12:15:33 2026",
   "jobs" : [
     {
       "jobname" : "dm-crypt-2",
       "groupid" : 0,
-      "job_start" : 1785749051981,
+      "job_start" : 1785932123034,
       "error" : 0,
       "eta" : 0,
       "elapsed" : 13,
@@ -591,13 +591,13 @@ mount: mounting /dev/vdb on /exfat failed: Invalid argument
         "percentile_list" : "50:95:99:99.9"
       },
       "read" : {
-        "io_bytes" : 55463936,
-        "io_kbytes" : 54164,
-        "bw_bytes" : 5545839,
-        "bw" : 5415,
-        "iops" : 1353.964604,
+        "io_bytes" : 44515328,
+        "io_kbytes" : 43472,
+        "bw_bytes" : 4451087,
+        "bw" : 4346,
+        "iops" : 1086.691331,
         "runtime" : 10001,
-        "total_ios" : 13541,
+        "total_ios" : 10868,
         "short_ios" : 0,
         "drop_ios" : 0,
         "slat_ns" : {
@@ -608,35 +608,35 @@ mount: mounting /dev/vdb on /exfat failed: Invalid argument
           "N" : 0
         },
         "clat_ns" : {
-          "min" : 441083,
-          "max" : 3574857,
-          "mean" : 735566.025774,
-          "stddev" : 155474.789656,
-          "N" : 13541,
+          "min" : 490672,
+          "max" : 27781068,
+          "mean" : 916073.403846,
+          "stddev" : 362730.155767,
+          "N" : 10868,
           "percentile" : {
-            "50.000000" : 700416,
-            "95.000000" : 1011712,
-            "99.000000" : 1220608,
-            "99.900000" : 2039808
+            "50.000000" : 888832,
+            "95.000000" : 1236992,
+            "99.000000" : 1777664,
+            "99.900000" : 3883008
           }
         },
         "lat_ns" : {
-          "min" : 441331,
-          "max" : 3575842,
-          "mean" : 735956.042464,
-          "stddev" : 155579.331082,
-          "N" : 13541
+          "min" : 490993,
+          "max" : 27781411,
+          "mean" : 916597.085572,
+          "stddev" : 362803.501024,
+          "N" : 10868
         },
-        "bw_min" : 4683,
-        "bw_max" : 5851,
-        "bw_agg" : 100.000000,
-        "bw_mean" : 5417.789474,
-        "bw_dev" : 301.235342,
+        "bw_min" : 3815,
+        "bw_max" : 4629,
+        "bw_agg" : 99.913392,
+        "bw_mean" : 4343.684211,
+        "bw_dev" : 219.460969,
         "bw_samples" : 19,
-        "iops_min" : 1170,
-        "iops_max" : 1462,
-        "iops_mean" : 1354.105263,
-        "iops_stddev" : 75.289733,
+        "iops_min" : 953,
+        "iops_max" : 1157,
+        "iops_mean" : 1085.578947,
+        "iops_stddev" : 54.892132,
         "iops_samples" : 19
       },
       "write" : {
@@ -736,8 +736,8 @@ mount: mounting /dev/vdb on /exfat failed: Invalid argument
         }
       },
       "job_runtime" : 10000,
-      "usr_cpu" : 0.880000,
-      "sys_cpu" : 14.970000,
+      "usr_cpu" : 1.010000,
+      "sys_cpu" : 19.440000,
       "ctx" : 0,
       "majf" : 0,
       "minf" : 0,
@@ -788,16 +788,16 @@ mount: mounting /dev/vdb on /exfat failed: Invalid argument
         "50" : 0.000000,
         "100" : 0.000000,
         "250" : 0.000000,
-        "500" : 0.324939,
-        "750" : 62.329222,
-        "1000" : 31.969574
+        "500" : 0.010000,
+        "750" : 21.043430,
+        "1000" : 52.613176
       },
       "latency_ms" : {
-        "2" : 5.272875,
-        "4" : 0.103390,
-        "10" : 0.000000,
+        "2" : 25.690099,
+        "4" : 0.561281,
+        "10" : 0.073611,
         "20" : 0.000000,
-        "50" : 0.000000,
+        "50" : 0.010000,
         "100" : 0.000000,
         "250" : 0.000000,
         "500" : 0.000000,
@@ -813,20 +813,20 @@ mount: mounting /dev/vdb on /exfat failed: Invalid argument
     }
   ]
 }
-[dm-bench] STATS label=dm-crypt run=2 backend=AES-NI perf=target=dm-crypt enabled=1 operations=31408 bytes=128647168 failures=0 total_ns=20610482255 max_total_ns=6133757 validation_ns=2444404 scratch_ns=12833820 copy_ns=12565194 crypto_ns=344488873 lower_wait_ns=20211930670 data_sha256_ns=0 cache_lookup_ns=0 hash_wait_ns=0 hash_sha256_ns=0 digest_compare_ns=0 cache_insert_ns=0 tree_levels=0
+[dm-bench] STATS label=dm-crypt run=2 backend=AES-NI perf=target=dm-crypt enabled=1 operations=25056 bytes=102629376 failures=0 total_ns=20250959830 max_total_ns=30074001 validation_ns=3160911 scratch_ns=15236607 copy_ns=13895316 crypto_ns=367369239 lower_wait_ns=19823593394 data_sha256_ns=0 cache_lookup_ns=0 hash_wait_ns=0 hash_sha256_ns=0 digest_compare_ns=0 cache_insert_ns=0 tree_levels=0
 [dm-bench] END label=dm-crypt run=2
 [dm-bench] BEGIN label=raw run=2 device=/dev/vdc operation=read block_size=4k queue_depth=1
-[dm-bench] STATS_BEFORE label=raw run=2 target=dm-crypt enabled=1 operations=31408 bytes=128647168 failures=0 total_ns=20610482255 max_total_ns=6133757 validation_ns=2444404 scratch_ns=12833820 copy_ns=12565194 crypto_ns=344488873 lower_wait_ns=20211930670 data_sha256_ns=0 cache_lookup_ns=0 hash_wait_ns=0 hash_sha256_ns=0 digest_compare_ns=0 cache_insert_ns=0 tree_levels=0
+[dm-bench] STATS_BEFORE label=raw run=2 target=dm-crypt enabled=1 operations=25056 bytes=102629376 failures=0 total_ns=20250959830 max_total_ns=30074001 validation_ns=3160911 scratch_ns=15236607 copy_ns=13895316 crypto_ns=367369239 lower_wait_ns=19823593394 data_sha256_ns=0 cache_lookup_ns=0 hash_wait_ns=0 hash_sha256_ns=0 digest_compare_ns=0 cache_insert_ns=0 tree_levels=0
 {
   "fio version" : "fio-3.39",
-  "timestamp" : 1785749074,
-  "timestamp_ms" : 1785749074917,
-  "time" : "Mon Aug  3 09:24:34 2026",
+  "timestamp" : 1785932146,
+  "timestamp_ms" : 1785932146179,
+  "time" : "Wed Aug  5 12:15:46 2026",
   "jobs" : [
     {
       "jobname" : "raw-2",
       "groupid" : 0,
-      "job_start" : 1785749064854,
+      "job_start" : 1785932136061,
       "error" : 0,
       "eta" : 0,
       "elapsed" : 13,
@@ -847,13 +847,13 @@ mount: mounting /dev/vdb on /exfat failed: Invalid argument
         "percentile_list" : "50:95:99:99.9"
       },
       "read" : {
-        "io_bytes" : 53792768,
-        "io_kbytes" : 52532,
-        "bw_bytes" : 5378738,
-        "bw" : 5252,
-        "iops" : 1313.168683,
+        "io_bytes" : 45113344,
+        "io_kbytes" : 44056,
+        "bw_bytes" : 4510883,
+        "bw" : 4405,
+        "iops" : 1101.289871,
         "runtime" : 10001,
-        "total_ios" : 13133,
+        "total_ios" : 11014,
         "short_ios" : 0,
         "drop_ios" : 0,
         "slat_ns" : {
@@ -864,35 +864,35 @@ mount: mounting /dev/vdb on /exfat failed: Invalid argument
           "N" : 0
         },
         "clat_ns" : {
-          "min" : 452777,
-          "max" : 4635263,
-          "mean" : 758335.187543,
-          "stddev" : 189335.932680,
-          "N" : 13133,
+          "min" : 449024,
+          "max" : 6162194,
+          "mean" : 903478.913020,
+          "stddev" : 237101.046628,
+          "N" : 11014,
           "percentile" : {
-            "50.000000" : 724992,
-            "95.000000" : 1056768,
-            "99.000000" : 1417216,
-            "99.900000" : 2310144
+            "50.000000" : 888832,
+            "95.000000" : 1236992,
+            "99.000000" : 1646592,
+            "99.900000" : 2834432
           }
         },
         "lat_ns" : {
-          "min" : 453046,
-          "max" : 4635750,
-          "mean" : 758760.770426,
-          "stddev" : 189483.762044,
-          "N" : 13133
+          "min" : 449315,
+          "max" : 6163108,
+          "mean" : 904030.834302,
+          "stddev" : 237214.289385,
+          "N" : 11014
         },
-        "bw_min" : 4121,
-        "bw_max" : 5852,
-        "bw_agg" : 99.968134,
-        "bw_mean" : 5251.000000,
-        "bw_dev" : 488.209313,
+        "bw_min" : 3945,
+        "bw_max" : 4961,
+        "bw_agg" : 99.928285,
+        "bw_mean" : 4402.157895,
+        "bw_dev" : 279.317474,
         "bw_samples" : 19,
-        "iops_min" : 1030,
-        "iops_max" : 1463,
-        "iops_mean" : 1312.421053,
-        "iops_stddev" : 122.090274,
+        "iops_min" : 986,
+        "iops_max" : 1240,
+        "iops_mean" : 1100.105263,
+        "iops_stddev" : 69.834642,
         "iops_samples" : 19
       },
       "write" : {
@@ -992,8 +992,8 @@ mount: mounting /dev/vdb on /exfat failed: Invalid argument
         }
       },
       "job_runtime" : 10000,
-      "usr_cpu" : 0.780000,
-      "sys_cpu" : 13.090000,
+      "usr_cpu" : 1.180000,
+      "sys_cpu" : 16.920000,
       "ctx" : 0,
       "majf" : 0,
       "minf" : 0,
@@ -1044,14 +1044,14 @@ mount: mounting /dev/vdb on /exfat failed: Invalid argument
         "50" : 0.000000,
         "100" : 0.000000,
         "250" : 0.000000,
-        "500" : 0.274119,
-        "750" : 56.811087,
-        "1000" : 35.361304
+        "500" : 0.108952,
+        "750" : 22.090067,
+        "1000" : 51.543490
       },
       "latency_ms" : {
-        "2" : 7.325059,
-        "4" : 0.220818,
-        "10" : 0.010000,
+        "2" : 25.812602,
+        "4" : 0.426730,
+        "10" : 0.018159,
         "20" : 0.000000,
         "50" : 0.000000,
         "100" : 0.000000,
@@ -1069,20 +1069,20 @@ mount: mounting /dev/vdb on /exfat failed: Invalid argument
     }
   ]
 }
-[dm-bench] STATS label=raw run=2 backend=AES-NI perf=target=dm-crypt enabled=1 operations=31408 bytes=128647168 failures=0 total_ns=20610482255 max_total_ns=6133757 validation_ns=2444404 scratch_ns=12833820 copy_ns=12565194 crypto_ns=344488873 lower_wait_ns=20211930670 data_sha256_ns=0 cache_lookup_ns=0 hash_wait_ns=0 hash_sha256_ns=0 digest_compare_ns=0 cache_insert_ns=0 tree_levels=0
+[dm-bench] STATS label=raw run=2 backend=AES-NI perf=target=dm-crypt enabled=1 operations=25056 bytes=102629376 failures=0 total_ns=20250959830 max_total_ns=30074001 validation_ns=3160911 scratch_ns=15236607 copy_ns=13895316 crypto_ns=367369239 lower_wait_ns=19823593394 data_sha256_ns=0 cache_lookup_ns=0 hash_wait_ns=0 hash_sha256_ns=0 digest_compare_ns=0 cache_insert_ns=0 tree_levels=0
 [dm-bench] END label=raw run=2
 [dm-bench] BEGIN label=raw run=3 device=/dev/vdc operation=read block_size=4k queue_depth=1
-[dm-bench] STATS_BEFORE label=raw run=3 target=dm-crypt enabled=1 operations=31408 bytes=128647168 failures=0 total_ns=20610482255 max_total_ns=6133757 validation_ns=2444404 scratch_ns=12833820 copy_ns=12565194 crypto_ns=344488873 lower_wait_ns=20211930670 data_sha256_ns=0 cache_lookup_ns=0 hash_wait_ns=0 hash_sha256_ns=0 digest_compare_ns=0 cache_insert_ns=0 tree_levels=0
+[dm-bench] STATS_BEFORE label=raw run=3 target=dm-crypt enabled=1 operations=25056 bytes=102629376 failures=0 total_ns=20250959830 max_total_ns=30074001 validation_ns=3160911 scratch_ns=15236607 copy_ns=13895316 crypto_ns=367369239 lower_wait_ns=19823593394 data_sha256_ns=0 cache_lookup_ns=0 hash_wait_ns=0 hash_sha256_ns=0 digest_compare_ns=0 cache_insert_ns=0 tree_levels=0
 {
   "fio version" : "fio-3.39",
-  "timestamp" : 1785749087,
-  "timestamp_ms" : 1785749087930,
-  "time" : "Mon Aug  3 09:24:47 2026",
+  "timestamp" : 1785932159,
+  "timestamp_ms" : 1785932159246,
+  "time" : "Wed Aug  5 12:15:59 2026",
   "jobs" : [
     {
       "jobname" : "raw-3",
       "groupid" : 0,
-      "job_start" : 1785749077789,
+      "job_start" : 1785932149111,
       "error" : 0,
       "eta" : 0,
       "elapsed" : 13,
@@ -1103,13 +1103,13 @@ mount: mounting /dev/vdb on /exfat failed: Invalid argument
         "percentile_list" : "50:95:99:99.9"
       },
       "read" : {
-        "io_bytes" : 44695552,
-        "io_kbytes" : 43648,
-        "bw_bytes" : 4469108,
-        "bw" : 4364,
-        "iops" : 1091.090891,
-        "runtime" : 10001,
-        "total_ios" : 10912,
+        "io_bytes" : 43114496,
+        "io_kbytes" : 42104,
+        "bw_bytes" : 4310587,
+        "bw" : 4209,
+        "iops" : 1052.389522,
+        "runtime" : 10002,
+        "total_ios" : 10526,
         "short_ios" : 0,
         "drop_ios" : 0,
         "slat_ns" : {
@@ -1120,35 +1120,35 @@ mount: mounting /dev/vdb on /exfat failed: Invalid argument
           "N" : 0
         },
         "clat_ns" : {
-          "min" : 461707,
-          "max" : 10251778,
-          "mean" : 912196.811950,
-          "stddev" : 316433.741133,
-          "N" : 10912,
+          "min" : 469057,
+          "max" : 5342509,
+          "mean" : 945278.636899,
+          "stddev" : 272275.587883,
+          "N" : 10526,
           "percentile" : {
-            "50.000000" : 864256,
-            "95.000000" : 1302528,
-            "99.000000" : 1957888,
-            "99.900000" : 3817472
+            "50.000000" : 913408,
+            "95.000000" : 1335296,
+            "99.000000" : 1941504,
+            "99.900000" : 3588096
           }
         },
         "lat_ns" : {
-          "min" : 461963,
-          "max" : 10252116,
-          "mean" : 912688.369960,
-          "stddev" : 316550.611099,
-          "N" : 10912
+          "min" : 469264,
+          "max" : 5343006,
+          "mean" : 945884.287764,
+          "stddev" : 272387.583328,
+          "N" : 10526
         },
-        "bw_min" : 3164,
-        "bw_max" : 5436,
+        "bw_min" : 3761,
+        "bw_max" : 4728,
         "bw_agg" : 100.000000,
-        "bw_mean" : 4399.421053,
-        "bw_dev" : 773.011019,
+        "bw_mean" : 4214.000000,
+        "bw_dev" : 281.732931,
         "bw_samples" : 19,
-        "iops_min" : 791,
-        "iops_max" : 1359,
-        "iops_mean" : 1099.631579,
-        "iops_stddev" : 193.359254,
+        "iops_min" : 940,
+        "iops_max" : 1182,
+        "iops_mean" : 1053.105263,
+        "iops_stddev" : 70.491051,
         "iops_samples" : 19
       },
       "write" : {
@@ -1247,9 +1247,9 @@ mount: mounting /dev/vdb on /exfat failed: Invalid argument
           "N" : 0
         }
       },
-      "job_runtime" : 10000,
-      "usr_cpu" : 1.040000,
-      "sys_cpu" : 13.900000,
+      "job_runtime" : 10001,
+      "usr_cpu" : 1.219878,
+      "sys_cpu" : 17.278272,
       "ctx" : 0,
       "majf" : 0,
       "minf" : 0,
@@ -1300,15 +1300,15 @@ mount: mounting /dev/vdb on /exfat failed: Invalid argument
         "50" : 0.000000,
         "100" : 0.000000,
         "250" : 0.000000,
-        "500" : 0.146628,
-        "750" : 28.876466,
-        "1000" : 40.909091
+        "500" : 0.047501,
+        "750" : 17.148014,
+        "1000" : 50.503515
       },
       "latency_ms" : {
-        "2" : 29.133065,
-        "4" : 0.843109,
-        "10" : 0.082478,
-        "20" : 0.010000,
+        "2" : 31.369941,
+        "4" : 0.864526,
+        "10" : 0.066502,
+        "20" : 0.000000,
         "50" : 0.000000,
         "100" : 0.000000,
         "250" : 0.000000,
@@ -1325,20 +1325,20 @@ mount: mounting /dev/vdb on /exfat failed: Invalid argument
     }
   ]
 }
-[dm-bench] STATS label=raw run=3 backend=AES-NI perf=target=dm-crypt enabled=1 operations=31408 bytes=128647168 failures=0 total_ns=20610482255 max_total_ns=6133757 validation_ns=2444404 scratch_ns=12833820 copy_ns=12565194 crypto_ns=344488873 lower_wait_ns=20211930670 data_sha256_ns=0 cache_lookup_ns=0 hash_wait_ns=0 hash_sha256_ns=0 digest_compare_ns=0 cache_insert_ns=0 tree_levels=0
+[dm-bench] STATS label=raw run=3 backend=AES-NI perf=target=dm-crypt enabled=1 operations=25056 bytes=102629376 failures=0 total_ns=20250959830 max_total_ns=30074001 validation_ns=3160911 scratch_ns=15236607 copy_ns=13895316 crypto_ns=367369239 lower_wait_ns=19823593394 data_sha256_ns=0 cache_lookup_ns=0 hash_wait_ns=0 hash_sha256_ns=0 digest_compare_ns=0 cache_insert_ns=0 tree_levels=0
 [dm-bench] END label=raw run=3
 [dm-bench] BEGIN label=dm-crypt run=3 device=/dev/dm-crypt0 operation=read block_size=4k queue_depth=1
-[dm-bench] STATS_BEFORE label=dm-crypt run=3 target=dm-crypt enabled=1 operations=31408 bytes=128647168 failures=0 total_ns=20610482255 max_total_ns=6133757 validation_ns=2444404 scratch_ns=12833820 copy_ns=12565194 crypto_ns=344488873 lower_wait_ns=20211930670 data_sha256_ns=0 cache_lookup_ns=0 hash_wait_ns=0 hash_sha256_ns=0 digest_compare_ns=0 cache_insert_ns=0 tree_levels=0
+[dm-bench] STATS_BEFORE label=dm-crypt run=3 target=dm-crypt enabled=1 operations=25056 bytes=102629376 failures=0 total_ns=20250959830 max_total_ns=30074001 validation_ns=3160911 scratch_ns=15236607 copy_ns=13895316 crypto_ns=367369239 lower_wait_ns=19823593394 data_sha256_ns=0 cache_lookup_ns=0 hash_wait_ns=0 hash_sha256_ns=0 digest_compare_ns=0 cache_insert_ns=0 tree_levels=0
 {
   "fio version" : "fio-3.39",
-  "timestamp" : 1785749101,
-  "timestamp_ms" : 1785749101841,
-  "time" : "Mon Aug  3 09:25:01 2026",
+  "timestamp" : 1785932172,
+  "timestamp_ms" : 1785932172277,
+  "time" : "Wed Aug  5 12:16:12 2026",
   "jobs" : [
     {
       "jobname" : "dm-crypt-3",
       "groupid" : 0,
-      "job_start" : 1785749091566,
+      "job_start" : 1785932162138,
       "error" : 0,
       "eta" : 0,
       "elapsed" : 13,
@@ -1359,13 +1359,13 @@ mount: mounting /dev/vdb on /exfat failed: Invalid argument
         "percentile_list" : "50:95:99:99.9"
       },
       "read" : {
-        "io_bytes" : 28708864,
-        "io_kbytes" : 28036,
-        "bw_bytes" : 2870599,
-        "bw" : 2803,
-        "iops" : 700.829917,
+        "io_bytes" : 43274240,
+        "io_kbytes" : 42260,
+        "bw_bytes" : 4326991,
+        "bw" : 4225,
+        "iops" : 1056.394361,
         "runtime" : 10001,
-        "total_ios" : 7009,
+        "total_ios" : 10565,
         "short_ios" : 0,
         "drop_ios" : 0,
         "slat_ns" : {
@@ -1376,35 +1376,35 @@ mount: mounting /dev/vdb on /exfat failed: Invalid argument
           "N" : 0
         },
         "clat_ns" : {
-          "min" : 607554,
-          "max" : 62225114,
-          "mean" : 1419593.578970,
-          "stddev" : 1271943.930217,
-          "N" : 7009,
+          "min" : 455731,
+          "max" : 7327113,
+          "mean" : 941374.178514,
+          "stddev" : 254189.954888,
+          "N" : 10565,
           "percentile" : {
-            "50.000000" : 1187840,
-            "95.000000" : 2539520,
-            "99.000000" : 4882432,
-            "99.900000" : 14876672
+            "50.000000" : 913408,
+            "95.000000" : 1318912,
+            "99.000000" : 1777664,
+            "99.900000" : 3096576
           }
         },
         "lat_ns" : {
-          "min" : 607869,
-          "max" : 62226253,
-          "mean" : 1420388.895706,
-          "stddev" : 1271995.772060,
-          "N" : 7009
+          "min" : 456048,
+          "max" : 7327412,
+          "mean" : 941874.333554,
+          "stddev" : 254288.649146,
+          "N" : 10565
         },
-        "bw_min" : 1732,
-        "bw_max" : 3385,
-        "bw_agg" : 99.845921,
-        "bw_mean" : 2799.421053,
-        "bw_dev" : 399.330317,
+        "bw_min" : 3639,
+        "bw_max" : 4596,
+        "bw_agg" : 100.000000,
+        "bw_mean" : 4231.105263,
+        "bw_dev" : 291.321109,
         "bw_samples" : 19,
-        "iops_min" : 433,
-        "iops_max" : 846,
-        "iops_mean" : 699.526316,
-        "iops_stddev" : 99.850092,
+        "iops_min" : 909,
+        "iops_max" : 1149,
+        "iops_mean" : 1057.473684,
+        "iops_stddev" : 72.910423,
         "iops_samples" : 19
       },
       "write" : {
@@ -1504,8 +1504,8 @@ mount: mounting /dev/vdb on /exfat failed: Invalid argument
         }
       },
       "job_runtime" : 10000,
-      "usr_cpu" : 0.750000,
-      "sys_cpu" : 9.480000,
+      "usr_cpu" : 1.130000,
+      "sys_cpu" : 19.760000,
       "ctx" : 0,
       "majf" : 0,
       "minf" : 0,
@@ -1556,17 +1556,17 @@ mount: mounting /dev/vdb on /exfat failed: Invalid argument
         "50" : 0.000000,
         "100" : 0.000000,
         "250" : 0.000000,
-        "500" : 0.000000,
-        "750" : 0.242545,
-        "1000" : 10.786132
+        "500" : 0.047326,
+        "750" : 17.964979,
+        "1000" : 49.673450
       },
       "latency_ms" : {
-        "2" : 80.253959,
-        "4" : 7.147953,
-        "10" : 1.369668,
-        "20" : 0.142674,
-        "50" : 0.042802,
-        "100" : 0.014267,
+        "2" : 31.708471,
+        "4" : 0.577378,
+        "10" : 0.028396,
+        "20" : 0.000000,
+        "50" : 0.000000,
+        "100" : 0.000000,
         "250" : 0.000000,
         "500" : 0.000000,
         "750" : 0.000000,
@@ -1581,20 +1581,20 @@ mount: mounting /dev/vdb on /exfat failed: Invalid argument
     }
   ]
 }
-[dm-bench] STATS label=dm-crypt run=3 backend=AES-NI perf=target=dm-crypt enabled=1 operations=39572 bytes=162086912 failures=0 total_ns=30823531839 max_total_ns=61816691 validation_ns=4054997 scratch_ns=19050284 copy_ns=19142063 crypto_ns=487643598 lower_wait_ns=30255637920 data_sha256_ns=0 cache_lookup_ns=0 hash_wait_ns=0 hash_sha256_ns=0 digest_compare_ns=0 cache_insert_ns=0 tree_levels=0
+[dm-bench] STATS label=dm-crypt run=3 backend=AES-NI perf=target=dm-crypt enabled=1 operations=37550 bytes=153804800 failures=0 total_ns=30285440742 max_total_ns=30074001 validation_ns=4734443 scratch_ns=25874767 copy_ns=22402974 crypto_ns=557814386 lower_wait_ns=29631706445 data_sha256_ns=0 cache_lookup_ns=0 hash_wait_ns=0 hash_sha256_ns=0 digest_compare_ns=0 cache_insert_ns=0 tree_levels=0
 [dm-bench] END label=dm-crypt run=3
 [dm-bench] BEGIN label=dm-crypt run=4 device=/dev/dm-crypt0 operation=read block_size=4k queue_depth=1
-[dm-bench] STATS_BEFORE label=dm-crypt run=4 target=dm-crypt enabled=1 operations=39572 bytes=162086912 failures=0 total_ns=30823531839 max_total_ns=61816691 validation_ns=4054997 scratch_ns=19050284 copy_ns=19142063 crypto_ns=487643598 lower_wait_ns=30255637920 data_sha256_ns=0 cache_lookup_ns=0 hash_wait_ns=0 hash_sha256_ns=0 digest_compare_ns=0 cache_insert_ns=0 tree_levels=0
+[dm-bench] STATS_BEFORE label=dm-crypt run=4 target=dm-crypt enabled=1 operations=37550 bytes=153804800 failures=0 total_ns=30285440742 max_total_ns=30074001 validation_ns=4734443 scratch_ns=25874767 copy_ns=22402974 crypto_ns=557814386 lower_wait_ns=29631706445 data_sha256_ns=0 cache_lookup_ns=0 hash_wait_ns=0 hash_sha256_ns=0 digest_compare_ns=0 cache_insert_ns=0 tree_levels=0
 {
   "fio version" : "fio-3.39",
-  "timestamp" : 1785749115,
-  "timestamp_ms" : 1785749115480,
-  "time" : "Mon Aug  3 09:25:15 2026",
+  "timestamp" : 1785932185,
+  "timestamp_ms" : 1785932185264,
+  "time" : "Wed Aug  5 12:16:25 2026",
   "jobs" : [
     {
       "jobname" : "dm-crypt-4",
       "groupid" : 0,
-      "job_start" : 1785749105395,
+      "job_start" : 1785932175129,
       "error" : 0,
       "eta" : 0,
       "elapsed" : 13,
@@ -1615,13 +1615,13 @@ mount: mounting /dev/vdb on /exfat failed: Invalid argument
         "percentile_list" : "50:95:99:99.9"
       },
       "read" : {
-        "io_bytes" : 24358912,
-        "io_kbytes" : 23788,
-        "bw_bytes" : 2435647,
-        "bw" : 2378,
-        "iops" : 594.640536,
+        "io_bytes" : 41201664,
+        "io_kbytes" : 40236,
+        "bw_bytes" : 4119754,
+        "bw" : 4023,
+        "iops" : 1005.799420,
         "runtime" : 10001,
-        "total_ios" : 5947,
+        "total_ios" : 10059,
         "short_ios" : 0,
         "drop_ios" : 0,
         "slat_ns" : {
@@ -1632,35 +1632,35 @@ mount: mounting /dev/vdb on /exfat failed: Invalid argument
           "N" : 0
         },
         "clat_ns" : {
-          "min" : 708678,
-          "max" : 81652143,
-          "mean" : 1673548.638809,
-          "stddev" : 2268981.444977,
-          "N" : 5947,
+          "min" : 494691,
+          "max" : 8779512,
+          "mean" : 989144.049607,
+          "stddev" : 373534.682010,
+          "N" : 10059,
           "percentile" : {
-            "50.000000" : 1236992,
-            "95.000000" : 3391488,
-            "99.000000" : 9240576,
-            "99.900000" : 34340864
+            "50.000000" : 946176,
+            "95.000000" : 1384448,
+            "99.000000" : 2244608,
+            "99.900000" : 6193152
           }
         },
         "lat_ns" : {
-          "min" : 709063,
-          "max" : 81653379,
-          "mean" : 1674415.992097,
-          "stddev" : 2269058.162673,
-          "N" : 5947
+          "min" : 494962,
+          "max" : 8780490,
+          "mean" : 989702.519137,
+          "stddev" : 373632.673962,
+          "N" : 10059
         },
-        "bw_min" : 957,
-        "bw_max" : 3346,
+        "bw_min" : 2630,
+        "bw_max" : 4543,
         "bw_agg" : 100.000000,
-        "bw_mean" : 2398.789474,
-        "bw_dev" : 720.917593,
+        "bw_mean" : 4032.526316,
+        "bw_dev" : 435.578334,
         "bw_samples" : 19,
-        "iops_min" : 239,
-        "iops_max" : 836,
-        "iops_mean" : 599.368421,
-        "iops_stddev" : 180.113609,
+        "iops_min" : 657,
+        "iops_max" : 1135,
+        "iops_mean" : 1007.736842,
+        "iops_stddev" : 108.919870,
         "iops_samples" : 19
       },
       "write" : {
@@ -1760,8 +1760,8 @@ mount: mounting /dev/vdb on /exfat failed: Invalid argument
         }
       },
       "job_runtime" : 10000,
-      "usr_cpu" : 0.830000,
-      "sys_cpu" : 8.640000,
+      "usr_cpu" : 1.100000,
+      "sys_cpu" : 19.120000,
       "ctx" : 0,
       "majf" : 0,
       "minf" : 0,
@@ -1812,17 +1812,17 @@ mount: mounting /dev/vdb on /exfat failed: Invalid argument
         "50" : 0.000000,
         "100" : 0.000000,
         "250" : 0.000000,
-        "500" : 0.000000,
-        "750" : 0.134522,
-        "1000" : 9.248361
+        "500" : 0.010000,
+        "750" : 14.096829,
+        "1000" : 47.251218
       },
       "latency_ms" : {
-        "2" : 77.871196,
-        "4" : 8.760720,
-        "10" : 3.110812,
-        "20" : 0.605347,
-        "50" : 0.252228,
-        "100" : 0.016815,
+        "2" : 37.250224,
+        "4" : 1.163137,
+        "10" : 0.228651,
+        "20" : 0.000000,
+        "50" : 0.000000,
+        "100" : 0.000000,
         "250" : 0.000000,
         "500" : 0.000000,
         "750" : 0.000000,
@@ -1837,20 +1837,20 @@ mount: mounting /dev/vdb on /exfat failed: Invalid argument
     }
   ]
 }
-[dm-bench] STATS label=dm-crypt run=4 backend=AES-NI perf=target=dm-crypt enabled=1 operations=46816 bytes=191758336 failures=0 total_ns=41264484333 max_total_ns=81453229 validation_ns=5734490 scratch_ns=25267555 copy_ns=25023435 crypto_ns=613250697 lower_wait_ns=40545960648 data_sha256_ns=0 cache_lookup_ns=0 hash_wait_ns=0 hash_sha256_ns=0 digest_compare_ns=0 cache_insert_ns=0 tree_levels=0
+[dm-bench] STATS label=dm-crypt run=4 backend=AES-NI perf=target=dm-crypt enabled=1 operations=49671 bytes=203452416 failures=0 total_ns=40388242278 max_total_ns=30074001 validation_ns=6593926 scratch_ns=35236547 copy_ns=31054245 crypto_ns=741651730 lower_wait_ns=39516511677 data_sha256_ns=0 cache_lookup_ns=0 hash_wait_ns=0 hash_sha256_ns=0 digest_compare_ns=0 cache_insert_ns=0 tree_levels=0
 [dm-bench] END label=dm-crypt run=4
 [dm-bench] BEGIN label=raw run=4 device=/dev/vdc operation=read block_size=4k queue_depth=1
-[dm-bench] STATS_BEFORE label=raw run=4 target=dm-crypt enabled=1 operations=46816 bytes=191758336 failures=0 total_ns=41264484333 max_total_ns=81453229 validation_ns=5734490 scratch_ns=25267555 copy_ns=25023435 crypto_ns=613250697 lower_wait_ns=40545960648 data_sha256_ns=0 cache_lookup_ns=0 hash_wait_ns=0 hash_sha256_ns=0 digest_compare_ns=0 cache_insert_ns=0 tree_levels=0
+[dm-bench] STATS_BEFORE label=raw run=4 target=dm-crypt enabled=1 operations=49671 bytes=203452416 failures=0 total_ns=40388242278 max_total_ns=30074001 validation_ns=6593926 scratch_ns=35236547 copy_ns=31054245 crypto_ns=741651730 lower_wait_ns=39516511677 data_sha256_ns=0 cache_lookup_ns=0 hash_wait_ns=0 hash_sha256_ns=0 digest_compare_ns=0 cache_insert_ns=0 tree_levels=0
 {
   "fio version" : "fio-3.39",
-  "timestamp" : 1785749129,
-  "timestamp_ms" : 1785749129665,
-  "time" : "Mon Aug  3 09:25:29 2026",
+  "timestamp" : 1785932198,
+  "timestamp_ms" : 1785932198319,
+  "time" : "Wed Aug  5 12:16:38 2026",
   "jobs" : [
     {
       "jobname" : "raw-4",
       "groupid" : 0,
-      "job_start" : 1785749119642,
+      "job_start" : 1785932188193,
       "error" : 0,
       "eta" : 0,
       "elapsed" : 13,
@@ -1871,13 +1871,13 @@ mount: mounting /dev/vdb on /exfat failed: Invalid argument
         "percentile_list" : "50:95:99:99.9"
       },
       "read" : {
-        "io_bytes" : 24604672,
-        "io_kbytes" : 24028,
-        "bw_bytes" : 2460221,
-        "bw" : 2402,
-        "iops" : 600.639936,
+        "io_bytes" : 44597248,
+        "io_kbytes" : 43552,
+        "bw_bytes" : 4459278,
+        "bw" : 4354,
+        "iops" : 1088.691131,
         "runtime" : 10001,
-        "total_ios" : 6007,
+        "total_ios" : 10888,
         "short_ios" : 0,
         "drop_ios" : 0,
         "slat_ns" : {
@@ -1888,35 +1888,35 @@ mount: mounting /dev/vdb on /exfat failed: Invalid argument
           "N" : 0
         },
         "clat_ns" : {
-          "min" : 630385,
-          "max" : 52625215,
-          "mean" : 1656948.759780,
-          "stddev" : 1762907.080193,
-          "N" : 6007,
+          "min" : 458722,
+          "max" : 10573995,
+          "mean" : 914092.187913,
+          "stddev" : 257412.128417,
+          "N" : 10888,
           "percentile" : {
-            "50.000000" : 1204224,
-            "95.000000" : 3817472,
-            "99.000000" : 9633792,
-            "99.900000" : 19791872
+            "50.000000" : 897024,
+            "95.000000" : 1253376,
+            "99.000000" : 1679360,
+            "99.900000" : 2768896
           }
         },
         "lat_ns" : {
-          "min" : 630650,
-          "max" : 52626383,
-          "mean" : 1657874.824372,
-          "stddev" : 1763000.897553,
-          "N" : 6007
+          "min" : 459026,
+          "max" : 10574648,
+          "mean" : 914648.218589,
+          "stddev" : 257555.096179,
+          "N" : 10888
         },
-        "bw_min" : 862,
-        "bw_max" : 3634,
-        "bw_agg" : 99.935087,
-        "bw_mean" : 2402.000000,
-        "bw_dev" : 794.091724,
+        "bw_min" : 3953,
+        "bw_max" : 4747,
+        "bw_agg" : 100.000000,
+        "bw_mean" : 4357.736842,
+        "bw_dev" : 239.498978,
         "bw_samples" : 19,
-        "iops_min" : 215,
-        "iops_max" : 908,
-        "iops_mean" : 600.210526,
-        "iops_stddev" : 198.560256,
+        "iops_min" : 988,
+        "iops_max" : 1186,
+        "iops_mean" : 1089.105263,
+        "iops_stddev" : 59.855284,
         "iops_samples" : 19
       },
       "write" : {
@@ -2016,8 +2016,8 @@ mount: mounting /dev/vdb on /exfat failed: Invalid argument
         }
       },
       "job_runtime" : 10000,
-      "usr_cpu" : 0.940000,
-      "sys_cpu" : 8.470000,
+      "usr_cpu" : 1.140000,
+      "sys_cpu" : 17.730000,
       "ctx" : 0,
       "majf" : 0,
       "minf" : 0,
@@ -2068,17 +2068,17 @@ mount: mounting /dev/vdb on /exfat failed: Invalid argument
         "50" : 0.000000,
         "100" : 0.000000,
         "250" : 0.000000,
-        "500" : 0.000000,
-        "750" : 0.516065,
-        "1000" : 13.867155
+        "500" : 0.064291,
+        "750" : 19.921014,
+        "1000" : 53.095151
       },
       "latency_ms" : {
-        "2" : 71.017147,
-        "4" : 9.955052,
-        "10" : 3.728983,
-        "20" : 0.832362,
-        "50" : 0.066589,
-        "100" : 0.016647,
+        "2" : 26.414401,
+        "4" : 0.459221,
+        "10" : 0.036738,
+        "20" : 0.010000,
+        "50" : 0.000000,
+        "100" : 0.000000,
         "250" : 0.000000,
         "500" : 0.000000,
         "750" : 0.000000,
@@ -2093,20 +2093,20 @@ mount: mounting /dev/vdb on /exfat failed: Invalid argument
     }
   ]
 }
-[dm-bench] STATS label=raw run=4 backend=AES-NI perf=target=dm-crypt enabled=1 operations=46816 bytes=191758336 failures=0 total_ns=41264484333 max_total_ns=81453229 validation_ns=5734490 scratch_ns=25267555 copy_ns=25023435 crypto_ns=613250697 lower_wait_ns=40545960648 data_sha256_ns=0 cache_lookup_ns=0 hash_wait_ns=0 hash_sha256_ns=0 digest_compare_ns=0 cache_insert_ns=0 tree_levels=0
+[dm-bench] STATS label=raw run=4 backend=AES-NI perf=target=dm-crypt enabled=1 operations=49671 bytes=203452416 failures=0 total_ns=40388242278 max_total_ns=30074001 validation_ns=6593926 scratch_ns=35236547 copy_ns=31054245 crypto_ns=741651730 lower_wait_ns=39516511677 data_sha256_ns=0 cache_lookup_ns=0 hash_wait_ns=0 hash_sha256_ns=0 digest_compare_ns=0 cache_insert_ns=0 tree_levels=0
 [dm-bench] END label=raw run=4
 [dm-bench] BEGIN label=raw run=5 device=/dev/vdc operation=read block_size=4k queue_depth=1
-[dm-bench] STATS_BEFORE label=raw run=5 target=dm-crypt enabled=1 operations=46816 bytes=191758336 failures=0 total_ns=41264484333 max_total_ns=81453229 validation_ns=5734490 scratch_ns=25267555 copy_ns=25023435 crypto_ns=613250697 lower_wait_ns=40545960648 data_sha256_ns=0 cache_lookup_ns=0 hash_wait_ns=0 hash_sha256_ns=0 digest_compare_ns=0 cache_insert_ns=0 tree_levels=0
+[dm-bench] STATS_BEFORE label=raw run=5 target=dm-crypt enabled=1 operations=49671 bytes=203452416 failures=0 total_ns=40388242278 max_total_ns=30074001 validation_ns=6593926 scratch_ns=35236547 copy_ns=31054245 crypto_ns=741651730 lower_wait_ns=39516511677 data_sha256_ns=0 cache_lookup_ns=0 hash_wait_ns=0 hash_sha256_ns=0 digest_compare_ns=0 cache_insert_ns=0 tree_levels=0
 {
   "fio version" : "fio-3.39",
-  "timestamp" : 1785749142,
-  "timestamp_ms" : 1785749142886,
-  "time" : "Mon Aug  3 09:25:42 2026",
+  "timestamp" : 1785932211,
+  "timestamp_ms" : 1785932211305,
+  "time" : "Wed Aug  5 12:16:51 2026",
   "jobs" : [
     {
       "jobname" : "raw-5",
       "groupid" : 0,
-      "job_start" : 1785749132810,
+      "job_start" : 1785932201195,
       "error" : 0,
       "eta" : 0,
       "elapsed" : 13,
@@ -2127,13 +2127,13 @@ mount: mounting /dev/vdb on /exfat failed: Invalid argument
         "percentile_list" : "50:95:99:99.9"
       },
       "read" : {
-        "io_bytes" : 50774016,
-        "io_kbytes" : 49584,
-        "bw_bytes" : 5076893,
-        "bw" : 4957,
-        "iops" : 1239.476052,
+        "io_bytes" : 44519424,
+        "io_kbytes" : 43476,
+        "bw_bytes" : 4451497,
+        "bw" : 4347,
+        "iops" : 1086.791321,
         "runtime" : 10001,
-        "total_ios" : 12396,
+        "total_ios" : 10869,
         "short_ios" : 0,
         "drop_ios" : 0,
         "slat_ns" : {
@@ -2144,35 +2144,35 @@ mount: mounting /dev/vdb on /exfat failed: Invalid argument
           "N" : 0
         },
         "clat_ns" : {
-          "min" : 454017,
-          "max" : 71002569,
-          "mean" : 803532.349226,
-          "stddev" : 993478.065869,
-          "N" : 12396,
+          "min" : 474548,
+          "max" : 5453304,
+          "mean" : 916015.555249,
+          "stddev" : 234581.141544,
+          "N" : 10869,
           "percentile" : {
-            "50.000000" : 716800,
-            "95.000000" : 1089536,
-            "99.000000" : 1941504,
-            "99.900000" : 11730944
+            "50.000000" : 897024,
+            "95.000000" : 1220608,
+            "99.000000" : 1695744,
+            "99.900000" : 3457024
           }
         },
         "lat_ns" : {
-          "min" : 454221,
-          "max" : 71003711,
-          "mean" : 803928.553808,
-          "stddev" : 993522.915231,
-          "N" : 12396
+          "min" : 474827,
+          "max" : 5454130,
+          "mean" : 916506.836600,
+          "stddev" : 234654.502520,
+          "N" : 10869
         },
-        "bw_min" : 2018,
-        "bw_max" : 5828,
-        "bw_agg" : 99.901101,
-        "bw_mean" : 4953.368421,
-        "bw_dev" : 1010.880486,
+        "bw_min" : 3969,
+        "bw_max" : 4821,
+        "bw_agg" : 100.000000,
+        "bw_mean" : 4352.526316,
+        "bw_dev" : 219.314429,
         "bw_samples" : 19,
-        "iops_min" : 504,
-        "iops_max" : 1457,
-        "iops_mean" : 1238.052632,
-        "iops_stddev" : 252.764817,
+        "iops_min" : 992,
+        "iops_max" : 1205,
+        "iops_mean" : 1087.842105,
+        "iops_stddev" : 54.894103,
         "iops_samples" : 19
       },
       "write" : {
@@ -2272,8 +2272,8 @@ mount: mounting /dev/vdb on /exfat failed: Invalid argument
         }
       },
       "job_runtime" : 10000,
-      "usr_cpu" : 0.990000,
-      "sys_cpu" : 12.340000,
+      "usr_cpu" : 1.110000,
+      "sys_cpu" : 18.020000,
       "ctx" : 0,
       "majf" : 0,
       "minf" : 0,
@@ -2324,17 +2324,17 @@ mount: mounting /dev/vdb on /exfat failed: Invalid argument
         "50" : 0.000000,
         "100" : 0.000000,
         "250" : 0.000000,
-        "500" : 0.346886,
-        "750" : 57.575024,
-        "1000" : 33.833495
+        "500" : 0.027601,
+        "750" : 17.444107,
+        "1000" : 56.978563
       },
       "latency_ms" : {
-        "2" : 7.300742,
-        "4" : 0.605034,
-        "10" : 0.217812,
-        "20" : 0.072604,
-        "50" : 0.040336,
-        "100" : 0.010000,
+        "2" : 24.933297,
+        "4" : 0.570430,
+        "10" : 0.046002,
+        "20" : 0.000000,
+        "50" : 0.000000,
+        "100" : 0.000000,
         "250" : 0.000000,
         "500" : 0.000000,
         "750" : 0.000000,
@@ -2349,20 +2349,20 @@ mount: mounting /dev/vdb on /exfat failed: Invalid argument
     }
   ]
 }
-[dm-bench] STATS label=raw run=5 backend=AES-NI perf=target=dm-crypt enabled=1 operations=46816 bytes=191758336 failures=0 total_ns=41264484333 max_total_ns=81453229 validation_ns=5734490 scratch_ns=25267555 copy_ns=25023435 crypto_ns=613250697 lower_wait_ns=40545960648 data_sha256_ns=0 cache_lookup_ns=0 hash_wait_ns=0 hash_sha256_ns=0 digest_compare_ns=0 cache_insert_ns=0 tree_levels=0
+[dm-bench] STATS label=raw run=5 backend=AES-NI perf=target=dm-crypt enabled=1 operations=49671 bytes=203452416 failures=0 total_ns=40388242278 max_total_ns=30074001 validation_ns=6593926 scratch_ns=35236547 copy_ns=31054245 crypto_ns=741651730 lower_wait_ns=39516511677 data_sha256_ns=0 cache_lookup_ns=0 hash_wait_ns=0 hash_sha256_ns=0 digest_compare_ns=0 cache_insert_ns=0 tree_levels=0
 [dm-bench] END label=raw run=5
 [dm-bench] BEGIN label=dm-crypt run=5 device=/dev/dm-crypt0 operation=read block_size=4k queue_depth=1
-[dm-bench] STATS_BEFORE label=dm-crypt run=5 target=dm-crypt enabled=1 operations=46816 bytes=191758336 failures=0 total_ns=41264484333 max_total_ns=81453229 validation_ns=5734490 scratch_ns=25267555 copy_ns=25023435 crypto_ns=613250697 lower_wait_ns=40545960648 data_sha256_ns=0 cache_lookup_ns=0 hash_wait_ns=0 hash_sha256_ns=0 digest_compare_ns=0 cache_insert_ns=0 tree_levels=0
+[dm-bench] STATS_BEFORE label=dm-crypt run=5 target=dm-crypt enabled=1 operations=49671 bytes=203452416 failures=0 total_ns=40388242278 max_total_ns=30074001 validation_ns=6593926 scratch_ns=35236547 copy_ns=31054245 crypto_ns=741651730 lower_wait_ns=39516511677 data_sha256_ns=0 cache_lookup_ns=0 hash_wait_ns=0 hash_sha256_ns=0 digest_compare_ns=0 cache_insert_ns=0 tree_levels=0
 {
   "fio version" : "fio-3.39",
-  "timestamp" : 1785749155,
-  "timestamp_ms" : 1785749155821,
-  "time" : "Mon Aug  3 09:25:55 2026",
+  "timestamp" : 1785932224,
+  "timestamp_ms" : 1785932224276,
+  "time" : "Wed Aug  5 12:17:04 2026",
   "jobs" : [
     {
       "jobname" : "dm-crypt-5",
       "groupid" : 0,
-      "job_start" : 1785749145743,
+      "job_start" : 1785932214150,
       "error" : 0,
       "eta" : 0,
       "elapsed" : 13,
@@ -2383,13 +2383,13 @@ mount: mounting /dev/vdb on /exfat failed: Invalid argument
         "percentile_list" : "50:95:99:99.9"
       },
       "read" : {
-        "io_bytes" : 51765248,
-        "io_kbytes" : 50552,
-        "bw_bytes" : 5176007,
-        "bw" : 5054,
-        "iops" : 1263.673633,
+        "io_bytes" : 42569728,
+        "io_kbytes" : 41572,
+        "bw_bytes" : 4256547,
+        "bw" : 4156,
+        "iops" : 1039.196080,
         "runtime" : 10001,
-        "total_ios" : 12638,
+        "total_ios" : 10393,
         "short_ios" : 0,
         "drop_ios" : 0,
         "slat_ns" : {
@@ -2400,35 +2400,35 @@ mount: mounting /dev/vdb on /exfat failed: Invalid argument
           "N" : 0
         },
         "clat_ns" : {
-          "min" : 437093,
-          "max" : 6562806,
-          "mean" : 788139.387403,
-          "stddev" : 278121.210369,
-          "N" : 12638,
+          "min" : 460879,
+          "max" : 5765650,
+          "mean" : 957532.982296,
+          "stddev" : 280470.895908,
+          "N" : 10393,
           "percentile" : {
-            "50.000000" : 724992,
-            "95.000000" : 1220608,
-            "99.000000" : 2007040,
-            "99.900000" : 3096576
+            "50.000000" : 921600,
+            "95.000000" : 1302528,
+            "99.000000" : 2023424,
+            "99.900000" : 3883008
           }
         },
         "lat_ns" : {
-          "min" : 437291,
-          "max" : 6563062,
-          "mean" : 788535.913119,
-          "stddev" : 278238.435244,
-          "N" : 12638
+          "min" : 461187,
+          "max" : 5765991,
+          "mean" : 958073.094487,
+          "stddev" : 280586.729450,
+          "N" : 10393
         },
-        "bw_min" : 3263,
-        "bw_max" : 5575,
-        "bw_agg" : 100.000000,
-        "bw_mean" : 5062.473684,
-        "bw_dev" : 660.071239,
+        "bw_min" : 3751,
+        "bw_max" : 4770,
+        "bw_agg" : 99.981135,
+        "bw_mean" : 4156.578947,
+        "bw_dev" : 277.436142,
         "bw_samples" : 19,
-        "iops_min" : 815,
-        "iops_max" : 1393,
-        "iops_mean" : 1265.210526,
-        "iops_stddev" : 165.091079,
+        "iops_min" : 937,
+        "iops_max" : 1192,
+        "iops_mean" : 1038.736842,
+        "iops_stddev" : 69.406886,
         "iops_samples" : 19
       },
       "write" : {
@@ -2528,8 +2528,8 @@ mount: mounting /dev/vdb on /exfat failed: Invalid argument
         }
       },
       "job_runtime" : 10000,
-      "usr_cpu" : 0.960000,
-      "sys_cpu" : 15.370000,
+      "usr_cpu" : 1.340000,
+      "sys_cpu" : 19.780000,
       "ctx" : 0,
       "majf" : 0,
       "minf" : 0,
@@ -2580,14 +2580,14 @@ mount: mounting /dev/vdb on /exfat failed: Invalid argument
         "50" : 0.000000,
         "100" : 0.000000,
         "250" : 0.000000,
-        "500" : 0.197816,
-        "750" : 56.852350,
-        "1000" : 32.971989
+        "500" : 0.019244,
+        "750" : 13.999808,
+        "1000" : 52.448764
       },
       "latency_ms" : {
-        "2" : 8.949201,
-        "4" : 0.996993,
-        "10" : 0.031651,
+        "2" : 32.512268,
+        "4" : 0.942942,
+        "10" : 0.076975,
         "20" : 0.000000,
         "50" : 0.000000,
         "100" : 0.000000,
@@ -2605,6 +2605,6 @@ mount: mounting /dev/vdb on /exfat failed: Invalid argument
     }
   ]
 }
-[dm-bench] STATS label=dm-crypt run=5 backend=AES-NI perf=target=dm-crypt enabled=1 operations=61862 bytes=253386752 failures=0 total_ns=51560309398 max_total_ns=81453229 validation_ns=6960903 scratch_ns=31936052 copy_ns=31608895 crypto_ns=787058807 lower_wait_ns=50639849036 data_sha256_ns=0 cache_lookup_ns=0 hash_wait_ns=0 hash_sha256_ns=0 digest_compare_ns=0 cache_insert_ns=0 tree_levels=0
+[dm-bench] STATS label=dm-crypt run=5 backend=AES-NI perf=target=dm-crypt enabled=1 operations=61917 bytes=253612032 failures=0 total_ns=50497245624 max_total_ns=30074001 validation_ns=8344541 scratch_ns=45592448 copy_ns=38404686 crypto_ns=928866075 lower_wait_ns=49403980706 data_sha256_ns=0 cache_lookup_ns=0 hash_wait_ns=0 hash_sha256_ns=0 digest_compare_ns=0 cache_insert_ns=0 tree_levels=0
 [dm-bench] END label=dm-crypt run=5
 [dm-bench] PASS 5-run raw/dm-crypt matrix completed

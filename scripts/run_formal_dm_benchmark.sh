@@ -21,6 +21,11 @@ for image in "$CRYPT_IMAGE" "$VERITY_IMAGE"; do
   fi
 done
 
+if [[ -n "$(git -C "$ASTERINAS_DIR" status --porcelain --untracked-files=no)" ]]; then
+  echo "formal benchmark requires a clean Asterinas worktree" >&2
+  exit 1
+fi
+
 mkdir -p "$OUTPUT_DIR"
 (
   cd "$ASTERINAS_DIR"

@@ -84,31 +84,48 @@ copy。另用 stats=0/1 五轮对照量化计时本身的观察者开销。
 ### 为什么这次只允许改一个瓶颈？
 
 多个热路径改动叠加后无法从 A/B 数据判断收益来源，也更难证明没有削弱安全语义。
-本轮正式五轮已经定位：dm-crypt 下层等待中位占 98.07%，AES-XTS 占 1.66%；
-dm-verity 下层等待中位占 93.79%，数据 SHA-256 占 5.81%。因此没有继续微调 AES、
-复制或 cache；真正的大项是同步 `submit_and_wait`。把它改成异步 BIO 完成会改变读完成
-时的解密上下文和对象生命周期，不属于一次可安全证明的局部优化。若后续实施，仍须保留
-完全相同合同下的 before/after 五轮 CSV，一次只改一个变量。
+本轮正式五轮已经定位：dm-crypt 下层等待中位占 97.84%，AES-XTS 占 1.82%；
+dm-verity 下层等待中位占 93.01%，数据 SHA-256 占 5.74%。因此没有继续微调 AES、
+复制或 cache；实验分支只把 dm-crypt 的内部 `submit_and_wait` 改成下层完成回调，
+dm-verity 未改。实现通过即时完成竞态测试、release-LTO 和 KVM 加密读回，但 after 中
+raw 与 dm-crypt 同时约提升 49%，逐轮配对效率从 97.40% 变为 96.80%，所以没有证据
+证明吞吐收益。答辩时应说“完成了单变量实验并得到否证结果，暂不合入基线”，不能把
+宿主环境变快说成优化成功。
+
+### 异步 BIO 代码怎么讲？
+
+从 `Bio::submit_without_wait` 开始：它复用原有 `Bio::submit` 的状态机和 enqueue 错误
+回滚，只是不注册同步 waiter。`DmDevice::process_crypt` 在提交前完成地址校验；写请求
+先复制并 AES-XTS 加密到 bounce segment，读请求先取得 scratch，避免完成回调分配。
+上层 `SubmittedBio` 放在 `Arc<Mutex<Option<_>>>` 中，下层回调 `take()` 后完成，因此即使
+驱动在 `enqueue()` 返回前立即回调，也只能完成上层一次。读成功时回调复制密文、按
+plain64 扇区号解密、写回上层 segment、归还 scratch，最后传播状态；提交失败则取回
+并丢弃上层 handle，让外层 `Bio::submit` 把状态从 `Submit` 回滚到 `Init`。
+
+老师若问为什么暂不合入：一是五轮没有 raw 归一化收益；二是当前读解密发生在下层完成
+上下文，虽然无睡眠和动态分配，仍会延长 IRQ/完成路径。更稳妥的下一版应将完成事件投递
+到专用 worker，再由 worker 解密并完成上层 BIO。
 
 ### 性能结果应该怎么表述？
 
-严格同条件五轮矩阵中，Linux guest 与 Asterinas 的 dm-crypt 中位吞吐分别为
-4.355 MiB/s 和 0.523 MiB/s，Asterinas 为 Linux 的 12.0%；不要把它包装成
-“接近 Linux”，应明确这是下一阶段的主要优化空间。plain 与 dm-verity 冷启动
+新的严格同条件五轮矩阵中，Linux guest 与 Asterinas 的 dm-crypt 中位吞吐分别为
+4.746 MiB/s 和 4.059 MiB/s，Asterinas 为 Linux 的 85.5%；raw 分别为 5.150 和
+4.245 MiB/s，Asterinas 为 Linux 的 82.4%。plain 与 dm-verity 冷启动
 中位数分别为 16.058 秒和 16.902 秒，增量 5.256%。两组结论都只适用于归档
 metadata 所定义的 1 vCPU、8 GiB、KVM 小规模同步读矩阵。
 
-上述 Linux 对照的 8 MiB 数字属于历史证据，不能与新主表横向混用。新的主表已经按
+旧 Linux 对照的 8 MiB 数字属于历史证据，不再作为 README 结论。新的主表已经按
 release-LTO、相同 264 MiB 容器、前 256 MiB 数据区和 10 秒 runtime 的统一合同归档：
-raw、dm-crypt、dm-verity 中位吞吐分别为 5.628、4.936、6.217 MiB/s。target 相对
-各自配对 raw 的中位数为 102.0% 和 100.6%，应解释为“没有测出稳定吞吐损失”，
-不能解释为映射层加速，也不能拿来声称达到 Linux 的某个百分比。
+raw、dm-crypt、dm-verity 中位吞吐分别为 4.249、4.059、3.815 MiB/s。target 相对
+各自配对 raw 的中位数为 95.6% 和 87.3%，即本轮测得 dm-crypt 吞吐损失 4.4%、
+dm-verity 为 12.7%。同一合同下 Linux dm-crypt 保留率为 92.2%。95.6% 高于 92.2%
+只表示相对各自 raw 基线的增量损耗较小；绝对吞吐仍应单独报告为 Linux 的 85.5%。
 
 ### 还有哪些限制？
 
 - 用户态 `dm` crate 的 verity tree 用于快速测试，内核实现才使用 on-disk tree；
 - 当前主路径聚焦 AES-256-XTS 和 SHA-256，没有宣称支持 Linux 的所有 cipher/target；
-- mapper I/O 仍可继续引入 batch、异步完成和更细粒度并发；
+- dm-crypt 异步 BIO 已有实验分支，但需迁移到 worker 并取得 raw 归一化收益后才合入；
 - 密钥注入的生产化方案需要结合可信启动和远程证明。
 
 ## 答辩前检查清单

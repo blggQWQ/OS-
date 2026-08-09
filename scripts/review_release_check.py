@@ -133,10 +133,16 @@ def validate_formal_evidence() -> None:
                 key, value = line.split("=", 1)
                 metadata[key] = value
         required = {
+            "git_dirty": "0",
             "build_profile": "release-lto",
             "accelerator": "kvm",
             "cpu_model": "host",
+            "block_size": "4k",
+            "ioengine": "sync",
+            "direct": "1",
+            "queue_depth": "1",
             "size_mib": "256",
+            "ramp_seconds": "2",
             "runtime_seconds": "10",
             "runs": "5",
             "stage_stats": "1",
@@ -144,6 +150,18 @@ def validate_formal_evidence() -> None:
         for key, expected in required.items():
             if metadata.get(key) != expected:
                 fail(f"{metadata_path.relative_to(ROOT)}: expected {key}={expected}")
+        log_path = ROOT / f"docs/evidence/formal-256m/{target}.log"
+        log_text = log_path.read_text(encoding="utf-8", errors="replace")
+        if (
+            "dirty=0" not in log_text
+            or "profile=release-lto" not in log_text
+            or "stage_stats=1" not in log_text
+        ):
+            fail(f"{log_path.relative_to(ROOT)}: build/stats marker missing")
+        if target == "dm-crypt" and not re.search(
+            r"(?:AES\s+)?backend[=:]AES-NI\b", log_text
+        ):
+            fail(f"{log_path.relative_to(ROOT)}: AES-NI marker missing")
         stage_path = ROOT / f"docs/evidence/formal-256m/{target}-stages.csv"
         with stage_path.open(newline="", encoding="utf-8") as source:
             stage_rows = list(csv.DictReader(source))

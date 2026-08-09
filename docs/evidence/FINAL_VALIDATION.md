@@ -36,23 +36,28 @@ Raw matrices and summaries:
 - `asterinas-verity-fio-cache0-kvm.{log,csv,summary.csv}`
 - `asterinas-verity-fio-cache256-kvm.{log,csv,summary.csv}`
 
-## Strict Linux guest / Asterinas dm-crypt comparison (2026-08-01)
+## Strict Linux guest / Asterinas dm-crypt comparison (2026-08-09)
 
 Both guests used the same host, KVM, one vCPU, 8 GiB memory, CPU=host, a
-virtio-blk device, and the same first 8 MiB data region.  The comparison tool
+virtio-blk device, and the same first 256 MiB data region. The fio contract was
+4 KiB synchronous direct reads at QD1, with a 2-second ramp, 10-second runtime,
+and five runs per target. The comparison tool
 verified the shared region SHA-256 and all I/O/cipher metadata before producing
 the table.
 
 | System | Raw median MiB/s | dm-crypt median MiB/s | Retention | dm-crypt p95 us |
 |---|---:|---:|---:|---:|
-| Linux guest | 4.652 | 4.355 | 93.629% | 1335.296 |
-| Asterinas | 1.737 | 0.523 | 30.094% | 15663.104 |
+| Linux guest | 5.150 | 4.746 | 92.158% | 1384.448 |
+| Asterinas | 4.245 | 4.059 | 95.621% | 1318.912 |
 
-Asterinas dm-crypt absolute throughput is 12.0% of the Linux guest result for
-this fixed 4 KiB synchronous-read matrix.  Raw evidence:
+Asterinas raw and dm-crypt absolute throughput are 82.4% and 85.5% of the Linux
+guest results, respectively. Retention is relative to each system's own raw
+baseline, so the higher Asterinas retention does not mean higher absolute
+throughput. Raw evidence:
 
 - `linux-guest-dm-crypt-kvm.{csv,metadata.txt}`
-- `asterinas-dm-crypt-kvm-current.{csv,metadata.txt}`
+- `formal-256m/dm-crypt.csv`
+- `formal-256m/dm-crypt.metadata.txt`
 - `linux-vs-asterinas-dm-crypt.{csv,md}`
 
 ## Plain / dm-verity boot timing (2026-08-01)
