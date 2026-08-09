@@ -358,6 +358,13 @@ bash scripts/benchmark.sh
 
 ### 功能正确性测试
 
+**最新测试进度（2026-08-10）：**
+
+- 使用仓库固定镜像 `asterinas/asterinas:0.18.0-20260618` 和 pinned Rust toolchain，`make kernel TARGET_ARCH=x86_64` 已通过，构建日志确认 `aster-dm` 被实际编译进内核；
+- QEMU/KVM 下真实 `cryptsetup open`、mapper 读取及 `cryptsetup close` smoke 已通过；
+- dm-crypt 加密 rootfs 与 dm-verity 校验 rootfs 的最小启动回归均已通过，受保护 mapper 根切换成功；
+- 本轮仅执行兼容性 smoke，没有运行完整 fio，也没有修改 dm-crypt/dm-verity 算法逻辑。
+
 **dm-verity：**
 
 - 正常启动：正确根哈希 → 成功挂载 rootfs
