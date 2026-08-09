@@ -230,8 +230,8 @@ fn handle_ioctl(raw: RawIoctl, command: Command) -> Result<i32> {
 
 fn write_target_versions(base: usize, header: &mut DmIoctl) -> Result<()> {
     let mut payload = Vec::new();
-    append_target_version(&mut payload, [1, 24, 0], b"crypt", false);
-    append_target_version(&mut payload, [1, 10, 0], b"verity", true);
+    // Runtime table loading currently supports only the crypt target.
+    append_target_version(&mut payload, [1, 24, 0], b"crypt", true);
     write_payload(base, header, &payload)
 }
 

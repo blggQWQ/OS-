@@ -234,16 +234,10 @@ fn validate_options(fields: &[&str]) -> Result<(), DmError> {
         return Err(DmError::InvalidTable);
     }
     for option in &fields[1..] {
-        if !matches!(
-            *option,
-            "allow_discards"
-                | "same_cpu_crypt"
-                | "submit_from_crypt_cpus"
-                | "no_read_workqueue"
-                | "no_write_workqueue"
-                | "iv_large_sectors"
-                | "sector_size:512"
-        ) {
+        // Accept only options whose semantics are implemented by this target.
+        // Silently accepting workqueue, discard, or large-sector options would
+        // misrepresent the behavior exposed to cryptsetup.
+        if *option != "sector_size:512" {
             return Err(DmError::InvalidTable);
         }
     }
