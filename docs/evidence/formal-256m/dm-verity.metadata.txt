@@ -1,8 +1,8 @@
-git_commit=a7b566d68b2d4cf7d838eda50f074f3f3b22b73b
-git_dirty=1
+git_commit=f9da5469f269f1de57b3059e8620c437a07d14de
+git_dirty=0
 build_profile=release-lto
 stage_stats=1
-timestamp_utc=2026-08-03T09:26:04Z
+timestamp_utc=2026-08-05T12:17:13Z
 host=Linux 6.6.87.2-microsoft-standard-WSL2 x86_64 GNU/Linux
 vcpus=1
 memory=8G

@@ -35,6 +35,10 @@ sudo bash scripts/run_formal_dm_benchmark.sh --build-images
 - dm-verity：数据等待、数据 SHA-256、cache 查找、哈希块等待、哈希块 SHA-256、
   摘要比较、cache 插入和树层数。
 
+汇总器还输出 `accounted_ns` 与 `unaccounted_ns`。后者是单次 I/O 总时间减去所有
+已命名阶段之和，包含计时调用、原子计数更新和函数衔接等未单独命名的开销，防止阶段
+百分比看似完整、实际却没有闭合。
+
 所有计时只累计到原子计数器，每轮结束才由 procfs 输出，热路径不打印串口。使用
 下列命令校准观察者开销：
 
@@ -48,26 +52,47 @@ bash scripts/run_dm_stats_calibration.sh verity
 
 ## 本轮正式结果
 
-2026-08-03 的 release-LTO/KVM 五轮结果已归档到 `docs/evidence/formal-256m/`：
+2026-08-05 的干净提交 `f9da5469f` release-LTO/KVM 五轮结果已归档到
+`docs/evidence/formal-256m/`：
 
 | 设备 | 中位吞吐（MiB/s） | 中位 p50（us） | 中位 p95（us） | 相对配对 raw |
 |---|---:|---:|---:|---:|
-| raw（两组 raw 共十轮） | 5.628 | 655.360 | 974.848 | 100.0% |
-| dm-crypt | 4.936 | 724.992 | 1220.608 | 102.0% |
-| dm-verity | 6.217 | 585.728 | 905.216 | 100.6% |
+| raw（两组 raw 共十轮） | 4.249 | 892.928 | 1277.952 | 100.0% |
+| dm-crypt | 4.059 | 921.600 | 1318.912 | 95.6% |
+| dm-verity | 3.815 | 954.368 | 1433.600 | 87.3% |
 
 raw 行用于展示统一量级，是两组共十轮的中位数；每个 target 的百分比使用各自配对
-raw 的五轮中位数。高于 100% 的小幅差值视为本轮噪声，不解释为映射层加速。
+raw 的五轮中位数。正式结果显示 dm-crypt 吞吐损失 4.4%，dm-verity 为 12.7%；不把
+pooled raw 行直接作为任一 target 的百分比基线。
 
 | target | 最大阶段（五轮占比中位数） | 次大阶段 | 结论 |
 |---|---:|---:|---|
-| dm-crypt | 下层等待 98.07% | AES-XTS 1.66% | AES-NI 与复制不是主要瓶颈 |
-| dm-verity | 下层等待 93.79% | 数据 SHA-256 5.81% | cache/哈希树查找不是主要瓶颈 |
+| dm-crypt | 下层等待 97.84% | AES-XTS 1.82% | AES-NI 与复制不是主要瓶颈 |
+| dm-verity | 下层等待 93.01% | 数据 SHA-256 5.74% | cache/哈希树查找不是主要瓶颈 |
 
-这轮定位把后续优化范围收敛到同步 `submit_and_wait` 架构。异步 BIO 完成会改变读完成
-时的解密执行上下文以及对象生命周期，必须单独设计和验证，不能作为一次局部、低风险
-改动直接合入。现有数据已足以回答“时间花在哪里”，且没有证据支持继续微调 AES、
-scratch pool 或 hash cache。
+五轮未归因占比范围为 dm-crypt 0.14%--0.15%、dm-verity 0.23%--0.33%，说明当前
+阶段划分覆盖了 99.67% 以上的 target wall time；这部分余量不被归入 AES、SHA 或
+下层设备，以免夸大任何一个阶段。
+
+这轮定位把后续优化范围收敛到同步 `submit_and_wait` 架构。为验证这个判断，实验分支
+`codex/dm-async-bio`（提交 `a8fc0238a`）只改 dm-crypt：下层 BIO 改为完成回调，写路径
+先加密再提交，读路径在提交前取得 scratch，回调中解密并完成上层 BIO；dm-verity 保持
+不变。回调不睡眠、不分配，并用 `Option<SubmittedBio>` 保证上层 BIO 只完成一次。
+
+实验版通过 release-LTO 构建、下层“先完成后返回”的竞态 ktest，以及真实 KVM
+AES-NI 加密读回；相同 256 MiB/10 s 合同的 after 五轮也全部 `failures=0`：
+
+| 阶段 | raw 中位 MiB/s | dm-crypt 中位 MiB/s | 逐轮配对效率中位 | dm-crypt p95 us |
+|---|---:|---:|---:|---:|
+| before `f9da5469f` | 4.245 | 4.059 | 97.40% | 1318.912 |
+| async after `a8fc0238a` | 6.308 | 6.049 | 96.80% | 937.984 |
+
+绝对 dm-crypt 吞吐增加 49.0%，但 raw 同时增加 48.6%；raw 归一化后的效率变化为
+-0.62%，不能证明异步带来吞吐收益。p95 下降也伴随 raw 延迟整体下降，不能单独归因。
+因此该实现与五轮证据保留用于说明工程探索和严谨否证，暂不建议替换正式基线。证据见
+`docs/evidence/formal-256m-async-after/`，比较器为
+`scripts/compare_dm_crypt_async_ab.py`。下一步若继续，应使用同一进程/时间窗口交错提交
+版本，或把解密从 IRQ 完成回调迁移到专用 worker，再重新做五轮 A/B。
 
 ## 已有历史证据
 
@@ -77,8 +102,8 @@ scratch pool 或 hash cache。
 | Asterinas dm-crypt 读取 | 同上，AES-256-XTS，AES-NI | 1.506 MiB/s |
 | Asterinas dm-verity，cache=0 | 同一 16 MiB 镜像、4 KiB fio 读 | 0.320 MiB/s |
 | Asterinas dm-verity，cache=256 | 同上 | 0.398 MiB/s |
-| Linux guest dm-crypt | KVM、CPU=host、1 vCPU、8 GiB、同一 8 MiB 测试区 | 4.355 MiB/s |
-| Asterinas dm-crypt（严格对照轮次） | 与 Linux guest 相同 I/O 合约和数据区 | 0.523 MiB/s |
+| Linux guest dm-crypt | KVM、CPU=host、1 vCPU、8 GiB、同一 256 MiB 测试区 | 4.746 MiB/s |
+| Asterinas dm-crypt（严格对照轮次） | 与 Linux guest 相同 I/O 合约和数据区 | 4.059 MiB/s |
 
 证据位于 `docs/evidence/`。cache=256 相对 cache=0 的吞吐提升为 24.4%，p95
 降低 8.7%；两组 `data_rereads=0`。这只能证明 Asterinas 内部 A/B，不能推出
@@ -91,14 +116,14 @@ Asterinas 达到 Linux 性能的某个百分比。严格同条件对照数据见
 1. 在同一宿主机用 QEMU/KVM 启动 Linux，配置 `-accel kvm -cpu host -smp 1 -m 8G`；
 2. 除 Linux 系统盘外，再挂同一份 raw 数据盘为 virtio-blk；
 3. Asterinas 也把这份数据盘挂为 `/dev/vdc`；
-4. 两端都对该数据盘前 8 MiB 运行相同 fio 合约。
+4. 两端都对该数据盘前 256 MiB 运行相同 fio 合约。
 
 Linux guest 内运行：
 
 ```bash
 sudo VCPUS=1 MEMORY=8G ACCELERATOR=kvm CPU_MODEL=host \
-  DEVICE_MODEL=virtio-blk RAW_DEVICE=/dev/vdc RUNS=5 SIZE_MIB=8 \
-  RUNTIME=2 RAMP_TIME=1 \
+  DEVICE_MODEL=virtio-blk RAW_DEVICE=/dev/vdc RUNS=5 SIZE_MIB=256 \
+  RUNTIME=10 RAMP_TIME=2 \
   bash scripts/benchmark_linux_guest_dm_crypt.sh \
   target/benchmark/linux-guest-dm-crypt.csv
 ```
@@ -131,15 +156,17 @@ python3 scripts/compare_cross_guest_dm_crypt.py \
 内存信息也记录在 metadata 中，人工复核时应一并归档。
 
 本次实测的 Linux guest 与 Asterinas 原始矩阵均为五轮，测试区域 SHA-256 同为
-`93ff1ab9732d787a984f56c1cdb5f3601d9f55ce582951266624df69114f944d`：
+`d1a3f55df4e589f052946b83e08a41a192c84fca4b268bf8bb5b294cc69c584f`：
 
 | 系统 | raw MiB/s | dm-crypt MiB/s | 保留率 | dm-crypt p95 us | dm-crypt p99 us |
 |---|---:|---:|---:|---:|---:|
-| Linux guest | 4.652 | 4.355 | 93.629% | 1335.296 | 2342.912 |
-| Asterinas | 1.737 | 0.523 | 30.094% | 15663.104 | 22937.600 |
+| Linux guest | 5.150 | 4.746 | 92.158% | 1384.448 | 2998.272 |
+| Asterinas | 4.245 | 4.059 | 95.621% | 1318.912 | 2023.424 |
 
-Asterinas dm-crypt 绝对吞吐为 Linux guest 的 12.0%。原始 CSV、metadata 和比较表
-均位于 `docs/evidence/`；该结论只适用于表中固定的小规模同步读矩阵。
+Asterinas raw、dm-crypt 绝对吞吐分别为 Linux guest 的 82.4% 和 85.5%。95.621%
+是相对 Asterinas 自身 raw 的保留率；它高于 Linux 的 92.158%，表示本轮固定合同中
+测得的增量 dm 层损耗较小，不表示 Asterinas 绝对吞吐超过 Linux。原始 CSV、metadata
+和比较表均位于 `docs/evidence/`；该结论只适用于表中固定的同步读矩阵。
 
 ## 扩展 fio 矩阵
 

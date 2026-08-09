@@ -146,7 +146,7 @@ fio --name=verity-read --filename=/mnt/testfile --size=128M --rw=read --bs=4k
 - 用户态测试 tree 仍在内存中；Asterinas 内核路径使用镜像尾部的 on-disk hash tree。
 - 已完成 Linux dm-crypt/dm-verity 基线、Asterinas KVM 五轮 dm-verity cache A/B、
   同一宿主机/数据盘/I/O 合约的 Linux guest 与 Asterinas 五轮 dm-crypt 对照；
-  Asterinas 绝对吞吐为 Linux guest 的 12.0%。
+  Asterinas raw、dm-crypt 绝对吞吐分别为 Linux guest 的 82.4% 和 85.5%。
 - 已完成 plain 与 dm-verity 各五轮冷启动对照，中位数为 16.058 秒和 16.902 秒，
   dm-verity 增量为 5.256%。
 

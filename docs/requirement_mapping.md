@@ -98,7 +98,7 @@ LUKS metadata、PBKDF 与 keyslot 仍按 Linux 分层留在用户态。
 当前已经完成 Asterinas KVM 下 dm-crypt raw/AES-NI 五轮配对、dm-verity hash cache
 A/B 五轮测试、同一宿主机与数据盘上的 Linux guest/Asterinas 直接对照，以及带
 宿主机单调时间戳日志的 plain/dm-verity 各五轮启动对照。严格对照中 Asterinas
-dm-crypt 吞吐为 Linux guest 的 12.0%；dm-verity 中位启动增量为 5.256%。
+raw、dm-crypt 吞吐分别为 Linux guest 的 82.4% 和 85.5%；dm-verity 中位启动增量为 5.256%。
 
 ## 指标 5：技术探索
 
@@ -132,7 +132,7 @@ dm-crypt 吞吐为 Linux guest 的 12.0%；dm-verity 中位启动增量为 5.256
 | dm-verity 正例 | `status=verified`、`data_rereads=0`、根切换 PASS |
 | dm-verity 篡改反例 | 一字节篡改后 `status=integrity-rejected`；零个 root-switch PASS |
 | 可量化优化 | hash cache=256 相对 cache=0：五轮 dm-verity 中位吞吐 +24.4%，p95 -8.7% |
-| 跨系统性能 | 同条件五轮：Linux 4.355 MiB/s，Asterinas 0.523 MiB/s（12.0%） |
+| 跨系统性能 | 同条件五轮：Linux 4.746 MiB/s，Asterinas 4.059 MiB/s（85.5%） |
 | 启动开销 | plain 16.058 s，dm-verity 16.902 s，中位增量 5.256% |
 
 原始 KVM 串口和逐轮 CSV 位于 `docs/evidence/`，入口索引为

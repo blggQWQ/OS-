@@ -2,8 +2,8 @@
 
 本项目开发过程中合理使用了以下 AI 辅助工具：
 
-- 工具名称：OpenAI Codex；
-- 相关大模型：GPT-5；
+- 工具名称：WorkBuddy；
+- 相关大模型：腾讯混元 Hy3、DeepSeek；
 - 使用场景：阅读和梳理 Asterinas、dm-crypt、dm-verity 相关代码；辅助分析
   BIO 数据路径与构建错误；生成或修改部分 Rust、Shell 测试和构建脚本；
   协助整理 README、设计说明、测试状态及参赛文档表述；辅助执行测试、

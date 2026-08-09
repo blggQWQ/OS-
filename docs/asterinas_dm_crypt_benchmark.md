@@ -48,8 +48,8 @@ Asterinas 测试相同的 raw 数据盘为 `/dev/vdc`，在 guest 内运行：
 
 ```bash
 sudo VCPUS=1 MEMORY=8G ACCELERATOR=kvm CPU_MODEL=host \
-  DEVICE_MODEL=virtio-blk RAW_DEVICE=/dev/vdc RUNS=5 SIZE_MIB=8 \
-  RUNTIME=2 RAMP_TIME=1 \
+  DEVICE_MODEL=virtio-blk RAW_DEVICE=/dev/vdc RUNS=5 SIZE_MIB=256 \
+  RUNTIME=10 RAMP_TIME=2 \
   bash scripts/benchmark_linux_guest_dm_crypt.sh \
   target/benchmark/linux-guest-dm-crypt.csv
 ```
@@ -83,7 +83,8 @@ DM_CRYPT_SCRATCH_POOL=32 bash tools/run_dm_crypt_bench.sh
 
 ## 当前状态
 
-采集和汇总链路已于 2026-07-15 在 KVM 完成五轮实跑，结果见
-`docs/evidence/asterinas-dm-crypt-kvm-2026-07-15.md` 与同目录 CSV。下一步将 Linux
-guest 放入相同 QEMU/KVM 虚拟磁盘和 fio 参数，形成严格的跨系统绝对吞吐对照；在此之前，
-明确区分“原始设备归一化开销”和“跨内核绝对吞吐”。
+新正式合同已于 2026-08-09 在同一宿主机和数据盘上完成 Linux guest/Asterinas
+各五轮对照。两端前 256 MiB 区域 SHA-256、虚拟机配置、密码参数和 fio 参数均由
+比较器核对一致。结果见 `docs/evidence/linux-vs-asterinas-dm-crypt.md`：Asterinas
+raw、dm-crypt 绝对吞吐分别为 Linux guest 的 82.4% 和 85.5%；相对各自 raw 的
+dm-crypt 保留率分别为 95.621% 和 92.158%。必须区分“归一化开销”和“跨内核绝对吞吐”。
