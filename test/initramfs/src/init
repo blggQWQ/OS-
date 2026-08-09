@@ -18,6 +18,11 @@ DM_ROOT_REQUESTED=0
 DM_ROOT_BOOTSTRAPPED=0
 CRYPTSETUP_SMOKE_DEVICE=
 CRYPTSETUP_SMOKE_REQUESTED=0
+CRYPT_CORRECTNESS_DEVICE=
+CRYPT_CORRECTNESS_REQUESTED=0
+VERITY_PROBE_DEVICE=
+VERITY_PROBE_BLOCK=
+VERITY_PROBE_REQUESTED=0
 DM_BENCH_RAW=
 DM_BENCH_MAPPER=
 DM_BENCH_REQUESTED=0
@@ -30,6 +35,31 @@ DM_BENCH_SIZE=8m
 DM_BENCH_RUNTIME=2
 DM_BENCH_RUNS=5
 DM_BENCH_RAMP=1
+for arg in "$@"; do
+    if [ "$arg" = "verity-probe" ]; then
+        VERITY_PROBE_REQUESTED=1
+        break
+    fi
+done
+if [ "$VERITY_PROBE_REQUESTED" -eq 1 ]; then
+    while [ "$#" -gt 0 ] && [ "$1" != "verity-probe" ]; do shift; done
+    VERITY_PROBE_DEVICE="${2:-}"
+    VERITY_PROBE_BLOCK="${3:-0}"
+    shift 3
+fi
+for arg in "$@"; do
+    if [ "$arg" = "crypt-correctness" ]; then
+        CRYPT_CORRECTNESS_REQUESTED=1
+        break
+    fi
+done
+if [ "$CRYPT_CORRECTNESS_REQUESTED" -eq 1 ]; then
+    while [ "$#" -gt 0 ] && [ "$1" != "crypt-correctness" ]; do
+        shift
+    done
+    CRYPT_CORRECTNESS_DEVICE="${2:-}"
+    shift 2
+fi
 for arg in "$@"; do
     if [ "$arg" = "dm-bench" ]; then
         DM_BENCH_REQUESTED=1
@@ -165,6 +195,65 @@ if [ -n "$DM_BENCH_RAW" ] && [ -n "$DM_BENCH_MAPPER" ]; then
         RUN=$((RUN + 1))
     done
     echo "[dm-bench] PASS ${DM_BENCH_RUNS}-run raw/$DM_BENCH_LABEL matrix completed"
+    poweroff -f
+    exit 0
+fi
+
+if [ -n "$VERITY_PROBE_DEVICE" ]; then
+    echo "[verity-probe] commit=9d79542cadddc6164ad3f31fd8cba776969d85a9 block=$VERITY_PROBE_BLOCK cmdline=$(cat /proc/cmdline)"
+    if [ ! -b "$VERITY_PROBE_DEVICE" ]; then
+        echo "[verity-probe] PASS integrity rejected before mapper publication status=$(cat /proc/dm-verity-stats 2>/dev/null || echo unavailable)"
+        poweroff -f
+        exit 0
+    fi
+    if dd if="$VERITY_PROBE_DEVICE" of=/tmp/verity-probe bs=4096 skip="$VERITY_PROBE_BLOCK" count=1 2>/tmp/verity-probe.err; then
+        echo "[verity-probe] FAIL corrupted block delivered as successful data hash=$(sha256sum /tmp/verity-probe | cut -d' ' -f1)"
+        poweroff -f
+    fi
+    echo "[verity-probe] PASS mapper read returned IoError/integrity rejection block=$VERITY_PROBE_BLOCK error=$(cat /tmp/verity-probe.err) status=$(cat /proc/dm-verity-stats 2>/dev/null || echo unavailable)"
+    poweroff -f
+    exit 0
+fi
+
+if [ -n "$CRYPT_CORRECTNESS_DEVICE" ]; then
+    echo "[crypt-correctness] commit=9d79542cadddc6164ad3f31fd8cba776969d85a9"
+    echo "[crypt-correctness] cmdline=$(cat /proc/cmdline)"
+    dd if=/dev/zero of=/tmp/key.correct bs=64 count=1 2>/dev/null
+    dd if=/dev/zero bs=63 count=1 2>/dev/null | tr '\000' '\377' > /tmp/key.wrong
+    printf '\377' >> /tmp/key.wrong
+    cryptsetup open --type plain --cipher aes-xts-plain64 --key-size 512 \
+        --key-file /tmp/key.correct "$CRYPT_CORRECTNESS_DEVICE" correctness
+    CASE=3
+    for SIZE in 4096 32768 262144; do
+        dd if=/dev/urandom of=/tmp/input bs="$SIZE" count=1 2>/dev/null
+        dd if=/tmp/input of=/dev/mapper/correctness bs="$SIZE" count=1 conv=fsync 2>/dev/null
+        dd if=/dev/mapper/correctness of=/tmp/output bs="$SIZE" count=1 2>/dev/null
+        WRITE_HASH=$(sha256sum /tmp/input | cut -d' ' -f1)
+        READ_HASH=$(sha256sum /tmp/output | cut -d' ' -f1)
+        echo "[crypt-correctness] C0$CASE size=$SIZE write_hash=$WRITE_HASH read_hash=$READ_HASH"
+        if [ "$WRITE_HASH" != "$READ_HASH" ] || ! cmp -s /tmp/input /tmp/output; then
+            echo "[crypt-correctness] FAIL C0$CASE mapper round-trip"
+            poweroff -f
+        fi
+        echo "[crypt-correctness] PASS C0$CASE mapper round-trip"
+        if [ "$CASE" = "3" ]; then
+            C01_HASH=$WRITE_HASH
+            echo "[crypt-correctness] PASS C01 correct-key mapper write/read hash=$C01_HASH"
+        fi
+        CASE=$((CASE + 1))
+    done
+    cryptsetup close correctness
+    cryptsetup open --type plain --cipher aes-xts-plain64 --key-size 512 \
+        --key-file /tmp/key.wrong "$CRYPT_CORRECTNESS_DEVICE" wrong-key
+    dd if=/dev/mapper/wrong-key of=/tmp/wrong-output bs=4096 count=1 2>/dev/null
+    WRONG_HASH=$(sha256sum /tmp/wrong-output | cut -d' ' -f1)
+    echo "[crypt-correctness] C02 correct_hash=$C01_HASH wrong_key_hash=$WRONG_HASH"
+    if [ "$WRONG_HASH" = "$C01_HASH" ]; then
+        echo "[crypt-correctness] FAIL C02 wrong key exposed correct plaintext"
+        poweroff -f
+    fi
+    echo "[crypt-correctness] PASS C02 wrong key did not expose correct plaintext"
+    cryptsetup close wrong-key
     poweroff -f
     exit 0
 fi
