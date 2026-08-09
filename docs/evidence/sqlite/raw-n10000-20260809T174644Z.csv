@@ -1,0 +1,2 @@
+target,rows,status,create_s,bulk_insert_s,transaction_s,select_s,update_s,select2_s,total_s,db_path
+raw,10000,ok,0.005861,0.005235,0.004251,0.000125,0.002244,0.000045,0.017760,/tmp/cscc-sqlite-test/cscc-10000.db

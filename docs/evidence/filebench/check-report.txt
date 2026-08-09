@@ -1,0 +1,7 @@
+timestamp_utc=2026-08-09T17:46:43Z
+host=Linux 7.0.0-28-generic x86_64 GNU/Linux
+filebench_path=
+status=missing
+STATUS=missing
+tried=command -v filebench
+hint=See docs/filebench.md for install options (do not patch Asterinas for this).

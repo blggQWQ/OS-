@@ -1,0 +1,7 @@
+git_commit=40d8abbae017b4823e5dfec8aa2c94ae7a19bb8a
+timestamp_utc=2026-08-09T17:46:44Z
+target=raw
+rows=10000
+db_dir=/tmp/cscc-sqlite-test
+sqlite3=3.51.0 2025-11-04 19:38:17 fb2c931ae597f8d00a37574ff67aeed3eced4e5547f9120744ae4bfa8e74527b (64-bit)
+workload=create,bulk_insert,commit,select,update,select
