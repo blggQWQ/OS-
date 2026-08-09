@@ -14,3 +14,16 @@ artifacts/
 .vscode/
 __pycache__/
 *.pyc
+
+# Rust 构建缓存
+.cargo/
+
+# 构建产物（根据你的列表）
+all_sources_summary.txt
+aster-initramfs.img
+aster-kernel.bin
+asterinas
+asterinas_custom.iso
+asterinas_dmcrypt.iso
+export.py
+asterinas
