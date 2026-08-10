@@ -20,6 +20,8 @@ DM_CACHE_BLOCKS=${DM_CACHE_BLOCKS:-256}
 DM_BENCH_RW=${DM_BENCH_RW:-read}
 DM_BENCH_BS=${DM_BENCH_BS:-4k}
 DM_BENCH_QD=${DM_BENCH_QD:-1}
+DM_BENCH_IOENGINE=${DM_BENCH_IOENGINE:-sync}
+DM_BENCH_JOBS=${DM_BENCH_JOBS:-1}
 DM_BENCH_SIZE=${DM_BENCH_SIZE:-256m}
 DM_BENCH_RUNTIME=${DM_BENCH_RUNTIME:-10}
 DM_BENCH_RUNS=${DM_BENCH_RUNS:-5}
@@ -31,6 +33,10 @@ export CONSOLE=${DM_CONSOLE:-hvc0}
 
 if [ ! -f "${DM_IMAGE}" ]; then
     echo "dm-verity image not found: ${DM_IMAGE}" >&2
+    exit 1
+fi
+if [ "${DM_BENCH_IOENGINE}" = "sync" ] && [ "${DM_BENCH_QD}" != "1" ]; then
+    echo "sync ioengine cannot produce queue depth > 1; use posixaio" >&2
     exit 1
 fi
 if [ "${RELEASE_LTO}" != "1" ]; then
@@ -73,9 +79,10 @@ TIMESTAMP_UTC=$(date -u +%Y-%m-%dT%H:%M:%SZ)
     echo "root_hash=${DM_ROOT_HASH}"
     echo "rw=${DM_BENCH_RW}"
     echo "block_size=${DM_BENCH_BS}"
-    echo "ioengine=sync"
+    echo "ioengine=${DM_BENCH_IOENGINE}"
     echo "direct=1"
     echo "queue_depth=${DM_BENCH_QD}"
+    echo "jobs=${DM_BENCH_JOBS}"
     echo "size_mib=${DM_BENCH_SIZE_MIB}"
     echo "ramp_seconds=${DM_BENCH_RAMP}"
     echo "runtime_seconds=${DM_BENCH_RUNTIME}"
@@ -85,7 +92,7 @@ TIMESTAMP_UTC=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 echo "[dm-bench-meta] commit=${GIT_COMMIT} dirty=${GIT_DIRTY} profile=release-lto stage_stats=${DM_PERF_STATS} timestamp_utc=${TIMESTAMP_UTC}"
 echo "[dm-bench-meta] accelerator=$([ "${ENABLE_KVM:-0}" = "1" ] && echo kvm || echo tcg) cpu_model=$([ "${ENABLE_KVM:-0}" = "1" ] && echo host || echo default) vcpus=${SMP:-1} memory=${MEM:-8G} device_model=virtio-blk"
-echo "[dm-bench-meta] rw=${DM_BENCH_RW} block_size=${DM_BENCH_BS} queue_depth=${DM_BENCH_QD} size=${DM_BENCH_SIZE} runtime=${DM_BENCH_RUNTIME} ramp=${DM_BENCH_RAMP} runs=${DM_BENCH_RUNS}"
+echo "[dm-bench-meta] rw=${DM_BENCH_RW} block_size=${DM_BENCH_BS} ioengine=${DM_BENCH_IOENGINE} queue_depth=${DM_BENCH_QD} jobs=${DM_BENCH_JOBS} size=${DM_BENCH_SIZE} runtime=${DM_BENCH_RUNTIME} ramp=${DM_BENCH_RAMP} runs=${DM_BENCH_RUNS}"
 
 KCMD_ARGS="console=${CONSOLE} \
 rootfs_verity.scheme=dm-verity \
@@ -98,7 +105,7 @@ rootfs_verity.cache_blocks=${DM_CACHE_BLOCKS} \
 dm.perf_stats=${DM_PERF_STATS}"
 
 export DM_IMAGE
-OSDK_ARGS="--kcmd-args=\"${KCMD_ARGS}\" --init-args=\"dm-bench /dev/${DM_DEVICE} /dev/${DM_NAME} ${DM_BENCH_RW} ${DM_BENCH_BS} ${DM_BENCH_QD} ${DM_BENCH_SIZE} ${DM_BENCH_RUNTIME} ${DM_BENCH_RUNS} ${DM_BENCH_RAMP} /bin/true\""
+OSDK_ARGS="--kcmd-args=\"${KCMD_ARGS}\" --init-args=\"dm-bench /dev/${DM_DEVICE} /dev/${DM_NAME} ${DM_BENCH_RW} ${DM_BENCH_BS} ${DM_BENCH_QD} ${DM_BENCH_SIZE} ${DM_BENCH_RUNTIME} ${DM_BENCH_RUNS} ${DM_BENCH_RAMP} ${DM_BENCH_IOENGINE} ${DM_BENCH_JOBS} /bin/true\""
 if [ "${ENABLE_KVM:-0}" = "1" ]; then
     OSDK_ARGS="${OSDK_ARGS} --qemu-args=\"-accel kvm -cpu host\""
 fi
