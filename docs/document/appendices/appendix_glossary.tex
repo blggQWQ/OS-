@@ -1,6 +1,6 @@
 % appendices/appendix_glossary.tex
-\chapter*{附录A：术语表}
-\addcontentsline{toc}{chapter}{附录A：术语表}
+\chapter{附录A：术语表}
+\label{app:glossary}
 
 \small
 \begin{longtable}{|p{0.24\textwidth}|p{0.41\textwidth}|p{0.25\textwidth}|}
@@ -8,27 +8,31 @@
 \textbf{术语} & \textbf{定义} & \textbf{代码位置} \\
 \hline
 \endhead
-BlockDevice & 表示任何可以读写固定大小块的存储介质的 trait 抽象 & src/block\_device.rs \\
-dm-crypt & 提供透明磁盘加密的设备映射器目标 & src/dm\_crypt.rs \\
-dm-verity & 提供透明完整性校验的设备映射器目标 & src/dm\_verity.rs \\
-HashTree & dm-verity 使用的默克尔树结构 & src/hash\_tree.rs \\
-AES-256-XTS & 磁盘加密的标准密码模式 & src/crypto.rs \\
-plain64 IV & 使用 64 位扇区号作为 IV 的策略 & src/crypto.rs \\
-Integrity\allowbreak Violation & 哈希不匹配时返回的错误 & src/error.rs \\
-Root Hash & 默克尔树的顶层哈希，信任锚 & src/hash\_tree.rs \\
-Tweak Key & XTS 密钥的后半部分，用于加密 IV & src/crypto.rs \\
-IV Offset & 用于计算初始化向量的偏移值 & src/dm\_crypt.rs \\
-Data Offset & 物理设备开头用于元数据的扇区数 & src/dm\_crypt.rs \\
-DM\_SECTOR\_\allowbreak SIZE & 设备映射器的原子 I/O 单位（512 字节） & src/dm\_crypt.rs \\
-DmDevice & 星绽内核中实现 BIO 映射的块设备 & aster-dm/device.rs \\
-DM 启动参数 & crypt/verity 参数解析与 mapper 注册 & aster-dm/lib.rs \\
-Passthrough\allowbreak Device & 直接转发调用的包装器 & device\_mapper.rs \\
-aster-dm & 星绽内核中的 Device Mapper 组件 & kernel/comps/dm/ \\
-DmTarget & 封装 Crypt 或 Verity 逻辑的枚举 & 补丁 0001 \\
-self\_test\_\allowbreak ext2\_\allowbreak magic & 启动时自检函数 & 补丁 0002 \\
+BlockDevice & 表示任何可以读写固定大小块的存储介质的 trait 抽象 & \texttt{crates/dm/src/block\_device.rs} \\
+dm-crypt & 提供透明磁盘加密的设备映射器目标 & \texttt{crates/dm/src/dm\_crypt.rs} \\
+dm-verity & 提供透明完整性校验的设备映射器目标 & \texttt{crates/dm/src/dm\_verity.rs} \\
+HashTree & dm-verity 使用的默克尔树结构 & \texttt{crates/dm/src/hash\_tree.rs} \\
+AES-256-XTS & 磁盘加密的标准密码模式 & \texttt{crates/dm/src/crypto.rs} \\
+plain64 IV & 使用 64 位扇区号作为 IV 的策略 & \texttt{crates/dm/src/crypto.rs} \\
+IntegrityViolation & 哈希不匹配时返回的错误 & \texttt{crates/dm/src/error.rs} \\
+Root Hash & 默克尔树的顶层哈希，信任锚 & \texttt{crates/dm/src/hash\_tree.rs} \\
+Tweak Key & XTS 密钥的后半部分，用于加密 IV & \texttt{crates/dm/src/crypto.rs} \\
+IV Offset & 用于计算初始化向量的偏移值 & \texttt{crates/dm/src/dm\_crypt.rs} \\
+Data Offset & 物理设备开头用于元数据的扇区数 & \texttt{crates/dm/src/dm\_crypt.rs} \\
+DM\_SECTOR\_SIZE & 设备映射器的原子 I/O 单位（512 字节） & \texttt{crates/dm/src/dm\_crypt.rs} \\
+DmDevice & 星绽内核中实现 BIO 映射的块设备 & \texttt{asterinas/kernel/comps/dm/src/device.rs} \\
+DM 启动参数 & crypt/verity 参数解析与 mapper 注册 & \texttt{asterinas/kernel/comps/dm/src/lib.rs} \\
+PassthroughDevice & 直接转发调用的包装器 & \texttt{crates/dm/src/device\_mapper.rs} \\
+aster-dm & 星绽内核中的 Device Mapper 组件 & \texttt{asterinas/kernel/comps/dm/} \\
+DmTarget & 封装 Crypt 或 Verity 逻辑的枚举 & \texttt{asterinas/kernel/comps/dm/src/device.rs} \\
+self\_test\_ext2\_magic & 启动时自检函数（检查 EXT2 魔数） & 补丁 0002 \\
 pivot\_root & 切换根文件系统的机制 & 补丁 0003 \\
-dmctl & 用户态命令行工具 & dmctl/src/main.rs \\
-MemoryBlock\allowbreak Device & 基于内存的后端 & src/block\_device.rs \\
-FileBlock\allowbreak Device & 基于文件的后端 & src/block\_device.rs \\
+dmctl & 用户态命令行工具 & \texttt{crates/dmctl/src/main.rs} \\
+MemoryBlockDevice & 基于内存的后端 & \texttt{crates/dm/src/block\_device.rs} \\
+FileBlockDevice & 基于文件的后端 & \texttt{crates/dm/src/block\_device.rs} \\
+VirtioBlkAdapter & 星绽内核中 VirtIO 块设备适配器 & \texttt{asterinas/kernel/comps/dm/src/device.rs} \\
+Scratch Pool & dm-crypt 有界临时缓冲池，用于复用加解密缓冲区 & \texttt{asterinas/kernel/comps/dm/src/device.rs} \\
+认证后哈希缓存 & 只缓存经过完整 Merkle 路径认证的哈希块 & \texttt{asterinas/kernel/comps/dm/src/verity.rs} \\
+DmStackBuilder & 用户态下组合 crypt/verity 层的构建器 & \texttt{crates/dm/src/device\_mapper.rs} \\
 \hline
 \end{longtable}

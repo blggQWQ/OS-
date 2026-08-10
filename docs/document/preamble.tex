@@ -4,8 +4,11 @@
 \usepackage{geometry}
 \geometry{a4paper, top=2.5cm, bottom=2.5cm, left=3cm, right=2.5cm}
 
-% 中文支持 - Windows 系统使用 Windows 自带字体
-\usepackage[UTF8, fontset=windows]{ctex}
+% 中文支持 - 使用 xeCJK 或 ctex 的通用配置
+\usepackage[UTF8]{ctex}
+% 如果在 Linux 上编译，可能需要指定 fontset:
+% \usepackage[UTF8, fontset=ubuntu]{ctex}   % Ubuntu
+% \usepackage[UTF8, fontset=founder]{ctex}  % 方正字体
 
 % 图表和浮动体
 \usepackage{graphicx}
@@ -22,6 +25,7 @@
 \usepackage{listings}
 \usepackage{xcolor}
 
+% 自定义 listings 样式（通用）
 \lstdefinestyle{codestyle}{
     basicstyle=\ttfamily\small,
     keywordstyle=\color{blue},
@@ -40,6 +44,31 @@
 }
 \lstset{style=codestyle}
 
+% 为 listings 添加 Rust 语言支持
+\lstdefinelanguage{Rust}{
+  keywords={
+    abstract, as, async, await, break, const, continue, crate, do, dyn, else,
+    enum, extern, false, fn, for, if, impl, in, let, loop, match, mod, move,
+    mut, pub, ref, return, self, static, struct, super, trait, true, type,
+    unsafe, use, where, while, yield,
+  },
+  keywordstyle=\color{blue}\bfseries,
+  ndkeywords={
+    Box, Option, Result, String, Vec, u8, u64, usize, i32, i64, f32, f64,
+    char, bool, &, mut, self, Self, Sync, Send, Arc, Mutex, RwLock,
+  },
+  ndkeywordstyle=\color{purple}\bfseries,
+  identifierstyle=\color{black},
+  sensitive=true,
+  comment=[l]{//},
+  morecomment=[s]{/*}{*/},
+  commentstyle=\color{gray}\itshape,
+  stringstyle=\color{red},
+  morestring=[b]",
+  morestring=[b]',
+  morestring=[b]",
+}
+
 % 数学公式
 \usepackage{amsmath, amssymb, amsfonts}
 
@@ -52,7 +81,7 @@
     urlcolor=blue,
     pdfstartview=FitH,
     pdftitle={星绽操作系统 dm-crypt/dm-verity 设计与实现},
-    pdfauthor={参赛队}
+    pdfauthor={Go_Go_Go 参赛队}
 }
 
 % 页眉页脚
