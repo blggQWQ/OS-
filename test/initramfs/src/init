@@ -25,6 +25,12 @@ CRYPT_CORRECTNESS_SOURCE_COMMIT=unknown
 VERITY_PROBE_DEVICE=
 VERITY_PROBE_BLOCK=
 VERITY_PROBE_REQUESTED=0
+VERITY_RANGE_DEVICE=
+VERITY_RANGE_START=0
+VERITY_RANGE_COUNT=1
+VERITY_RANGE_REPEATS=1
+VERITY_RANGE_LABEL=V09
+VERITY_RANGE_REQUESTED=0
 DM_BENCH_RAW=
 DM_BENCH_MAPPER=
 DM_BENCH_REQUESTED=0
@@ -37,6 +43,21 @@ DM_BENCH_SIZE=8m
 DM_BENCH_RUNTIME=2
 DM_BENCH_RUNS=5
 DM_BENCH_RAMP=1
+for arg in "$@"; do
+    if [ "$arg" = "verity-range" ]; then
+        VERITY_RANGE_REQUESTED=1
+        break
+    fi
+done
+if [ "$VERITY_RANGE_REQUESTED" -eq 1 ]; then
+    while [ "$#" -gt 0 ] && [ "$1" != "verity-range" ]; do shift; done
+    VERITY_RANGE_DEVICE="${2:-}"
+    VERITY_RANGE_START="${3:-0}"
+    VERITY_RANGE_COUNT="${4:-1}"
+    VERITY_RANGE_REPEATS="${5:-1}"
+    VERITY_RANGE_LABEL="${6:-V09}"
+    shift 6
+fi
 for arg in "$@"; do
     if [ "$arg" = "verity-probe" ]; then
         VERITY_PROBE_REQUESTED=1
@@ -199,6 +220,31 @@ if [ -n "$DM_BENCH_RAW" ] && [ -n "$DM_BENCH_MAPPER" ]; then
         RUN=$((RUN + 1))
     done
     echo "[dm-bench] PASS ${DM_BENCH_RUNS}-run raw/$DM_BENCH_LABEL matrix completed"
+    poweroff -f
+    exit 0
+fi
+
+if [ -n "$VERITY_RANGE_DEVICE" ]; then
+    echo "[verity-range] label=$VERITY_RANGE_LABEL start=$VERITY_RANGE_START count=$VERITY_RANGE_COUNT repeats=$VERITY_RANGE_REPEATS cmdline=$(cat /proc/cmdline)"
+    if [ ! -b "$VERITY_RANGE_DEVICE" ]; then
+        echo "[verity-range] FAIL $VERITY_RANGE_LABEL mapper missing status=$(cat /proc/dm-verity-stats 2>/dev/null || echo unavailable)"
+        poweroff -f
+    fi
+    RUN=1
+    while [ "$RUN" -le "$VERITY_RANGE_REPEATS" ]; do
+        if ! dd if="$VERITY_RANGE_DEVICE" of="/tmp/verity-range-$RUN" bs=4096 skip="$VERITY_RANGE_START" count="$VERITY_RANGE_COUNT" 2>"/tmp/verity-range-$RUN.err"; then
+            echo "[verity-range] FAIL $VERITY_RANGE_LABEL read run=$RUN error=$(cat "/tmp/verity-range-$RUN.err")"
+            poweroff -f
+        fi
+        EXPECTED_BYTES=$((VERITY_RANGE_COUNT * 4096))
+        ACTUAL_BYTES=$(wc -c < "/tmp/verity-range-$RUN")
+        if [ "$ACTUAL_BYTES" -ne "$EXPECTED_BYTES" ]; then
+            echo "[verity-range] FAIL $VERITY_RANGE_LABEL short read run=$RUN expected=$EXPECTED_BYTES actual=$ACTUAL_BYTES"
+            poweroff -f
+        fi
+        RUN=$((RUN + 1))
+    done
+    echo "[verity-range] PASS $VERITY_RANGE_LABEL bytes=$((VERITY_RANGE_COUNT * 4096)) repeats=$VERITY_RANGE_REPEATS status=$(cat /proc/dm-verity-stats 2>/dev/null || echo unavailable)"
     poweroff -f
     exit 0
 fi
