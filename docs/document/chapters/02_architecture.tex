@@ -9,15 +9,20 @@
 
 \texttt{BlockDevice} trait 是库中所有存储操作的基础接口。它定义了用于读写固定大小数据块的同步接口。为了支持跨线程的并发访问，并安全地集成到星绽内核或用户态工具中，该 trait 要求实现 \texttt{Send} 和 \texttt{Sync} 标记。
 
-该 trait 要求实现四个主要方法：
-\begin{itemize}
-    \item \texttt{block\_size()}：返回单个块的大小（以字节为单位）。
-    \item \texttt{num\_blocks()}：返回设备的总容量（以块为单位）。
-    \item \texttt{read\_block(block\_id, buf)}：将特定块的内容读取到提供的缓冲区中。
-    \item \texttt{write\_block(block\_id, buf)}：将缓冲区的内容写入特定块。
-\end{itemize}
+该 trait 定义如下：
+
+\begin{lstlisting}[language=Rust, basicstyle=\ttfamily\small]
+pub trait BlockDevice: Send + Sync {
+    fn block_size(&self) -> usize;
+    fn num_blocks(&self) -> u64;
+    fn read_block(&self, block_id: u64, buf: &mut [u8]) -> Result<()>;
+    fn write_block(&self, block_id: u64, buf: &[u8]) -> Result<()>;
+}
+\end{lstlisting}
 
 所有 I/O 方法均返回 \texttt{Result<()>}，其中错误被封装在 \texttt{DmError} 枚举中。
+
+在 Asterinas 内核中，该 trait 进一步映射到 \texttt{aster-block} 组件的 BIO 接口，从而支持真实的 VirtIO 块设备。
 
 \begin{figure}[H]
     \centering
@@ -31,11 +36,13 @@
 该架构采用类似装饰器（Decorator）的设计模式。其中“映射器”（如 \texttt{DmCryptDevice} 和 \texttt{DmVerityDevice}）既实现了 \texttt{BlockDevice} trait，又在其内部消费（包装）另一个实现了 \texttt{BlockDevice} 的对象。这允许功能的任意堆叠与组合。
 
 例如，一个典型的栈可能是：
-\begin{lstlisting}[basicstyle=\ttfamily\small]
+\begin{lstlisting}[language=Rust, basicstyle=\ttfamily\small]
 let file = FileBlockDevice::open("disk.img")?;
 let crypt = DmCryptDevice::new(file, key)?;
 let verity = DmVerityDevice::new(crypt, root_hash)?;
 \end{lstlisting}
+
+在星绽内核中，这种组合通过 \texttt{DmDevice} 结构体实现，它根据 \texttt{DmTarget} 枚举（Passthrough、Crypt、Verity）分发 BIO 请求。
 
 \section{核心模块分解}
 
@@ -49,12 +56,14 @@ let verity = DmVerityDevice::new(crypt, root_hash)?;
         \toprule
         \textbf{模块} & \textbf{主要职责} & \textbf{关键实体} \\
         \midrule
-        \texttt{block\_device} & 基础 I/O 抽象与物理/内存后端 & \texttt{BlockDevice}, \texttt{FileBlockDevice} \\
+        \texttt{block\_device} & 基础 I/O 抽象与物理/内存后端 & \texttt{BlockDevice}, \texttt{FileBlockDevice}, \texttt{MemoryBlockDevice} \\
         \texttt{dm\_crypt} & 使用 AES-XTS 的透明加密逻辑 & \texttt{DmCryptDevice}, \texttt{DmCryptTable} \\
         \texttt{dm\_verity} & 只读完整性校验逻辑 & \texttt{DmVerityDevice} \\
         \texttt{hash\_tree} & 默克尔树的构建与管理 & \texttt{HashTree} \\
-        \texttt{sha256} & 纯 Rust 实现的 SHA-256（无外部依赖） & \texttt{sha256::update}, \texttt{sha256::finalize} \\
-        \texttt{device\_mapper} & 设备链接（chaining）的基础设施 & \texttt{PassthroughDevice} \\
+        \texttt{sha256} & 纯 Rust 实现的 SHA-256（无外部依赖） & \texttt{sha256::sha256} \\
+        \texttt{device\_mapper} & 设备链接（chaining）的基础设施 & \texttt{PassthroughDevice}, \texttt{DmStackBuilder} \\
+        \texttt{statistics} & I/O 性能计数器与阶段归因 & \texttt{InstrumentedDevice}, \texttt{IoStatsSnapshot} \\
+        \texttt{runtime} & 运行时 mapper 管理（Linux dm\_ioctl 兼容） & \texttt{RuntimeMapper}, \texttt{DmControlDevice} \\
         \texttt{error} & 统一错误处理 & \texttt{DmError}, \texttt{Result} \\
         \bottomrule
     \end{tabular}
@@ -65,7 +74,7 @@ let verity = DmVerityDevice::new(crypt, root_hash)?;
     \item \texttt{MemoryBlockDevice}：基于内存向量的设备，主要用于单元测试和易失性存储。
     \item \texttt{FileBlockDevice}：由宿主机文件系统上的文件支持的持久化设备，由 \texttt{dmctl} 工具使用。
     \item \texttt{PassthroughDevice}：将调用直接转发给内部设备的包装器，用于验证映射器链。
-    \item \texttt{VirtioBlkAdapter}：（星绽移植版）将内核特定的块句柄适配到 \texttt{BlockDevice} 接口。
+    \item \texttt{VirtioBlkAdapter}：（星绽移植版）将内核特定的块设备句柄适配到 \texttt{BlockDevice} 接口，位于 \texttt{aster-dm} 组件中。
 \end{itemize}
 
 \section{跨环境可移植性}
@@ -103,6 +112,30 @@ let verity = DmVerityDevice::new(crypt, root_hash)?;
 \texttt{FileBlockDevice}：在 \texttt{File} 对象周围使用 \texttt{Mutex}。这是必要的，因为文件指针（偏移量）是共享状态。锁在 seek、read/write 和 flush 序列的整个持续时间内被持有。\\
 \texttt{PassthroughDevice}：依赖于底层设备实现了 \texttt{Sync}。
 
+在星绽内核中，\texttt{DmDevice} 通过 \texttt{enqueue} 方法处理 BIO，该方法内部使用 \texttt{spin::Mutex} 保护共享状态，并遵循内核的并发模型。
+
+\section{性能可观测性设计}
+
+为了支持性能归因和优化验证，架构中集成了统计模块：
+
+\begin{itemize}
+    \item \texttt{InstrumentedDevice}：一个装饰器，可以插入到任意两层之间，记录读/写次数、字节数、失败次数以及累计和最大延迟（以纳秒计）。
+    \item \texttt{IoStatsSnapshot}：提供稳定的快照，便于在基准测试前后对比。
+    \item 在 Asterinas 内核中，通过启动参数 \texttt{dm.perf\_stats=1} 启用细粒度阶段计时（如 \texttt{lower\_wait}、\texttt{AES-XTS}、\texttt{SHA-256} 等），并通过 \texttt{/proc/dm-performance-stats} 导出。
+\end{itemize}
+
+这种设计使得开发者可以精确量化每个映射器层的开销，从而指导优化方向。
+
+\section{运行时控制面（Linux 兼容）}
+
+为了支持 \texttt{cryptsetup} 等用户态工具，项目实现了与 Linux \texttt{dm\_ioctl} 兼容的控制接口：
+
+\begin{itemize}
+    \item \texttt{DmControlDevice}：在 \texttt{/dev/mapper/control} 提供 ioctl 处理，支持 \texttt{DM\_DEV\_CREATE}、\texttt{DM\_TABLE\_LOAD}、\texttt{DM\_DEV\_SUSPEND}、\texttt{DM\_DEV\_STATUS}、\texttt{DM\_DEV\_REMOVE} 等命令。
+    \item \texttt{RuntimeMapper}：管理动态创建的 mapper，包括状态机（Empty、Loaded、Active）和密钥的清除。
+    \item 通过该接口，Asterinas 内核可以接受来自 \texttt{cryptsetup} 的标准 table 字符串，动态激活加密映射器，从而实现与 Linux 生态的互操作。
+\end{itemize}
+
 \section{小结}
 
-本章详细阐述了系统的核心架构，包括统一的 \texttt{BlockDevice} 抽象、可组合的映射器链模式、模块分解以及跨环境可移植性。通过将核心逻辑与平台细节解耦，该项目为后续的加密、完整性校验及性能优化奠定了坚实的基础。在接下来的章节中，我们将深入探讨 \texttt{dm-crypt} 和 \texttt{dm-verity} 的具体实现细节。
+本章详细阐述了系统的核心架构，包括统一的 \texttt{BlockDevice} 抽象、可组合的映射器链模式、模块分解以及跨环境可移植性。通过将核心逻辑与平台细节解耦，并增加性能可观测性和运行时控制面，该项目为后续的加密、完整性校验及性能优化奠定了坚实的基础。在接下来的章节中，我们将深入探讨 \texttt{dm-crypt} 和 \texttt{dm-verity} 的具体实现细节。
