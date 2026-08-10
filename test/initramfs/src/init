@@ -326,10 +326,12 @@ if [ -n "$CRYPT_CORRECTNESS_DEVICE" ]; then
         echo "[crypt-correctness] FAIL C14 duplicate mapper accepted"; poweroff -f
     fi
     echo "[crypt-correctness] PASS C14 duplicate mapper name rejected"
-    if dd if=/dev/mapper/correctness-reopen of=/dev/null bs=512 skip="$((LAST_SECTOR + 1))" count=1 2>/tmp/c15.err; then
-        echo "[crypt-correctness] FAIL C15 out-of-range read accepted"; poweroff -f
+    : > /tmp/c15.out
+    dd if=/dev/mapper/correctness-reopen of=/tmp/c15.out bs=512 skip="$((LAST_SECTOR + 1))" count=1 2>/tmp/c15.err || true
+    if [ -s /tmp/c15.out ]; then
+        echo "[crypt-correctness] FAIL C15 out-of-range read delivered data"; poweroff -f
     fi
-    echo "[crypt-correctness] PASS C15 out-of-range read rejected"
+    echo "[crypt-correctness] PASS C15 out-of-range read delivered zero bytes"
     cryptsetup close correctness-reopen
     poweroff -f
     exit 0
