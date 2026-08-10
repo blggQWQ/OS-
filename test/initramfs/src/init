@@ -20,6 +20,8 @@ CRYPTSETUP_SMOKE_DEVICE=
 CRYPTSETUP_SMOKE_REQUESTED=0
 CRYPT_CORRECTNESS_DEVICE=
 CRYPT_CORRECTNESS_REQUESTED=0
+CRYPT_CORRECTNESS_EXPECT_PERSIST=0
+CRYPT_CORRECTNESS_SOURCE_COMMIT=unknown
 VERITY_PROBE_DEVICE=
 VERITY_PROBE_BLOCK=
 VERITY_PROBE_REQUESTED=0
@@ -58,7 +60,9 @@ if [ "$CRYPT_CORRECTNESS_REQUESTED" -eq 1 ]; then
         shift
     done
     CRYPT_CORRECTNESS_DEVICE="${2:-}"
-    shift 2
+    CRYPT_CORRECTNESS_EXPECT_PERSIST="${3:-0}"
+    CRYPT_CORRECTNESS_SOURCE_COMMIT="${4:-unknown}"
+    shift 4
 fi
 for arg in "$@"; do
     if [ "$arg" = "dm-bench" ]; then
@@ -216,13 +220,21 @@ if [ -n "$VERITY_PROBE_DEVICE" ]; then
 fi
 
 if [ -n "$CRYPT_CORRECTNESS_DEVICE" ]; then
-    echo "[crypt-correctness] commit=9d79542cadddc6164ad3f31fd8cba776969d85a9"
+    echo "[crypt-correctness] source_commit=$CRYPT_CORRECTNESS_SOURCE_COMMIT"
     echo "[crypt-correctness] cmdline=$(cat /proc/cmdline)"
     dd if=/dev/zero of=/tmp/key.correct bs=64 count=1 2>/dev/null
     dd if=/dev/zero bs=63 count=1 2>/dev/null | tr '\000' '\377' > /tmp/key.wrong
     printf '\377' >> /tmp/key.wrong
     cryptsetup open --type plain --cipher aes-xts-plain64 --key-size 512 \
         --key-file /tmp/key.correct "$CRYPT_CORRECTNESS_DEVICE" correctness
+    if [ "$CRYPT_CORRECTNESS_EXPECT_PERSIST" = "1" ]; then
+        dd if=/dev/mapper/correctness of=/tmp/persist-output bs=4096 skip=2048 count=1 2>/dev/null
+        if [ "$(cat /tmp/persist-output)" != "ASTERINAS_DM_CRYPT_PERSISTENCE_V1" ]; then
+            echo "[crypt-correctness] FAIL P01 persisted marker missing after reboot/reopen"
+            poweroff -f
+        fi
+        echo "[crypt-correctness] PASS P01 persisted marker survived reboot/reopen"
+    fi
     CASE=3
     for SIZE in 4096 32768 262144; do
         dd if=/dev/urandom of=/tmp/input bs="$SIZE" count=1 2>/dev/null
@@ -254,6 +266,71 @@ if [ -n "$CRYPT_CORRECTNESS_DEVICE" ]; then
     fi
     echo "[crypt-correctness] PASS C02 wrong key did not expose correct plaintext"
     cryptsetup close wrong-key
+
+    cryptsetup open --type plain --cipher aes-xts-plain64 --key-size 512 \
+        --key-file /tmp/key.correct "$CRYPT_CORRECTNESS_DEVICE" correctness-full
+
+    dd if=/dev/urandom of=/tmp/multiblock bs=1048576 count=1 2>/dev/null
+    dd if=/tmp/multiblock of=/dev/mapper/correctness-full bs=1048576 count=1 conv=fsync 2>/dev/null
+    dd if=/dev/mapper/correctness-full of=/tmp/multiblock.out bs=1048576 count=1 2>/dev/null
+    cmp -s /tmp/multiblock /tmp/multiblock.out || { echo "[crypt-correctness] FAIL C06 multi-block round-trip"; poweroff -f; }
+    echo "[crypt-correctness] PASS C06 multi-block 1MiB round-trip"
+
+    dd if=/dev/urandom of=/tmp/boundary-first bs=512 count=1 2>/dev/null
+    dd if=/tmp/boundary-first of=/dev/mapper/correctness-full bs=512 seek=0 count=1 conv=fsync 2>/dev/null
+    dd if=/dev/mapper/correctness-full of=/tmp/boundary-first.out bs=512 skip=0 count=1 2>/dev/null
+    cmp -s /tmp/boundary-first /tmp/boundary-first.out || { echo "[crypt-correctness] FAIL C07 first-sector boundary"; poweroff -f; }
+    LAST_SECTOR=$(( $(blockdev --getsz /dev/mapper/correctness-full) - 1 ))
+    dd if=/dev/urandom of=/tmp/boundary-last bs=512 count=1 2>/dev/null
+    dd if=/tmp/boundary-last of=/dev/mapper/correctness-full bs=512 seek="$LAST_SECTOR" count=1 conv=fsync 2>/dev/null
+    dd if=/dev/mapper/correctness-full of=/tmp/boundary-last.out bs=512 skip="$LAST_SECTOR" count=1 2>/dev/null
+    cmp -s /tmp/boundary-last /tmp/boundary-last.out || { echo "[crypt-correctness] FAIL C07 last-sector boundary"; poweroff -f; }
+    echo "[crypt-correctness] PASS C07 first/last-sector boundaries"
+
+    dd if=/dev/urandom of=/tmp/segment-a bs=4096 count=1 2>/dev/null
+    dd if=/dev/urandom of=/tmp/segment-b bs=4096 count=1 2>/dev/null
+    dd if=/tmp/segment-a of=/dev/mapper/correctness-full bs=4096 seek=32 count=1 conv=fsync 2>/dev/null
+    dd if=/tmp/segment-b of=/dev/mapper/correctness-full bs=4096 seek=96 count=1 conv=fsync 2>/dev/null
+    dd if=/dev/mapper/correctness-full of=/tmp/segment-a.out bs=4096 skip=32 count=1 2>/dev/null
+    dd if=/dev/mapper/correctness-full of=/tmp/segment-b.out bs=4096 skip=96 count=1 2>/dev/null
+    cmp -s /tmp/segment-a /tmp/segment-a.out && cmp -s /tmp/segment-b /tmp/segment-b.out || { echo "[crypt-correctness] FAIL C08 disjoint segments"; poweroff -f; }
+    echo "[crypt-correctness] PASS C08 disjoint segment I/O"
+
+    dd if=/dev/mapper/correctness-full of=/tmp/plain-probe bs=4096 skip=32 count=1 2>/dev/null
+    dd if="$CRYPT_CORRECTNESS_DEVICE" of=/tmp/raw-probe bs=4096 skip=32 count=1 2>/dev/null
+    if cmp -s /tmp/plain-probe /tmp/raw-probe; then echo "[crypt-correctness] FAIL C09 raw lower device exposed plaintext"; poweroff -f; fi
+    echo "[crypt-correctness] PASS C09 raw lower device differs from plaintext"
+
+    printf 'ASTERINAS_DM_CRYPT_PERSISTENCE_V1' > /tmp/persist-input
+    dd if=/tmp/persist-input of=/dev/mapper/correctness-full bs=4096 seek=2048 count=1 conv=sync,fsync 2>/dev/null
+    cryptsetup close correctness-full
+    cryptsetup open --type plain --cipher aes-xts-plain64 --key-size 512 \
+        --key-file /tmp/key.correct "$CRYPT_CORRECTNESS_DEVICE" correctness-reopen
+    dd if=/dev/mapper/correctness-reopen of=/tmp/reopen-output bs=4096 skip=2048 count=1 2>/dev/null
+    [ "$(cat /tmp/reopen-output)" = "ASTERINAS_DM_CRYPT_PERSISTENCE_V1" ] || { echo "[crypt-correctness] FAIL C10 close/reopen lifecycle"; poweroff -f; }
+    echo "[crypt-correctness] PASS C10 close/reopen lifecycle"
+
+    if cryptsetup open --type plain --cipher aes-xts-plain64 --key-size 256 --key-file /tmp/key.correct "$CRYPT_CORRECTNESS_DEVICE" invalid-key-size 2>/tmp/c11.err; then
+        echo "[crypt-correctness] FAIL C11 invalid key size accepted"; poweroff -f
+    fi
+    echo "[crypt-correctness] PASS C11 invalid key size rejected"
+    if cryptsetup open --type plain --cipher aes-cbc-plain64 --key-size 512 --key-file /tmp/key.correct "$CRYPT_CORRECTNESS_DEVICE" invalid-cipher 2>/tmp/c12.err; then
+        echo "[crypt-correctness] FAIL C12 unsupported cipher accepted"; poweroff -f
+    fi
+    echo "[crypt-correctness] PASS C12 unsupported cipher rejected"
+    if dmsetup create invalid-range --table "0 999999999 crypt aes-xts-plain64 $(od -An -tx1 /tmp/key.correct | tr -d ' \n') 0 $CRYPT_CORRECTNESS_DEVICE 0" 2>/tmp/c13.err; then
+        echo "[crypt-correctness] FAIL C13 oversized range accepted"; dmsetup remove invalid-range; poweroff -f
+    fi
+    echo "[crypt-correctness] PASS C13 oversized logical range rejected"
+    if cryptsetup open --type plain --cipher aes-xts-plain64 --key-size 512 --key-file /tmp/key.correct "$CRYPT_CORRECTNESS_DEVICE" correctness-reopen 2>/tmp/c14.err; then
+        echo "[crypt-correctness] FAIL C14 duplicate mapper accepted"; poweroff -f
+    fi
+    echo "[crypt-correctness] PASS C14 duplicate mapper name rejected"
+    if dd if=/dev/mapper/correctness-reopen of=/dev/null bs=512 skip="$((LAST_SECTOR + 1))" count=1 2>/tmp/c15.err; then
+        echo "[crypt-correctness] FAIL C15 out-of-range read accepted"; poweroff -f
+    fi
+    echo "[crypt-correctness] PASS C15 out-of-range read rejected"
+    cryptsetup close correctness-reopen
     poweroff -f
     exit 0
 fi
