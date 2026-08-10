@@ -50,8 +50,8 @@ if [ "${DM_DATA_BLOCKS}" -lt $((DM_BENCH_SIZE_MIB * 256)) ]; then
 fi
 
 mkdir -p "$(dirname "${DM_BENCH_METADATA}")"
-GIT_COMMIT=$(git rev-parse HEAD)
-GIT_DIRTY=$([ -n "$(git status --porcelain --untracked-files=no)" ] && echo 1 || echo 0)
+GIT_COMMIT=${BENCHMARK_GIT_COMMIT:-$(git rev-parse HEAD)}
+GIT_DIRTY=${BENCHMARK_GIT_DIRTY:-$([ -n "$(git status --porcelain --untracked-files=no)" ] && echo 1 || echo 0)}
 TIMESTAMP_UTC=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 {
     echo "git_commit=${GIT_COMMIT}"
