@@ -3,7 +3,7 @@
 
 \section{概述}
 
-dm-verity 实现为块设备提供透明的完整性校验。它通过将读取的数据与预计算的默克尔树（Merkle Tree）进行比对，确保从底层存储层读取的数据未被篡改。该实现强制执行只读策略，以在设备的整个生命周期内维持完整性保证。
+dm-verity 为块设备提供透明的完整性校验。它通过将读取的数据与预计算的默克尔树（Merkle Tree）进行比对，确保从底层存储层读取的数据未被篡改。该实现强制执行只读策略，以在设备的整个生命周期内维持完整性保证。
 
 在星绽操作系统环境中，dm-verity 主要用于保护根文件系统（rootfs）和关键系统镜像，防止攻击者通过离线篡改持久化存储介质植入后门或破坏系统完整性。
 
@@ -21,22 +21,22 @@ dm-verity 实现为块设备提供透明的完整性校验。它通过将读取�
 三个核心组件的职责如下：
 
 \begin{itemize}
-    \item DmVerityDevice：顶层的 BlockDevice 实现，负责拦截读请求并执行校验操作。它是 dm-verity 对外的接口，所有 I/O 请求首先经过该设备。
-    \item HashTree：默克尔树结构，用于存储所有数据块和中间节点的 SHA-256 哈希值。该树在镜像构建时生成，在运行时作为校验的参考依据。
-    \item sha256 模块：纯 Rust 实现的 SHA-256 哈希算法，用于所有密码学校验和的计算。该实现不依赖任何外部库，确保在受限的内核环境中也能正常运行。
+    \item \texttt{DmVerityDevice}：顶层的 \texttt{BlockDevice} 实现，负责拦截读请求并执行校验操作。它是 dm-verity 对外的接口，所有 I/O 请求首先经过该设备。
+    \item \texttt{HashTree}：默克尔树结构，用于存储所有数据块和中间节点的 SHA-256 哈希值。该树在镜像构建时生成，在运行时作为校验的参考依据。
+    \item \texttt{sha256} 模块：纯 Rust 实现的 SHA-256 哈希算法，用于所有密码学校验和的计算。该实现不依赖任何外部库，确保在受限的内核环境中也能正常运行。
 \end{itemize}
 
 \section{默克尔树构建机制}
 
 \subsection{构建流程}
 
-HashTree 通过递归地对块对进行哈希运算来构建，直到得出单一的根哈希（Root Hash）。构建流程如下：
+\texttt{HashTree} 通过递归地对块对进行哈希运算来构建，直到得出单一的根哈希（Root Hash）。构建流程如下：
 
 \begin{enumerate}
-    \item 叶子层（Leaf Level）：使用 sha256 对底层设备的每个数据块进行哈希运算，生成叶子节点的哈希值。
-    \item 中间层（Intermediate Levels）：将下一层的哈希值两两拼接并进行哈希运算，从而形成上一层。
-    \item 填充（Padding）：如果某一层有奇数个哈希值，则最后一个哈希值会被复制一次以凑成一对，确保每层都能配对。
-    \item 根哈希（Root Hash）：该过程持续进行，直到只剩下一个哈希值，该值被指定为 root hash，作为整个卷的"信任锚"。
+    \item \textbf{叶子层（Leaf Level）}：使用 \texttt{sha256} 对底层设备的每个数据块进行哈希运算，生成叶子节点的哈希值。
+    \item \textbf{中间层（Intermediate Levels）}：将下一层的哈希值两两拼接并进行哈希运算，从而形成上一层。
+    \item \textbf{填充（Padding）}：如果某一层有奇数个哈希值，则最后一个哈希值会被复制一次以凑成一对，确保每层都能配对。
+    \item \textbf{根哈希（Root Hash）}：该过程持续进行，直到只剩下一个哈希值，该值被指定为 root hash，作为整个卷的“信任锚”。
 \end{enumerate}
 
 \begin{figure}[H]
@@ -48,20 +48,30 @@ HashTree 通过递归地对块对进行哈希运算来构建，直到得出单�
 
 \subsection{内存与磁盘布局}
 
-默克尔树在内存中以 HashTree 结构体的形式存储，该结构体维护一个层级向量。每一层存储该层所有节点的哈希值（每个节点 32 字节）。
+在用户态 \texttt{dm} crate 中，默克尔树以 \texttt{HashTree} 结构体的形式存储在内存中，该结构体维护一个层级向量，每层存储该层所有节点的哈希值（每个节点 32 字节）。这种设计便于单元测试和快速原型验证。
 
-在磁盘布局上，哈希树通常被追加到数据镜像的末尾。这种设计使得标准 ext2 镜像可以与哈希树共存，而无需修改原有的数据布局。构建工具负责将哈希树写入镜像文件，并记录其起始偏移量。
+在星绽内核的 \texttt{aster-dm} 组件中，哈希树采用磁盘布局：数据块从镜像开头连续存放，哈希树从 \texttt{hash\_start\_block} 开始依次写入各层哈希块。在本项目的默认配置中，哈希树被放置在数据镜像的尾部（\texttt{hash\_start\_block = data\_blocks}），但内核参数也支持自定义起始块号，以适应不同的镜像布局需求。具体参数如下：
+
+\begin{itemize}
+    \item 数据块从块号 0 到 \texttt{data\_blocks - 1} 连续存放。
+    \item 哈希树从 \texttt{hash\_start\_block} 开始，每层哈希块连续存放。
+    \item 块大小固定为 4096 字节，每个哈希块可容纳 \texttt{4096 / 32 = 128} 个 32 字节的 SHA-256 哈希值。
+    \item 每层哈希块的数量由该层需要存储的哈希值数量除以每块可容纳的哈希数（向上取整）决定。
+    \item 最终根哈希块（仅一个块）位于树的最后。
+\end{itemize}
+
+这种设计使得标准 ext2 镜像可以与哈希树共存，而无需修改原有的数据布局，便于在现有系统上部署。
 
 \section{单块校验路径}
 
-当在 DmVerityDevice 上调用 read block 时，会执行以下校验序列：
+当在 \texttt{DmVerityDevice} 上调用 \texttt{read\_block} 时，会执行以下校验序列：
 
 \begin{enumerate}
-    \item 数据检索（Data Retrieval）：从底层块设备读取原始数据块。
-    \item 路径校验（Path Verification）：HashTree 的 verify block 函数计算检索到的数据的哈希值，并重新计算其到根节点的路径。
-    \item 兄弟节点检索（Sibling Retrieval）：在每一层，从存储的 HashTree 中检索"兄弟"节点的哈希值，用于逐级向上计算。
-    \item 根锚点校验（Root Anchor）：将重新计算出的哈希值与 DmVerityDevice 结构体中存储的 root hash 进行比对。
-    \item 强制执行（Enforcement）：如果哈希值不匹配，或者树的内部根哈希被篡改，则返回错误，阻止对损坏数据的访问。
+    \item \textbf{数据检索（Data Retrieval）}：从底层块设备读取原始数据块。
+    \item \textbf{路径校验（Path Verification）}：\texttt{HashTree::verify\_block} 函数计算检索到的数据的哈希值，并重新计算其到根节点的路径。
+    \item \textbf{兄弟节点检索（Sibling Retrieval）}：在每一层，从存储的 \texttt{HashTree} 中检索“兄弟”节点的哈希值，用于逐级向上计算。
+    \item \textbf{根锚点校验（Root Anchor）}：将重新计算出的哈希值与 \texttt{DmVerityDevice} 结构体中存储的 root hash 进行比对。
+    \item \textbf{强制执行（Enforcement）}：如果哈希值不匹配，或者树的内部根哈希被篡改，则返回 \texttt{IntegrityViolation} 错误，阻止对损坏数据的访问。
 \end{enumerate}
 
 \begin{table}[H]
@@ -72,16 +82,16 @@ HashTree 通过递归地对块对进行哈希运算来构建，直到得出单�
         \toprule
         \textbf{函数} & \textbf{职责} \\
         \midrule
-        DmVerityDevice read block & I/O 的入口点；检查树校验结果与根锚点的比对情况。 \\
-        HashTree verify block & 迭代地向上计算树的各层哈希，以校验特定的块 ID。 \\
-        sha256 hash & 计算数据块的 32 字节摘要。 \\
+        \texttt{DmVerityDevice::read\_block} & I/O 的入口点；检查树校验结果与根锚点的比对情况。 \\
+        \texttt{HashTree::verify\_block} & 迭代地向上计算树的各层哈希，以校验特定的块 ID。 \\
+        \texttt{sha256::sha256} & 计算数据块的 32 字节摘要。 \\
         \bottomrule
     \end{tabular}
 \end{table}
 
 \section{只读强制策略}
 
-为了确保完整性，DmVerityDevice 明确禁止写操作。任何调用 write block 的尝试都会导致错误。
+为了确保完整性，\texttt{DmVerityDevice} 明确禁止写操作。任何调用 \texttt{write\_block} 的尝试都会导致 \texttt{ReadOnlyDevice} 错误。
 
 这种设计反映了 dm-verity 的标准使用场景：哈希树在镜像创建时生成一次，并在运行时仅进行校验。只读策略确保了信任链的完整性，一旦根哈希被验证，整个卷的内容就被锁定，任何写操作都会被拒绝，从而防止攻击者绕过校验机制。
 
@@ -99,17 +109,20 @@ HashTree 通过递归地对块对进行哈希运算来构建，直到得出单�
         \toprule
         \textbf{参数} & \textbf{描述} \\
         \midrule
-        rootfs verity scheme 等于 dm-verity & 启用 dm-verity 完整性校验标志 \\
-        rootfs verity hash & 64 字符十六进制编码的根哈希（32 字节） \\
+        \texttt{rootfs\_verity.scheme=dm-verity} & 启用 dm-verity 完整性校验标志 \\
+        \texttt{rootfs\_verity.device=<设备名>} & 底层块设备名称（如 \texttt{vdc}） \\
+        \texttt{rootfs\_verity.name=<映射器名>} & 创建的 mapper 设备名称（如 \texttt{dm-verity0}） \\
+        \texttt{rootfs\_verity.hash=<64-char-hex>} & 64 字符十六进制编码的根哈希（32 字节） \\
+        \texttt{rootfs\_verity.data\_blocks=<数量>} & 数据块总数 \\
+        \texttt{rootfs\_verity.hash\_start=<块号>} & 哈希树在镜像中的起始块号 \\
+        \texttt{rootfs\_verity.cache\_blocks=<数量>} & 已认证哈希缓存块数（默认 256） \\
         \bottomrule
     \end{tabular}
 \end{table}
 
 \subsection{解析流程}
 
-解析器按空格分割内核命令行字符串，然后逐个匹配上述键。当检测到 scheme 参数时，启用 verity 标志。当检测到 hash 参数时，将 64 字符的十六进制字符串解码为 32 字节的数组。
-
-解码函数执行严格的长度验证（输入必须恰好 64 个字符），并逐字节解析，任何解析失败都会导致配置无效，从而阻止系统挂载受保护的根文件系统。
+解析器按空格分割内核命令行字符串，然后逐个匹配上述键。当检测到 \texttt{scheme} 参数时，启用 verity 标志。当检测到 \texttt{hash} 参数时，将 64 字符的十六进制字符串解码为 32 字节的数组。解码函数执行严格的长度验证（输入必须恰好 64 个字符），并逐字节解析，任何解析失败都会导致配置无效，从而阻止系统挂载受保护的根文件系统。
 
 \subsection{内核自检机制}
 
@@ -117,7 +130,7 @@ HashTree 通过递归地对块对进行哈希运算来构建，直到得出单�
 
 \begin{enumerate}
     \item 通过映射器同步读取第一个块（偏移量 0）。
-    \item 检查偏移量 1080（1024 + 56）处的 EXT2 魔数值（0x53EF）。
+    \item 检查偏移量 1080（1024 + 56）处的 EXT2 魔数值（\texttt{0x53EF}）。
     \item 如果成功读取到正确的魔数，则证明解密和校验路径功能正常；否则，内核将触发 panic，防止系统在损坏的根文件系统上启动。
 \end{enumerate}
 
@@ -128,20 +141,33 @@ HashTree 通过递归地对块对进行哈希运算来构建，直到得出单�
     \label{fig:ext2_validation}
 \end{figure}
 
+在 \texttt{aster-dm} 组件中，自检还会记录认证后哈希缓存统计信息（如 \texttt{verified}、\texttt{hash\_hits}、\texttt{hash\_misses}、\texttt{auth\_shortcuts}）并在启动日志中输出，便于性能归因。
+
+\section{认证后哈希缓存与优化}
+
+为了减少重复的哈希块读取和计算，\texttt{aster-dm} 实现了认证后哈希缓存机制：
+
+\begin{itemize}
+    \item \textbf{缓存插入原则}：只有当一个哈希块经过完整的 Merkle 路径验证并成功到达根哈希后，才允许被插入缓存。这保证了缓存中的块始终是可信的。
+    \item \textbf{缓存管理}：使用有界 FIFO 队列，容量由启动参数 \texttt{rootfs\_verity.cache\_blocks} 控制（默认 256）。当缓存满时，最早插入的块被淘汰。
+    \item \textbf{已认证路径捷径}：当缓存命中时，直接使用缓存的哈希块与当前数据摘要比对，无需重新计算上层哈希后缀。这一优化显著减少了路径验证的计算量，并由计数器 \texttt{auth\_shortcuts} 记录命中次数。
+    \item \textbf{BIO 数据复用}：对于 4 KiB 对齐的读请求，直接使用下层已经完成的 BIO 数据块进行校验，避免为了认证再次读取同一数据块。计数器 \texttt{data\_rereads} 用于监控是否发生重复读取。
+\end{itemize}
+
+在正式五轮 KVM 顺序读测试中，启用缓存（cache=256）相对无缓存（cache=0）的中位吞吐提升 \textbf{24.4\%}，p95 延迟降低 \textbf{8.7\%}，且两组测试中 \texttt{data\_rereads} 均为 0，证明收益来源于减少哈希块重读，而非跳过数据认证。
+
 \section{校验失败处理}
 
-当 IntegrityViolation 错误被触发时，系统采取以下措施：
+当 \texttt{IntegrityViolation} 错误被触发时，系统根据上下文采取不同的处理策略：
 
 \begin{enumerate}
-    \item DmVerityDevice 向调用者返回 I/O 错误。
+    \item \texttt{DmVerityDevice} 向调用者返回 I/O 错误。
     \item 如果该错误发生在根文件系统访问期间，内核将触发 panic，阻止系统继续执行任何可能依赖损坏数据的操作。
     \item 如果发生在普通文件访问中，应用程序将收到 I/O 错误，从而可以优雅地处理异常情况。
 \end{enumerate}
 
-在篡改检测验证中，我们通过篡改命令在底层镜像中修改单个字节，然后尝试通过 DmVerityDevice 读取该块，确认系统能够正确检测并报告完整性违规。
+在篡改检测验证中，我们通过篡改命令在底层镜像中修改单个字节，然后尝试通过 \texttt{DmVerityDevice} 读取该块，确认系统能够正确检测并报告完整性违规。版本化证据显示篡改后启动日志输出 \texttt{status=integrity-rejected}，且没有任何 \texttt{root switch PASS} 标记。
 
 \section{小结}
 
-本章详细阐述了 dm-verity 的设计与实现，包括默克尔树的构建与校验路径、只读强制策略、启动参数解析以及内核自检机制。通过将哈希树与数据分离存储，并在启动时进行严格的根哈希验证，dm-verity 为星绽操作系统提供了强大的只读完整性保护能力。
-
-在下一章中，我们将转向 dm-crypt 的设计与实现，探讨如何为存储设备提供透明加密保护。
+本章详细阐述了 dm-verity 的设计与实现，包括默克尔树的构建与校验路径、只读强制策略、启动参数解析、内核自检机制以及认证后哈希缓存等优化措施。通过将哈希树与数据分离存储，并在启动时进行严格的根哈希验证，dm-verity 为星绽操作系统提供了强大的只读完整性保护能力。在下一章中，我们将转向 dm-crypt 的设计与实现，探讨如何为存储设备提供透明加密保护。
