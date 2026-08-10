@@ -1,0 +1,36 @@
+these 3 derivations will be built:
+  /nix/store/9qn45difbg9j47rjf0cmm1iih380wkr7-resolv-conf.drv
+  /nix/store/nc2b7igrj10l71vkmb7wv08r8bdycc4x-runtime-deps.drv
+  /nix/store/23bfxi2mk8c1hz4g9wm0ggwaf5zdz7f3-initramfs.drv
+these 2 paths will be fetched (154.4 KiB download, 598.9 KiB unpacked):
+  /nix/store/p01g81imwyfhfn8p6nsfn4m2vdk24g9g-cryptsetup-2.7.5-bin
+  /nix/store/xam5b9xk11767mz35dc9i5gcmy9ggsaf-popt-1.19
+copying path '/nix/store/xam5b9xk11767mz35dc9i5gcmy9ggsaf-popt-1.19' from 'https://cache.nixos.org'...
+building '/nix/store/9qn45difbg9j47rjf0cmm1iih380wkr7-resolv-conf.drv'...
+resolv.conf is generated from the host's /etc/resolv.conf
+copying path '/nix/store/p01g81imwyfhfn8p6nsfn4m2vdk24g9g-cryptsetup-2.7.5-bin' from 'https://cache.nixos.org'...
+building '/nix/store/nc2b7igrj10l71vkmb7wv08r8bdycc4x-runtime-deps.drv'...
+structuredAttrs is enabled
+building '/nix/store/23bfxi2mk8c1hz4g9wm0ggwaf5zdz7f3-initramfs.drv'...
+/nix/store/nhl2pl73h82lrqfxm8wnaivawh2sianq-initramfs
+this derivation will be built:
+  /nix/store/0vpwlkv50pliw6ip6kz0ibrlsd6s2bfr-initramfs-image.drv
+building '/nix/store/0vpwlkv50pliw6ip6kz0ibrlsd6s2bfr-initramfs-image.drv'...
+/build/tmp.UYJ4bI3JAz /build
+124621 blocks
+/build
+/nix/store/l620sgpcb6k88m2psmknmvykmykm4g2m-initramfs-image
+info: syncing channel updates for nightly-2026-04-03-x86_64-unknown-linux-gnu
+info: latest update on 2026-04-03 for version 1.96.0-nightly (55e86c996 2026-04-02)
+info: component llvm-tools is up to date
+info: component rust-src is up to date
+info: component rustc-dev is up to date
+info: downloading 3 components
+error: current package believes it's in a workspace when it's not:
+current:   /root/project/asterinas/osdk/Cargo.toml
+workspace: /root/project/Cargo.toml
+
+this may be fixable by adding `asterinas/osdk` to the `workspace.members` array of the manifest located at: /root/project/Cargo.toml
+Alternatively, to keep it out of the workspace, add the package to the `workspace.exclude` array, or add an empty `[workspace]` table to the package's manifest.
+make[1]: *** [Makefile:235: install_osdk] Error 101
+make: *** [Makefile:239: /root/.cargo/bin/cargo-osdk] Error 2

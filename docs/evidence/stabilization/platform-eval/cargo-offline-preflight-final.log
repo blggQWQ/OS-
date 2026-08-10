@@ -1,0 +1,14 @@
+FRESH_CONTAINER_OFFLINE_PREFLIGHT
+cargo metadata locked offline: PASS
+cargo fetch locked offline: PASS
+rustc 1.96.0-nightly (55e86c996 2026-04-02)
+binary: rustc
+commit-hash: 55e86c996809902e8bbad512cfb4d2c18be446d9
+commit-date: 2026-04-02
+host: x86_64-unknown-linux-gnu
+release: 1.96.0-nightly
+LLVM version: 22.1.2
+loongarch64-unknown-none-softfloat
+riscv64imac-unknown-none-elf
+x86_64-unknown-linux-gnu
+x86_64-unknown-none

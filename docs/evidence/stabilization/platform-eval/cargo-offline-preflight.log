@@ -1,0 +1,8 @@
+COMMAND: CARGO_NET_OFFLINE=true cargo metadata --locked --offline --format-version 1 --no-deps
+METADATA_EXIT=True
+COMMAND: CARGO_NET_OFFLINE=true cargo fetch --locked --offline
+error: failed to download `minicov v0.3.7`
+
+Caused by:
+  attempting to make an HTTP request, but --offline was specified
+FETCH_EXIT= 

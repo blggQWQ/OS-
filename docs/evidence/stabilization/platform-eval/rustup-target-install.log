@@ -1,0 +1,8 @@
+COMMAND: rustup target add --toolchain nightly-2026-04-03 x86_64-unknown-none riscv64imac-unknown-none-elf loongarch64-unknown-none-softfloat
+info: downloading component rust-std
+info: downloading component rust-std
+info: downloading component rust-std
+loongarch64-unknown-none-softfloat
+riscv64imac-unknown-none-elf
+x86_64-unknown-linux-gnu
+x86_64-unknown-none

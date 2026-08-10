@@ -1,0 +1,171 @@
+COMMAND: make kernel TARGET_ARCH=x86_64
+these 3 derivations will be built:
+  /nix/store/9qn45difbg9j47rjf0cmm1iih380wkr7-resolv-conf.drv
+  /nix/store/nc2b7igrj10l71vkmb7wv08r8bdycc4x-runtime-deps.drv
+  /nix/store/23bfxi2mk8c1hz4g9wm0ggwaf5zdz7f3-initramfs.drv
+these 2 paths will be fetched (154.4 KiB download, 598.9 KiB unpacked):
+  /nix/store/p01g81imwyfhfn8p6nsfn4m2vdk24g9g-cryptsetup-2.7.5-bin
+  /nix/store/xam5b9xk11767mz35dc9i5gcmy9ggsaf-popt-1.19
+copying path '/nix/store/xam5b9xk11767mz35dc9i5gcmy9ggsaf-popt-1.19' from 'https://cache.nixos.org'...
+building '/nix/store/9qn45difbg9j47rjf0cmm1iih380wkr7-resolv-conf.drv'...
+resolv.conf is generated from the host's /etc/resolv.conf
+copying path '/nix/store/p01g81imwyfhfn8p6nsfn4m2vdk24g9g-cryptsetup-2.7.5-bin' from 'https://cache.nixos.org'...
+building '/nix/store/nc2b7igrj10l71vkmb7wv08r8bdycc4x-runtime-deps.drv'...
+structuredAttrs is enabled
+building '/nix/store/23bfxi2mk8c1hz4g9wm0ggwaf5zdz7f3-initramfs.drv'...
+/nix/store/nhl2pl73h82lrqfxm8wnaivawh2sianq-initramfs
+this derivation will be built:
+  /nix/store/0vpwlkv50pliw6ip6kz0ibrlsd6s2bfr-initramfs-image.drv
+building '/nix/store/0vpwlkv50pliw6ip6kz0ibrlsd6s2bfr-initramfs-image.drv'...
+/build/tmp.9ukMYqMTN5 /build
+124621 blocks
+/build
+/nix/store/l620sgpcb6k88m2psmknmvykmykm4g2m-initramfs-image
+[Info] [normal] Forwarded QEMU guest port: 57226->22; 56182->8080 43136->6379 15405->5201 37873->31234 14933->31236 52125->11211
+[Info] [test] Forwarded QEMU guest port: 50877->22; 49170->8080 21616->6379 3098->5201 51958->31234 11196->31236 11481->11211
+    Updating crates.io index
+ Downloading crates ...
+  Downloaded spin v0.9.9
+  Downloaded syn v2.0.119
+warning: unstable feature specified for `-Ctarget-feature`: `ermsb`
+  |
+  = note: this feature is not stably supported; its behavior can change in the future
+
+warning: `linux-boot-params` (lib) generated 1 warning
+warning: `align_ext` (lib) generated 1 warning (1 duplicate)
+warning: `ostd-test` (lib) generated 1 warning (1 duplicate)
+warning: `typeflags-util` (lib) generated 1 warning (1 duplicate)
+warning: `int-to-c-enum` (lib) generated 1 warning (1 duplicate)
+warning: `id-alloc` (lib) generated 1 warning (1 duplicate)
+warning: `aster-rights` (lib) generated 1 warning (1 duplicate)
+warning: `ostd-pod` (lib) generated 1 warning (1 duplicate)
+warning: `io-util` (lib) generated 1 warning (1 duplicate)
+warning: `ostd` (lib) generated 1 warning (1 duplicate)
+warning: `component` (lib) generated 1 warning (1 duplicate)
+warning: `osdk-heap-allocator` (lib) generated 1 warning (1 duplicate)
+warning: `jhash` (lib) generated 1 warning (1 duplicate)
+warning: `aster-util` (lib) generated 1 warning (1 duplicate)
+warning: `aster-console` (lib) generated 1 warning (1 duplicate)
+warning: `aster-input` (lib) generated 1 warning (1 duplicate)
+warning: `aster-cmdline` (lib) generated 1 warning (1 duplicate)
+warning: `aster-pci` (lib) generated 1 warning (1 duplicate)
+warning: `aster-fuse` (lib) generated 1 warning (1 duplicate)
+warning: `device-id` (lib) generated 1 warning (1 duplicate)
+warning: `aster-softirq` (lib) generated 1 warning (1 duplicate)
+warning: `aster-time` (lib) generated 1 warning (1 duplicate)
+warning: `aster-systree` (lib) generated 1 warning (1 duplicate)
+warning: `aster-block` (lib) generated 1 warning (1 duplicate)
+warning: `aster-bigtcp` (lib) generated 1 warning (1 duplicate)
+warning: `aster-logger` (lib) generated 1 warning (1 duplicate)
+warning: `aster-framebuffer` (lib) generated 1 warning (1 duplicate)
+warning: `aster-i8042` (lib) generated 1 warning (1 duplicate)
+warning: `aster-uart` (lib) generated 1 warning (1 duplicate)
+warning: `cpio-decoder` (lib) generated 1 warning (1 duplicate)
+warning: `ring-buffer` (lib) generated 1 warning (1 duplicate)
+warning: `xarray` (lib) generated 1 warning (1 duplicate)
+warning: `osdk-frame-allocator` (lib) generated 1 warning (1 duplicate)
+warning: use of deprecated struct `aes::cipher::generic_array::GenericArray`: please upgrade to generic-array 1.x
+ --> /root/asterinas/kernel/comps/dm/src/crypto.rs:5:73
+  |
+5 |     cipher::{BlockDecrypt, BlockEncrypt, NewBlockCipher, generic_array::GenericArray},
+  |                                                                         ^^^^^^^^^^^^
+  |
+  = note: `#[warn(deprecated)]` on by default
+
+warning: use of deprecated struct `aes::cipher::generic_array::GenericArray`: please upgrade to generic-array 1.x
+  --> /root/asterinas/kernel/comps/dm/src/crypto.rs:45:36
+   |
+45 |         Self::Portable(Aes256::new(GenericArray::from_slice(key)))
+   |                                    ^^^^^^^^^^^^
+
+warning: use of deprecated struct `aes::cipher::generic_array::GenericArray`: please upgrade to generic-array 1.x
+  --> /root/asterinas/kernel/comps/dm/src/crypto.rs:50:60
+   |
+50 |             Self::Portable(cipher) => cipher.encrypt_block(GenericArray::from_mut_slice(block)),
+   |                                                            ^^^^^^^^^^^^
+
+warning: use of deprecated struct `aes::cipher::generic_array::GenericArray`: please upgrade to generic-array 1.x
+  --> /root/asterinas/kernel/comps/dm/src/crypto.rs:58:60
+   |
+58 |             Self::Portable(cipher) => cipher.decrypt_block(GenericArray::from_mut_slice(block)),
+   |                                                            ^^^^^^^^^^^^
+
+warning: use of deprecated associated function `aes::cipher::generic_array::GenericArray::<T, N>::from_slice`: please upgrade to generic-array 1.x
+  --> /root/asterinas/kernel/comps/dm/src/crypto.rs:45:50
+   |
+45 |         Self::Portable(Aes256::new(GenericArray::from_slice(key)))
+   |                                                  ^^^^^^^^^^
+
+warning: use of deprecated associated function `aes::cipher::generic_array::GenericArray::<T, N>::from_mut_slice`: please upgrade to generic-array 1.x
+  --> /root/asterinas/kernel/comps/dm/src/crypto.rs:50:74
+   |
+50 |             Self::Portable(cipher) => cipher.encrypt_block(GenericArray::from_mut_slice(block)),
+   |                                                                          ^^^^^^^^^^^^^^
+
+warning: use of deprecated associated function `aes::cipher::generic_array::GenericArray::<T, N>::from_mut_slice`: please upgrade to generic-array 1.x
+  --> /root/asterinas/kernel/comps/dm/src/crypto.rs:58:74
+   |
+58 |             Self::Portable(cipher) => cipher.decrypt_block(GenericArray::from_mut_slice(block)),
+   |                                                                          ^^^^^^^^^^^^^^
+
+warning: `aster-network` (lib) generated 1 warning (1 duplicate)
+warning: `aster-dm` (lib) generated 8 warnings (1 duplicate)
+warning: `aster-nvme` (lib) generated 1 warning (1 duplicate)
+warning: `aster-mlsdisk` (lib) generated 1 warning (1 duplicate)
+warning: `keyable-arc` (lib) generated 1 warning (1 duplicate)
+warning: `logo-ascii-art` (lib) generated 1 warning (1 duplicate)
+warning: `aster-virtio` (lib) generated 1 warning (1 duplicate)
+warning: `aster-kernel` (lib) generated 1 warning (1 duplicate)
+warning: `aster-kernel-osdk-bin` (bin "aster-kernel-osdk-bin") generated 1 warning (1 duplicate)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 36.36s
+grub-mkrescue: warning: cannot open directory `/usr/local/grub/share/locale': No such file or directory.
+xorriso 1.5.6 : RockRidge filesystem manipulator, libburnia project.
+
+Drive current: -outdev 'stdio:/root/asterinas/target/osdk/aster-kernel-osdk-bin.iso'
+Media current: stdio file, overwriteable
+Media status : is blank
+Media summary: 0 sessions, 0 data blocks, 0 data,  263g free
+Added to ISO image: directory '/'='/tmp/grub.GXqmXZ'
+xorriso : UPDATE :     298 files added in 1 seconds
+Added to ISO image: directory '/'='/root/asterinas/target/osdk/iso_root'
+xorriso : UPDATE :     303 files added in 1 seconds
+xorriso : UPDATE :  2.25% done
+xorriso : UPDATE :  4.83% done
+xorriso : UPDATE :  7.62% done, estimate finish Sun Aug 09 17:51:06 2026
+xorriso : UPDATE :  10.40% done, estimate finish Sun Aug 09 17:51:08 2026
+xorriso : UPDATE :  13.09% done, estimate finish Sun Aug 09 17:51:10 2026
+xorriso : UPDATE :  15.85% done, estimate finish Sun Aug 09 17:51:11 2026
+xorriso : UPDATE :  18.48% done, estimate finish Sun Aug 09 17:51:12 2026
+xorriso : UPDATE :  21.04% done, estimate finish Sun Aug 09 17:51:13 2026
+xorriso : UPDATE :  23.80% done, estimate finish Sun Aug 09 17:51:13 2026
+xorriso : UPDATE :  26.52% done, estimate finish Sun Aug 09 17:51:13 2026
+xorriso : UPDATE :  29.23% done, estimate finish Sun Aug 09 17:51:14 2026
+xorriso : UPDATE :  32.03% done, estimate finish Sun Aug 09 17:51:14 2026
+xorriso : UPDATE :  34.77% done, estimate finish Sun Aug 09 17:51:14 2026
+xorriso : UPDATE :  37.57% done, estimate finish Sun Aug 09 17:51:14 2026
+xorriso : UPDATE :  40.35% done, estimate finish Sun Aug 09 17:51:14 2026
+xorriso : UPDATE :  43.17% done, estimate finish Sun Aug 09 17:51:14 2026
+xorriso : UPDATE :  45.90% done, estimate finish Sun Aug 09 17:51:14 2026
+xorriso : UPDATE :  48.54% done, estimate finish Sun Aug 09 17:51:14 2026
+xorriso : UPDATE :  51.36% done, estimate finish Sun Aug 09 17:51:14 2026
+xorriso : UPDATE :  54.01% done, estimate finish Sun Aug 09 17:51:14 2026
+xorriso : UPDATE :  56.72% done, estimate finish Sun Aug 09 17:51:14 2026
+xorriso : UPDATE :  59.40% done, estimate finish Sun Aug 09 17:51:15 2026
+xorriso : UPDATE :  62.12% done, estimate finish Sun Aug 09 17:51:15 2026
+xorriso : UPDATE :  64.91% done, estimate finish Sun Aug 09 17:51:14 2026
+xorriso : UPDATE :  67.64% done, estimate finish Sun Aug 09 17:51:14 2026
+xorriso : UPDATE :  70.42% done, estimate finish Sun Aug 09 17:51:15 2026
+xorriso : UPDATE :  73.11% done, estimate finish Sun Aug 09 17:51:14 2026
+xorriso : UPDATE :  75.85% done, estimate finish Sun Aug 09 17:51:15 2026
+xorriso : UPDATE :  78.58% done, estimate finish Sun Aug 09 17:51:14 2026
+xorriso : UPDATE :  81.18% done, estimate finish Sun Aug 09 17:51:14 2026
+xorriso : UPDATE :  86.92% done, estimate finish Sun Aug 09 17:51:13 2026
+xorriso : UPDATE :  89.59% done, estimate finish Sun Aug 09 17:51:13 2026
+xorriso : UPDATE :  91.56% done, estimate finish Sun Aug 09 17:51:13 2026
+xorriso : UPDATE :  94.13% done, estimate finish Sun Aug 09 17:51:14 2026
+xorriso : UPDATE :  96.85% done
+xorriso : UPDATE :  99.55% done
+ISO image produced: 83719 sectors
+Written to medium : 83719 sectors at LBA 0
+Writing to 'stdio:/root/asterinas/target/osdk/aster-kernel-osdk-bin.iso' completed successfully.
+
