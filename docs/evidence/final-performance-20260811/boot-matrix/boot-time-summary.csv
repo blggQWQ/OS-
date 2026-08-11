@@ -1,0 +1,6 @@
+scenario,runs,mean_s,median_s,stdev_s
+plain,5,49.042850,51.331303,6.555566
+dm-crypt,5,47.114829,51.629820,7.230719
+dm-verity,5,46.660255,52.743415,8.673627
+dm-crypt_overhead_vs_plain_percent,,,0.582,
+dm-verity_overhead_vs_plain_percent,,,2.751,

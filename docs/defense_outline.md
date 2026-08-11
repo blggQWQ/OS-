@@ -26,18 +26,16 @@
 2. 只修改数据块 0 的 1 个字节（XOR `0xff`）；
 3. 用相同 root hash 再启动，展示 `status=integrity-rejected`、mapper 不存在，且没有
    root switch PASS；
-4. 对照日志：`docs/evidence/asterinas-verity-rootfs-kvm.log` 与
-   `docs/evidence/asterinas-verity-rootfs-tampered-kvm.log`。
+4. 对照日志：`docs/evidence/stabilization/correctness-kvm/regression/R03-verity-rootfs-persistent-cache.log`
+   与 `docs/evidence/stabilization/correctness-kvm/corruption/V02-wrong-root.log`。
 
-### 亮点二：hash cache A/B 的完整证据链
+### 亮点二：完整性能真实性链
 
-1. 固定同一 16 MiB 镜像、KVM 客体和 4 KiB fio 参数；
-2. 分别运行 `cache_blocks=0` 与 `cache_blocks=256`，每组五轮；
-3. 只比较 dm-verity 行：中位吞吐 0.320 → 0.398 MiB/s（+24.4%），p95
-   15007.744 → 13697.024 us（-8.7%）；
-4. 两组均展示 `data_rereads=0`，证明收益来自减少 Merkle hash block 重读，
-   不是跳过数据认证；
-5. 原始 CSV 与串口日志见 `docs/evidence/asterinas-verity-fio-cache*-kvm.*`。
+1. Linux raw 与 dm-crypt 使用同一 backing image、同一参数和真实 mapper；
+2. Asterinas dm-crypt 在真实性审计后使用 guest 内真实 mapper 重新执行；
+3. Asterinas dm-verity 使用修正后的 runner 执行 7 个只读工况；
+4. 每个有效单元格保留五轮原始数据，不删除异常值；
+5. 正式矩阵和证据路径见 `docs/evidence/final-performance-20260811/`。
 
 ## 4. dm-crypt 如何保证机密性
 
@@ -108,6 +106,6 @@ Rust 的所有权、借用检查和类型系统能减少悬垂指针、越界访
 ### Q: 性能开销如何控制？
 
 dm-crypt 可使用硬件加速 AES；dm-verity 可缓存 hash block，减少重复读取和计算。
-当前只能量化 hash cache：五轮中位吞吐 +24.4%、p95 -8.7%。Asterinas dm-crypt
-五轮中 raw 为 3.018 MiB/s、mapper 为 1.506 MiB/s；严格 Linux/Asterinas 绝对吞吐
-必须等同条件 Linux guest 补测完成后再回答，不引用旧的 85%–90% 数字。
+最终结果分平台回答：Linux raw/dm-crypt 完成 13+13 个五轮单元格；Asterinas
+dm-crypt 完成 13 个、dm-verity 完成 7 个五轮单元格。4 KiB 顺序读中位数分别为
+Linux 16.296/15.010 MiB/s，Asterinas 保护 mapper 8.908/7.505 MiB/s。不同平台不计算倍率。

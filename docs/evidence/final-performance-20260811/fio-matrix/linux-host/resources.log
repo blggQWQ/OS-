@@ -1,0 +1,3 @@
+timestamp_utc=2026-08-10T15:41:53Z pid=490 image=/mnt/d/project/tmp/master-consolidation/target/benchmark/fio-matrix-linux/backing.img loop=/dev/loop2 mountpoint=N/A
+timestamp_utc=2026-08-10T16:10:00Z pid=398 image=/mnt/d/project/tmp/master-consolidation/target/benchmark/fio-matrix-linux/backing.img loop=/dev/loop2 mountpoint=N/A
+timestamp_utc=2026-08-10T16:13:18Z status=BLOCKED_BY_PROCESS loop=/dev/loop2

@@ -1,0 +1,2 @@
+target,rows,status,create_s,bulk_insert_s,transaction_s,select_s,update_s,select2_s,total_s,db_path
+dm-crypt,10000,ok,0.017784,0.011798,0.020635,0.000164,0.015135,0.000124,0.065640,/mnt/d/project/target/final-perf/sqlite-env/mnt-crypt/cscc-10000.db

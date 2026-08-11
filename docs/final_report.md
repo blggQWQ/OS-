@@ -144,17 +144,21 @@ fio --name=verity-read --filename=/mnt/testfile --size=128M --rw=read --bs=4k
 - 已实现 `/dev/mapper/control` 的 Linux `dm_ioctl` 控制路径；在 KVM 客体中使用
   `cryptsetup 2.7.5 open/close` 完成了真实 mapper 的创建、可读验证与销毁验证。
 - 用户态测试 tree 仍在内存中；Asterinas 内核路径使用镜像尾部的 on-disk hash tree。
-- 已完成 Linux dm-crypt/dm-verity 基线、Asterinas KVM 五轮 dm-verity cache A/B、
-  同一宿主机/数据盘/I/O 合约的 Linux guest 与 Asterinas 五轮 dm-crypt 对照；
-  Asterinas raw、dm-crypt 绝对吞吐分别为 Linux guest 的 82.4% 和 85.5%。
-- 已完成 plain 与 dm-verity 各五轮冷启动对照，中位数为 16.058 秒和 16.902 秒，
-  dm-verity 增量为 5.256%。
+- 已完成 Linux host raw/dm-crypt 各 13 项、Asterinas KVM dm-crypt 13 项与
+  dm-verity 7 项正式 FIO；不同平台分表展示，不计算跨环境倍率。
+- 已完成 plain、dm-crypt、dm-verity 各五轮启动测试，中位数分别为
+  51.331303、51.629820、52.743415 秒；相对 plain 开销为 0.582% 和 2.751%。
 
 这些限制与正式题面的关系见 [requirement_mapping.md](requirement_mapping.md)。其中 rootfs 加密与验证见 [rootfs_protection.md](rootfs_protection.md)，cryptsetup 兼容路线见 [cryptsetup_compatibility.md](cryptsetup_compatibility.md)。
 
 后续工作：
 
 1. 扩展 `dm_ioctl` table 参数与错误码兼容性覆盖；
-2. 增加 crypt+verity 叠加根文件系统的长时间端到端压力测试；
+2. 将 Combined 叠栈（补丁 0007 + `scripts/build_stack_rootfs.sh` /
+   `scripts/run_dm_stack.sh`）的 KVM 串口证据归档到 `docs/evidence/stack/`，
+   并补充长时间端到端压力测试；
 3. 扩展到 randread、write、QD32 与更大工作集；
 4. 补充 dm-crypt 根的冷启动和三种场景的热启动对照。
+
+说明：crypt+verity 叠加 rootfs 启动路径本身已在内核补丁 0007 与构建/启动脚本中实现；
+待归档的是本机 KVM 串口日志（见 `docs/evidence/stack/README.md`）。

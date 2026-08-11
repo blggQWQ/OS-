@@ -1,188 +1,104 @@
 % chapters/06_testing.tex
-\chapter{测试与性能分析报告}
+\chapter{测试与验收}
 
-\section{概述}
+\section{测试体系}
 
-测试是验证系统功能正确性和性能指标的关键环节。本项目采用多层次测试策略，从单元测试到集成测试，从用户态验证到内核态端到端测试，形成了一个完整的测试体系。此外，我们还通过与 Linux 内核的逐字节交叉验证，证明了 Rust 实现与标准实现的行为一致性。
-
-本章首先介绍测试架构的总体设计，然后依次展示功能正确性测试、性能基准测试和 Linux 交叉验证的结果。
-
-\section{测试架构概述}
-
-测试基础设施弥合了 Rust 实现与现有行业标准（如 Linux 中的 dm-crypt 和 dm-verity）之间的差距。整个测试体系分为四个层级：
+项目采用用户态单元测试、Linux 兼容性测试、Asterinas KVM 正确性测试和正式性能
+测试四层门禁。只有真实执行并保留原始证据的项目才标记为 PASS。
 
 \begin{table}[H]
     \centering
-    \caption{测试层级划分}
-    \label{tab:test_layers}
-    \begin{tabular}{p{0.22\textwidth}p{0.35\textwidth}p{0.35\textwidth}}
+    \caption{测试层级}
+    \begin{tabular}{p{0.22\textwidth}p{0.34\textwidth}p{0.34\textwidth}}
         \toprule
-        \textbf{测试层级} & \textbf{范围} & \textbf{关键组件} \\
+        \textbf{层级} & \textbf{验证内容} & \textbf{入口} \\
         \midrule
-        单元测试 & 单个结构体的逻辑验证 & FileBlockDevice、DmCryptDevice、HashTree \\
-        集成测试 & Rust 工作空间内的端到端流程 & dmctl demo 命令 \\
-        交叉验证 & 与 Linux 内核标准的兼容性 & 验证脚本、cryptsetup \\
-        内核端到端 & 在星绽操作系统内部进行的功能测试 & VirtioBlkAdapter、pivot\_root 流程 \\
+        Rust workspace & 加密、哈希树、映射器和命令行 & \texttt{cargo test --workspace} \\
+        Linux 兼容性 & AES-XTS plain64 逐字节一致 & \texttt{verify\_linux\_xts\_compat.sh} \\
+        Asterinas KVM & mapper、rootfs、错误密钥和物理损坏 & Asterinas tools runner \\
+        性能 & FIO、Filebench、SQLite 和 boot & \texttt{scripts/run\_*\_matrix.sh} \\
         \bottomrule
     \end{tabular}
 \end{table}
 
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.9\textwidth]{figures/test_execution_flow.png}
-    \caption{测试执行与数据流图}
-    \label{fig:test_execution}
-\end{figure}
+\section{正确性结果}
 
-\section{功能正确性测试}
-
-功能正确性是比赛评审的核心指标（占 50\%）。我们针对 dm-verity 和 dm-crypt 分别设计了严格的功能测试。
-
-\subsection{dm-verity 完整性校验测试}
-
-\subsubsection{正常启动验证}
-
-在正常场景下，系统使用正确的根哈希启动，能够成功挂载受 dm-verity 保护的根文件系统。验证步骤如下：
-
-\begin{enumerate}
-    \item 使用构建脚本构建包含默克尔树的 ext2 镜像。
-    \item 通过 QEMU 启动星绽内核，传递 verity 相关启动参数。
-    \item 系统成功挂载 rootfs，进入用户态 shell。
-    \item 检查证明文件，确认包含预期内容。
-\end{enumerate}
-
-\subsubsection{篡改检测测试}
-
-为了验证 dm-verity 的防篡改能力，我们构造了恶意修改的块设备数据：
-
-\begin{enumerate}
-    \item 在 MemoryBlockDevice 之上构建 DmVerityDevice。
-    \item 通过原始的 write block 直接篡改底层设备中的某个数据块。
-    \item 尝试通过 DmVerityDevice 读取该块。
-    \item 预期结果：返回完整性违规错误。
-\end{enumerate}
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.85\textwidth]{figures/verity_validation_mapping.png}
-    \caption{Verity 校验逻辑映射图}
-    \label{fig:verity_validation}
-\end{figure}
-
-实际测试中，使用篡改命令可以快速验证该功能。
-
-\subsection{dm-crypt 透明加密测试}
-
-\subsubsection{加密往返测试}
-
-加密往返测试验证了加密的基本安全属性：
-
-\begin{enumerate}
-    \item 创建 MemoryBlockDevice 作为底层设备。
-    \item 用密钥将其包装在 DmCryptDevice 中。
-    \item 向扇区写入明文。
-    \item 从底层设备读取数据，确认呈现为密文（与明文不同）。
-    \item 通过 DmCryptDevice 读取，确认恢复为原始明文。
-\end{enumerate}
-
-\subsubsection{密钥分离测试}
-
-密钥分离测试验证了密钥的正确性要求：
-
-\begin{enumerate}
-    \item 使用密钥 A 加密数据并写入设备。
-    \item 使用密钥 B 初始化 DmCryptDevice 并读取同一位置。
-    \item 预期结果：读取到的数据与原始明文不匹配。
-\end{enumerate}
-
-\section{性能基准测试}
-
-性能是比赛评审的另一个重要维度（Demo 质量占 20\%）。我们通过 FIO 和微基准测试全面评估系统的 I/O 性能。
-
-\subsection{测试环境说明}
-
-版本化的 Asterinas 五轮基准使用以下实际参数：
+固定环境为 Asterinas 官方开发镜像、x86\_64、QEMU/KVM、\texttt{-cpu host}、
+1 vCPU 和 8 GiB 内存。
 
 \begin{table}[H]
     \centering
-    \caption{测试环境配置}
-    \label{tab:test_env}
-    \begin{tabular}{p{0.30\textwidth}p{0.60\textwidth}}
+    \caption{KVM 正确性结果}
+    \begin{tabular}{p{0.16\textwidth}p{0.55\textwidth}p{0.16\textwidth}}
         \toprule
-        \textbf{配置项} & \textbf{参数} \\
+        \textbf{编号} & \textbf{内容} & \textbf{结果} \\
         \midrule
-        客体构建环境 & asterinas/asterinas:0.18.0-20260618 \\
-        加速与 CPU & KVM，CPU=host \\
-        vCPU / 内存 & 1 / 8 GiB（Asterinas 默认值） \\
-        存储接口 & virtio-blk \\
-        FIO I/O & read，sync，direct=1，QD1，4 KiB \\
-        测试长度 & 8 MiB，ramp 1 秒，runtime 2 秒，每组 5 轮 \\
+        R01 & cryptsetup open/read/close & PASS \\
+        R02 & dm-crypt 受保护 rootfs & PASS \\
+        R03 / V01 & dm-verity 正常 rootfs 与正确 root hash & PASS \\
+        C01--C05 & 正确密钥、错误密钥、4/32/256 KiB 往返 & PASS \\
+        V02 & 错误 root hash & PASS \\
+        V03--V07 & 首/中/末数据块、叶子/中间 hash block 损坏 & PASS \\
         \bottomrule
     \end{tabular}
 \end{table}
 
-\subsection{I/O 性能测试（FIO）}
+V03--V07 均保持原始正确 root hash，只修改清单指定的物理字节。损坏数据没有成功
+交付，没有 fallback 到 lower device，也没有以 kernel panic 代替可控 I/O 错误。
+物理位置见 \texttt{PHYSICAL\_MUTATION\_MANIFEST.md}。
 
-我们使用 FIO 对三种配置（Plain、dm-crypt、dm-verity）进行全面的性能评估。
-
-当前版本只报告已经由版本化日志和 CSV 支撑的结果。Asterinas KVM 中，
-dm-crypt 在 4 KiB、QD1、direct、2 秒 runtime 的五轮顺序读测试中，中位吞吐为
-1.506 MiB/s，raw 为 3.018 MiB/s。dm-verity 的 hash cache A/B 中，cache=0 与
-cache=256 的五轮中位吞吐分别为 0.320 MiB/s 和 0.398 MiB/s。现有 Linux/WSL
-基线使用不同客体、矩阵和运行时长，因此不得据此宣称跨系统性能百分比；严格的
-Linux/Asterinas 对照必须在相同 QEMU/KVM 配置、镜像和 FIO 参数下补测。
-
-\subsection{启动开销分析}
-
-启动时间测量评估了引入 dm-verity 后对内核启动时间的影响。
-
-当前证据只证明 dm-verity 受保护根文件系统可以完成启动和根切换；尚未形成带原始
-启动时间日志的五轮对照，因此不对启动开销给出百分比结论。
-
-\section{Linux 交叉验证}
-
-为了确保 Rust 实现与 Linux 内核标准逐字节兼容，我们设计了多层次的交叉验证。
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.9\textwidth]{figures/cross_validation_flow.png}
-    \caption{交叉验证数据流图}
-    \label{fig:cross_validation}
-\end{figure}
-
-交叉验证的核心方法是使用验证脚本进行逐字节兼容性验证：
-\begin{enumerate}
-    \item 在 Linux 系统中，使用 dmsetup 创建 aes-xts-plain64 映射器，写入特定位模式。
-    \item 在 Rust 实现中，使用 dmctl crypt-table-fill 命令，使用完全相同的密钥和参数。
-    \item 使用 cmp 命令比较两者生成的密文镜像。
-    \item 验证通过的标准是：两个文件逐字节完全相同。
-\end{enumerate}
-
-\section{创新技术验证}
-
-针对比赛要求的"技术探索"指标（占 10\%），我们对提出的可信存储性能优化技术进行了专项验证：
+\section{性能测试结果}
 
 \begin{table}[H]
     \centering
-    \caption{哈希块缓存效果验证}
-    \label{tab:cache_validation}
-    \begin{tabular}{p{0.30\textwidth}p{0.30\textwidth}p{0.30\textwidth}}
+    \caption{正式性能矩阵完成情况}
+    \begin{tabular}{p{0.35\textwidth}p{0.22\textwidth}p{0.22\textwidth}}
         \toprule
-        \textbf{场景} & \textbf{无缓存（MiB/s）} & \textbf{有缓存（MiB/s）} \\
+        \textbf{范围} & \textbf{轮数/单元格} & \textbf{结果} \\
         \midrule
-        顺序读（4 KiB、QD1） & 0.320 & 0.398 \\
+        Asterinas FIO dm-crypt & 13 项 $\times$ 5 & PASS \\
+        Asterinas FIO dm-verity & 7 项 $\times$ 5 & PASS；6 项 N/A \\
+        Linux FIO raw/dm-crypt & 26 项 $\times$ 5 & PASS \\
+        Filebench raw/dm-crypt & 5 + 5 & PASS \\
+        SQLite 三目标 & 5 + 5 + 5 & PASS \\
+        Asterinas 三场景启动 & 5 + 5 + 5 & PASS \\
         \bottomrule
     \end{tabular}
 \end{table}
 
-串口日志确认当前 dm-crypt 五轮测试均使用 AES-NI 后端；由于尚无相同条件下的
-软件 AES 五轮数据，本报告不提供 AES-NI 加速倍数或绝对吞吐对照。
+旧 Asterinas dm-crypt FIO 因 mapper 不存在而测试普通文件，已分类为
+\texttt{HARNESS\_BUG} 并从正式输入移除。Linux 与 Asterinas 结果分平台展示，
+避免把环境差异解释为产品倍率。
+
+\section{复现命令}
+
+\begin{lstlisting}[basicstyle=\ttfamily\small]
+cargo test --workspace
+sudo bash scripts/verify_linux_xts_compat.sh
+sudo bash scripts/run_fio_matrix.sh --platform linux-host --runs 5
+bash scripts/run_fio_matrix.sh --platform asterinas-kvm \
+  --asterinas-dir "$PWD/asterinas" --runs 5
+sudo RUNS=5 bash scripts/run_filebench_matrix.sh
+sudo RUNS=5 ROWS=10000 bash scripts/run_sqlite_matrix.sh
+RUNS=5 ENABLE_KVM=1 bash scripts/run_boot_matrix.sh
+python3 scripts/check_benchmark_package.py
+python3 scripts/verify_kvm_evidence.py
+python3 scripts/review_release_check.py
+\end{lstlisting}
+
+R01--R03、C01--C05 和 V01--V07 的完整环境变量与命令见仓库根目录 README。
+
+\section{证据可复核性}
+
+\begin{itemize}
+    \item 正式性能结果位于 \texttt{docs/evidence/final-performance-20260811/}；
+    \item 正确性日志位于 \texttt{docs/evidence/stabilization/correctness-kvm/}；
+    \item kernel build 日志位于 \texttt{docs/evidence/stabilization/build-recovery/}；
+    \item 组合栈日志位于 \texttt{docs/evidence/stack/}；
+    \item 每条矩阵记录都包含原始证据相对路径，不依赖手工修改数字。
+\end{itemize}
 
 \section{小结}
 
-本章展示了项目的测试与验证体系。在功能正确性方面，dm-verity 的篡改检测和
-dm-crypt 的透明加密均通过了端到端测试；性能部分只保留可由原始日志和 CSV
-复核的 Asterinas 五轮结果。在交叉验证方面，与 Linux 内核的逐字节兼容性验证
-证明了密码格式兼容，但不替代尚待补齐的同条件跨系统性能对照。
-
-在下一章中，我们将阐述项目的合规性声明，包括代码来源、开源协议和 AI 工具使用的完整披露。
+kernel build、核心 P0 正确性和四类性能测试均有正式 PASS 证据。尚未定义 runner 的
+扩展 P1 项保持 UNTESTED，不解释为 PASS，也不解释为产品失败。

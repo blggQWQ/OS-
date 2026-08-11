@@ -9,19 +9,19 @@ dm-crypt 子系统提供透明的块级加密，确保写入物理存储设备�
 \begin{itemize}
     \item 保护根文件系统（rootfs）的机密性，防止物理介质被窃取后泄露数据。
     \item 为数据盘提供透明加密，使用户数据在持久化存储中始终保持密文状态。
-    \item 作为 cryptsetup 工具的后端支撑，兼容 Linux 生态的加密卷管理流程。
+    \item 作为 \texttt{cryptsetup} 工具的后端支撑，兼容 Linux 生态的加密卷管理流程。
 \end{itemize}
 
 \section{系统架构与数据流}
 
-DmCryptDevice 充当任何实现 BlockDevice trait 的对象的包装器。它拦截 read block 和 write block 调用，在将数据传递给底层"下层"设备之前或之后执行密码学转换。
+\texttt{DmCryptDevice} 充当任何实现 \texttt{BlockDevice} trait 的对象的包装器。它拦截 \texttt{read\_block} 和 \texttt{write\_block} 调用，在将数据传递给底层“下层”设备之前或之后执行密码学转换。
 
 数据流的关键步骤如下：
 \begin{enumerate}
-    \item 应用程序或文件系统向 DmCryptDevice 发起 write block 请求。
-    \item DmCryptDevice 根据逻辑块 ID 和 iv offset 计算对应的物理扇区号。
-    \item 调用 Aes256XtsCipher 对数据进行加密，使用扇区号作为 plain64 IV。
-    \item 将密文写入底层的 BlockDevice（如 VirtioBlkAdapter 或 FileBlockDevice）。
+    \item 应用程序或文件系统向 \texttt{DmCryptDevice} 发起 \texttt{write\_block} 请求。
+    \item \texttt{DmCryptDevice} 根据逻辑块 ID 和 \texttt{iv\_offset} 计算对应的物理扇区号。
+    \item 调用 \texttt{Aes256XtsCipher} 对数据进行加密，使用扇区号作为 plain64 IV。
+    \item 将密文写入底层的 \texttt{BlockDevice}（如 \texttt{VirtioBlkAdapter} 或 \texttt{FileBlockDevice}）。
     \item 最终数据以密文形式持久化到物理存储介质。
 \end{enumerate}
 
@@ -31,75 +31,87 @@ DmCryptDevice 充当任何实现 BlockDevice trait 的对象的包装器。它�
 
 \subsection{DmCryptTable——加密目标配置表}
 
-DmCryptTable 结构体表示 crypt 目标的配置，旨在兼容 Linux dmsetup 的表行格式。它实现了 FromStr trait 以解析标准的空格分隔字符串。
+\texttt{DmCryptTable} 结构体表示 crypt 目标的配置，旨在兼容 Linux \texttt{dmsetup} 的表行格式。它实现了 \texttt{FromStr} trait 以解析标准的空格分隔字符串。
 
 \begin{table}[H]
     \centering
-    \caption{DmCryptTable 字段说明}
+    \caption{\texttt{DmCryptTable} 字段说明}
     \label{tab:dmcrypt_table}
     \begin{tabular}{p{0.25\textwidth}p{0.65\textwidth}}
         \toprule
         \textbf{字段} & \textbf{描述} \\
         \midrule
-        cipher & 密码算法，固定为 aes-xts-plain64 \\
-        key & 十六进制编码的加密密钥（AES-256-XTS 为 64 字节） \\
-        iv offset & 扇区编号的初始向量偏移量 \\
-        device & 底层块设备的路径或标识符 \\
-        offset & 底层设备上的数据偏移量（以扇区为单位） \\
+        \texttt{cipher} & 密码算法，固定为 \texttt{aes-xts-plain64} \\
+        \texttt{key} & 十六进制编码的加密密钥（AES-256-XTS 为 64 字节） \\
+        \texttt{iv\_offset} & 扇区编号的初始向量偏移量 \\
+        \texttt{device} & 底层块设备的路径或标识符 \\
+        \texttt{offset} & 底层设备上的数据偏移量（以扇区为单位） \\
+        \texttt{options} & 可选参数列表（如 \texttt{allow\_discards}） \\
         \bottomrule
     \end{tabular}
 \end{table}
 
 解析器对标准 Linux 表字符串进行标记化，例如：
-\begin{lstlisting}
+\begin{lstlisting}[language=Rust, basicstyle=\ttfamily\small]
 "aes-xts-plain64 <64-byte-hex-key> 0 /dev/vda 0"
 \end{lstlisting}
 
+支持的可选参数包括 \texttt{allow\_discards}、\texttt{same\_cpu\_crypt}、\texttt{submit\_from\_crypt\_cpus}、\texttt{no\_read\_workqueue}、\texttt{no\_write\_workqueue}、\texttt{iv\_large\_sectors}、\texttt{sector\_size:512}，实现与 Linux 行为一致。解析器会验证选项计数（第一个选项为选项个数）并识别已声明的选项。
+
 \subsection{Aes256XtsCipher——核心密码引擎}
 
-这是核心密码引擎。它使用两个 AES-256 实例实现 XTS 模式：一个用于数据块，另一个用于微调（Tweak/IV）。
+这是核心密码引擎，使用两个 AES-256 实例实现 XTS 模式：一个用于数据块，另一个用于微调（Tweak/IV）。
 
-\textbf{密钥要求}：严格需要 64 字节（32 字节用于数据密钥，32 字节用于微调密钥）。如果密钥长度不正确，初始化将失败并返回错误。
+\textbf{密钥要求}：严格需要 64 字节（32 字节用于数据密钥，32 字节用于微调密钥）。如果密钥长度不正确，初始化将失败并返回 \texttt{DmError::InvalidKey}。
 
 \textbf{扇区大小}：固定为 512 字节，以兼容标准 dm-crypt 扇区单位。这是 Linux 内核 dm-crypt 的约定，保持一致性是实现逐字节兼容的前提。
 
 \textbf{IV 生成（plain64）}：将 64 位扇区号编码到小端序 128 位 IV 的低半部分，然后由微调密钥进行加密。具体流程如下：
 \begin{enumerate}
-    \item 将扇区号（u64）转换为小端序字节序。
+    \item 将扇区号（\texttt{u64}）转换为小端序字节序。
     \item 将转换后的 8 字节填入 16 字节缓冲区的低 8 位。
     \item 高位清零（plain64 不使用高位）。
     \item 微调密钥对完整的 16 字节 IV 进行加密，生成最终的微调值。
     \item 数据密钥与微调值配合，执行 XTS 模式的加密/解密操作。
 \end{enumerate}
 
+在星绽内核中，该引擎支持 AES-NI 硬件加速：当 CPU 支持 AES-NI 且构建时启用了 \texttt{dm\_aes\_ni} 特性时，使用内联汇编直接调用 AES-NI 指令，并在操作前后保存/恢复 FPU/XMM 状态，确保不被中断上下文破坏。
+
 \subsection{DmCryptDevice——主设备映射目标}
 
 主设备映射目标，负责管理扇区到块的算术运算，并确保 I/O 操作与底层设备的块大小对齐。
 
-\textbf{扇区算术}：由于 BlockDevice trait 以块（通常为 4KiB）为单位操作，而 dm-crypt 以 512B 扇区为单位操作，DmCryptDevice 需要在两者之间进行转换：
+\textbf{扇区算术}：由于 \texttt{BlockDevice} trait 以块（通常为 4KiB）为单位操作，而 dm-crypt 以 512B 扇区为单位操作，\texttt{DmCryptDevice} 需要在两者之间进行转换：
 \begin{enumerate}
-    \item 根据 block id 和 iv offset 计算起始扇区号。
+    \item 根据逻辑块 ID 和 \texttt{iv\_offset} 计算起始扇区号。
     \item 对于块内的每个扇区，依次调用密码引擎进行加密或解密。
     \item 处理扇区偏移与块边界的对齐问题，确保读写操作正确映射。
 \end{enumerate}
 
-\textbf{构造函数（from table）}：验证底层设备的块大小是否为 512B 扇区大小的倍数，并计算 data offset blocks。如果块大小不是 512 的倍数，初始化将失败。
+\textbf{构造函数（\texttt{from\_table}）}：验证底层设备的块大小是否为 512B 扇区大小的倍数，并计算 \texttt{data\_offset\_blocks}。如果块大小不是 512 的倍数，初始化将失败。同时，构造函数会检查数据偏移量是否超出设备容量，并计算逻辑扇区数。
 
-\section{实现细节：扇区转换}
+\section{实现细节：扇区转换与 I/O 路径}
 
-transform 函数是基于块的 BlockDevice 接口与基于扇区的 Aes256XtsCipher 之间的桥梁。
+\texttt{transform} 函数是基于块的 \texttt{BlockDevice} 接口与基于扇区的 \texttt{Aes256XtsCipher} 之间的桥梁。
 
 转换逻辑的核心要点：
 \begin{itemize}
     \item 每个 4KiB 块包含 8 个 512B 扇区。
     \item 加密时，按扇区逐个处理，每个扇区使用其独立的扇区号作为 IV。
-    \item data offset blocks 用于支持在设备开头预留空间（例如 LUKS 头部）。
-    \item 实际物理块 ID = 逻辑块 ID + data offset blocks。
+    \item \texttt{data\_offset\_blocks} 用于支持在设备开头预留空间（例如 LUKS 头部）。
+    \item 实际物理块 ID = 逻辑块 ID + \texttt{data\_offset\_blocks}。
+\end{itemize}
+
+I/O 路径的优化措施包括：
+\begin{itemize}
+    \item 使用有界临时缓冲池（\texttt{scratch\_pool}）复用加解密缓冲区，避免热路径中的频繁分配。池的容量由启动参数 \texttt{dm\_crypt.scratch\_pool} 控制（默认 32），设为 0 可关闭池便于 A/B 性能对比。
+    \item 写路径将明文从调用方的 BIO 段复制到临时缓冲区，加密后再通过 \texttt{BioSegment::alloc\_bytes} 分配下层 I/O 段写入，确保不修改原始调用方数据。
+    \item 读路径从下层读取密文到临时缓冲区，解密后再写回调用方的 DMA 段。
 \end{itemize}
 
 \section{Linux 兼容性验证}
 
-该实现已针对 Linux 内核进行验证，以确保 aes-xts-plain64 密码模式的逐字节一致性。
+该实现已针对 Linux 内核进行验证，以确保 \texttt{aes-xts-plain64} 密码模式的逐字节一致性。
 
 \subsection{兼容性对比}
 
@@ -111,11 +123,12 @@ transform 函数是基于块的 BlockDevice 接口与基于扇区的 Aes256XtsCi
         \toprule
         \textbf{特性} & \textbf{本项目实现} & \textbf{Linux 兼容性} \\
         \midrule
-        密码算法 & AES-256-XTS & aes-xts-plain64 \\
+        密码算法 & AES-256-XTS & \texttt{aes-xts-plain64} \\
         IV 生成 & plain64（小端序 64 位扇区） & 完全一致 \\
         密钥大小 & 512-bit（64 字节） & 完全一致 \\
         扇区大小 & 512 Bytes & 完全一致 \\
-        表格式 & DmCryptTable & 兼容 dmsetup \\
+        表格式 & \texttt{DmCryptTable} & 兼容 \texttt{dmsetup} \\
+        可选参数 & 支持 Linux 已声明的选项 & 部分兼容 \\
         \bottomrule
     \end{tabular}
 \end{table}
@@ -125,27 +138,34 @@ transform 函数是基于块的 BlockDevice 接口与基于扇区的 Aes256XtsCi
 我们使用验证脚本进行逐字节兼容性验证：
 
 \begin{enumerate}
-    \item 在 Linux 系统中，使用 dmsetup 创建 aes-xts-plain64 映射器，写入特定位模式。
-    \item 在 Rust 实现中，使用 dmctl crypt-table-fill 命令，使用完全相同的密钥和参数。
-    \item 使用 cmp 命令比较两者生成的密文镜像。
+    \item 在 Linux 系统中，使用 \texttt{dmsetup} 创建 \texttt{aes-xts-plain64} 映射器，写入特定位模式（例如全 0x5a）。
+    \item 在 Rust 实现中，使用 \texttt{dmctl crypt-table-fill} 命令，使用完全相同的密钥和参数，写入相同模式。
+    \item 使用 \texttt{cmp} 命令比较两者生成的密文镜像。
     \item 验证通过的标准是：两个文件逐字节完全相同。
 \end{enumerate}
+
+版本化证据中已包含固定向量的 SHA-256 校验和（\texttt{linux-xts-plain64.sha256}），确保 Rust 实现与 Linux 内核的输出一致。
 
 \section{根文件系统加密方案}
 
 为了实现对根文件系统的加密保护，系统在启动阶段执行以下流程：
 
 \begin{enumerate}
-    \item 内核引导程序传递启动参数。
-    \item 星绽内核在初始化阶段解析这些参数，构建 DmBootConfig 结构体。
-    \item aster-dm 组件实例化 VirtioBlkAdapter 包装物理设备，然后使用 DmCryptDevice 包装该适配器。
-    \item initramfs 脚本挂载加密设备到 /newroot。
-    \item 执行 pivot\_root 将根文件系统切换到加密卷。
-    \item 系统从加密的根文件系统正常启动。
+    \item 内核引导程序传递启动参数：
+        \begin{lstlisting}[basicstyle=\ttfamily\small]
+dm_crypt.device=/dev/vda dm_crypt.name=dm-crypt0 \
+dm_crypt.key=<128-char-hex-key> dm_crypt.scratch_pool=32
+        \end{lstlisting}
+    \item 星绽内核在初始化阶段解析这些参数，构建配置结构。
+    \item \texttt{aster-dm} 组件实例化 \texttt{VirtioBlkAdapter} 包装物理设备，然后使用 \texttt{DmCryptDevice} 包装该适配器。
+    \item 执行 \texttt{self\_test\_ext2\_magic} 自检，验证 AES-XTS 解密路径是否正确（检查 EXT2 魔数 \texttt{0x53EF}）。如果自检失败，内核将 panic。
+    \item initramfs 脚本（使用 \texttt{dm-root} 模式）挂载加密设备到 \texttt{/newroot}。
+    \item 执行 \texttt{pivot\_root} 将根文件系统切换到加密卷。
+    \item 系统从加密的根文件系统正常启动，串口日志显示 \texttt{PASS system root switched to protected mapper}，并输出 AES 后端信息（如 \texttt{backend=AES-NI}）。
 \end{enumerate}
+
+加密根文件系统还支持 \texttt{scratch\_pool} 参数控制临时缓冲池容量，默认 32，可通过 \texttt{dm\_crypt.scratch\_pool=0} 关闭以进行诊断。真实性审计后的正式 KVM 矩阵覆盖 13 个工况，每项五轮；4 KiB 顺序读中位带宽为 8.908 MiB/s。由于旧 raw 证据与无效 mapper 结果混在同一批次，本报告不再计算 Asterinas 内部 raw 倍率。
 
 \section{小结}
 
-本章详细阐述了 dm-crypt 的设计与实现，包括 DmCryptTable 配置解析、Aes256XtsCipher 密码引擎、扇区算术转换、Linux 兼容性验证以及根文件系统加密方案。通过严格遵循 aes-xts-plain64 标准，并利用交叉验证确保与 Linux 内核的逐字节兼容，dm-crypt 为星绽操作系统提供了可靠的透明加密能力。
-
-在下一章中，我们将讨论性能优化策略，包括认证后哈希缓存、完成 BIO 数据复用、有界临时缓冲池和硬件加速等技术手段。
+本章详细阐述了 dm-crypt 的设计与实现，包括 \texttt{DmCryptTable} 配置解析、\texttt{Aes256XtsCipher} 密码引擎、扇区算术转换、有界临时缓冲池优化、Linux 兼容性验证以及根文件系统加密方案。通过严格遵循 \texttt{aes-xts-plain64} 标准，并利用交叉验证确保与 Linux 内核的逐字节兼容，dm-crypt 为星绽操作系统提供了可靠的透明加密能力。在下一章中，我们将讨论性能优化策略，包括认证后哈希缓存、完成 BIO 数据复用、有界临时缓冲池和硬件加速等技术手段。

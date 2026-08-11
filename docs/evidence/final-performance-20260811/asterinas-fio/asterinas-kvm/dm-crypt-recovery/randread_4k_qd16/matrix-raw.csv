@@ -1,0 +1,6 @@
+label,run,device,operation,block_size,ioengine,queue_depth,bw_mib_s,iops,p50_us,p95_us,p99_us
+dm-crypt,1,/dev/mapper/dm-crypt-bench,randread,4k,posixaio,16,8.653707504272461,2213.850305,7176.192,8159.232,8847.36
+dm-crypt,2,/dev/mapper/dm-crypt-bench,randread,4k,posixaio,16,8.365907669067383,2140.173844,7372.8,8716.288,10420.224
+dm-crypt,3,/dev/mapper/dm-crypt-bench,randread,4k,posixaio,16,8.182199478149414,2093.144114,7438.336,9371.648,11599.872
+dm-crypt,4,/dev/mapper/dm-crypt-bench,randread,4k,posixaio,16,8.694782257080078,2224.365381,7110.656,8159.232,8847.36
+dm-crypt,5,/dev/mapper/dm-crypt-bench,randread,4k,posixaio,16,8.614051818847656,2203.698151,7176.192,8224.768,9109.504

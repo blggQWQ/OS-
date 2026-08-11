@@ -1,0 +1,4 @@
+status=N/A
+reason=dm-verity_read_only_fileserver_has_writes
+workload=/repo/scripts/workloads/fileserver.f
+target=dm-verity

@@ -1,0 +1,2 @@
+target,rows,status,create_s,bulk_insert_s,transaction_s,select_s,update_s,select2_s,total_s,db_path
+raw,10000,ok,0.024712,0.016547,0.016726,0.000135,0.013039,0.000128,0.071286,/mnt/d/project/target/final-perf/sqlite-env/mnt-raw/cscc-10000.db

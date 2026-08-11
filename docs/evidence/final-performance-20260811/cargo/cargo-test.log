@@ -1,0 +1,82 @@
+    Updating crates.io index
+ Downloading crates ...
+  Downloaded inout v0.1.4
+  Downloaded aes v0.8.4
+  Downloaded cipher v0.4.4
+  Downloaded typenum v1.20.1
+   Compiling version_check v0.9.5
+   Compiling typenum v1.20.1
+   Compiling cpufeatures v0.2.17
+   Compiling cfg-if v1.0.4
+   Compiling generic-array v0.14.7
+   Compiling inout v0.1.4
+   Compiling crypto-common v0.1.7
+   Compiling cipher v0.4.4
+   Compiling aes v0.8.4
+   Compiling dm v0.1.0 (/workspace/crates/dm)
+   Compiling dmctl v0.1.0 (/workspace/crates/dmctl)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 33.48s
+     Running unittests src/lib.rs (target/debug/deps/dm-315fe8d9b5b16769)
+
+running 1 test
+test sha256::tests::hashes_known_vectors ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/crypt_test.rs (target/debug/deps/crypt_test-9fea3bb63b6479fc)
+
+running 2 tests
+test wrong_key_does_not_recover_plaintext ... ok
+test crypt_round_trip_hides_plaintext_on_lower_device ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/cryptsetup_compat_test.rs (target/debug/deps/cryptsetup_compat_test-b20697cd49d4ae07)
+
+running 4 tests
+test validates_linux_crypt_option_count_and_semantics ... ok
+test parses_linux_dm_crypt_table ... ok
+test rejects_non_xts_cipher_and_wrong_key_size ... ok
+test aes_xts_round_trip_uses_offset_and_plain64_sector_number ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/dm_verity_layout_test.rs (target/debug/deps/dm_verity_layout_test-4f56063c0374ef6a)
+
+running 1 test
+test packed_hash_block_root_matches_expected_layout ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/file_device_test.rs (target/debug/deps/file_device_test-9ed10bcc8eccb552)
+
+running 2 tests
+test file_block_device_persists_blocks ... ok
+test file_block_device_rejects_writes_when_read_only ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/stack_test.rs (target/debug/deps/stack_test-ffe9e801d374dd11)
+
+running 2 tests
+test instruments_io_at_a_mapper_boundary ... ok
+test composes_confidentiality_and_integrity_targets ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/verity_test.rs (target/debug/deps/verity_test-174180ebe97d8357)
+
+running 4 tests
+test verity_accepts_untampered_blocks ... ok
+test verity_is_read_only ... ok
+test verity_rejects_tampered_data_block ... ok
+test verity_rejects_wrong_root_hash ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests src/main.rs (target/debug/deps/dmctl-3b50ace226d52a20)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

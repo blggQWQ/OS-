@@ -1,0 +1,4 @@
+timestamp_utc=2026-08-10T16:35:18Z pid=217 image=/mnt/d/project/target/final-perf/sqlite-env/raw.img loop=/dev/loop2
+timestamp_utc=2026-08-10T16:35:19Z pid=217 image=/mnt/d/project/target/final-perf/sqlite-env/crypt.img loop=/dev/loop3
+timestamp_utc=2026-08-10T16:35:21Z pid=217 image=/mnt/d/project/target/final-perf/sqlite-env/verity-data.img loop=/dev/loop3
+timestamp_utc=2026-08-10T16:35:21Z pid=217 image=/mnt/d/project/target/final-perf/sqlite-env/verity-hash.img loop=/dev/loop4

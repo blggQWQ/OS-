@@ -1,3 +1,0 @@
-system,runs_per_target,raw_median_mib_s,dm_crypt_median_mib_s,throughput_retention_percent,dm_crypt_median_iops,dm_crypt_median_p50_us,dm_crypt_median_p95_us,dm_crypt_median_p99_us
-Linux guest,5,5.150265693664551,4.746399879455566,92.1583499137571,1215.078492,684.032,1384.448,2998.272
-Asterinas,5,4.245278358459473,4.059359550476074,95.62057438205619,1039.19608,921.6,1318.912,2023.424

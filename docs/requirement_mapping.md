@@ -89,16 +89,13 @@ LUKS metadata、PBKDF 与 keyslot 仍按 Linux 分层留在用户态。
 
 - [performance.md](performance.md) 给出可复现的 Linux/Asterinas 测试矩阵；
 - `scripts/benchmark.sh` 提供 plain/AES-XTS/verity 的 CSV 微基准入口；
-- `scripts/benchmark_linux_dm.sh` 提供 raw/dm-crypt 同后端五轮配对测试；
-- `scripts/benchmark_linux_guest_dm_crypt.sh` 提供 Linux KVM guest 的严格同条件采集；
-- `scripts/compare_cross_guest_dm_crypt.py` 在 metadata 不一致时拒绝生成跨系统表；
+- `scripts/run_fio_matrix.sh` 提供 Linux raw/dm-crypt 同后端五轮配对测试和 Asterinas KVM 正式矩阵；
 - `scripts/benchmark_boot_time.py` 提供带宿主机时间戳的五轮启动对照；
-- `scripts/summarize_benchmark.py` 输出中位数、吞吐保留率和 p95 延迟开销。
+- `scripts/summarize_fio_matrix.py` 输出均值、中位数、标准差和原始证据路径。
 
-当前已经完成 Asterinas KVM 下 dm-crypt raw/AES-NI 五轮配对、dm-verity hash cache
-A/B 五轮测试、同一宿主机与数据盘上的 Linux guest/Asterinas 直接对照，以及带
-宿主机单调时间戳日志的 plain/dm-verity 各五轮启动对照。严格对照中 Asterinas
-raw、dm-crypt 吞吐分别为 Linux guest 的 82.4% 和 85.5%；dm-verity 中位启动增量为 5.256%。
+当前已经完成 Asterinas KVM dm-crypt 13 项、dm-verity 7 项，Linux host raw/dm-crypt
+各 13 项以及 plain/dm-crypt/dm-verity 各五轮启动对照。跨平台结果分开列示，不使用
+不同环境数据计算倍率；最终数字见 `docs/evidence/final-performance-20260811/`。
 
 ## 指标 5：技术探索
 
@@ -114,6 +111,8 @@ raw、dm-crypt 吞吐分别为 Linux guest 的 82.4% 和 85.5%；dm-verity 中�
 - 内核输出 BIO 复用、补读与 cache hit/miss 指标，可直接证明优化是否生效；
 - mapper 接口统一，后续可继续加入 I/O batch 和异步块 I/O；
 - 用户态 `DmStackBuilder` 支持 target 动态组合与安全能力传播；
+- 内核补丁 `0007` 提供 Combined 叠栈启动路径（`dm_stack=crypt,verity`，
+  `vdc → dm-crypt0 → dm-verity0`），与用户态 `demo-stack` 同序；
 - `InstrumentedDevice` 可插在任意层之间进行分层性能归因。
 
 建议答辩重点：
@@ -131,9 +130,9 @@ raw、dm-crypt 吞吐分别为 Linux guest 的 82.4% 和 85.5%；dm-verity 中�
 | dm-crypt 根文件系统 | `AES backend=AES-NI`；mapper 上 ext2 根切换 PASS |
 | dm-verity 正例 | `status=verified`、`data_rereads=0`、根切换 PASS |
 | dm-verity 篡改反例 | 一字节篡改后 `status=integrity-rejected`；零个 root-switch PASS |
-| 可量化优化 | hash cache=256 相对 cache=0：五轮 dm-verity 中位吞吐 +24.4%，p95 -8.7% |
-| 跨系统性能 | 同条件五轮：Linux 4.746 MiB/s，Asterinas 4.059 MiB/s（85.5%） |
-| 启动开销 | plain 16.058 s，dm-verity 16.902 s，中位增量 5.256% |
+| 正式 FIO | Linux raw/dm-crypt 各 13 项；Asterinas dm-crypt 13 项、dm-verity 7 项；每项五轮 |
+| 性能口径 | Linux 与 Asterinas 分平台展示，不计算跨环境倍率 |
+| 启动开销 | plain 51.331303 s；dm-crypt 51.629820 s（+0.582%）；dm-verity 52.743415 s（+2.751%） |
 
 原始 KVM 串口和逐轮 CSV 位于 `docs/evidence/`，入口索引为
-`docs/evidence/FINAL_VALIDATION.md`。
+`docs/evidence/README.md`。

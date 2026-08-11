@@ -14,7 +14,8 @@ from pathlib import Path
 BEGIN_RE = re.compile(
     r"^\[dm-bench\] BEGIN label=(?P<label>\S+) run=(?P<run>\d+) "
     r"device=(?P<device>\S+) operation=(?P<operation>\S+) "
-    r"block_size=(?P<block_size>\S+) queue_depth=(?P<queue_depth>\d+)$"
+    r"block_size=(?P<block_size>\S+) (?:ioengine=(?P<ioengine>\S+) )?"
+    r"queue_depth=(?P<queue_depth>\d+)(?: jobs=\d+)?$"
 )
 END_RE = re.compile(r"^\[dm-bench\] END label=(?P<label>\S+) run=(?P<run>\d+)$")
 PERCENTILES = ("50.000000", "95.000000", "99.000000")
@@ -24,6 +25,7 @@ FIELDS = (
     "device",
     "operation",
     "block_size",
+    "ioengine",
     "queue_depth",
     "bw_mib_s",
     "iops",
@@ -37,6 +39,8 @@ def parse_log(path: Path) -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
     pending: dict[str, str] | None = None
     json_lines: list[str] = []
+    json_started = False
+    brace_depth = 0
     for raw_line in path.read_text(encoding="utf-8", errors="replace").splitlines():
         line = raw_line.strip()
         begin = BEGIN_RE.match(line)
@@ -45,6 +49,8 @@ def parse_log(path: Path) -> list[dict[str, object]]:
                 raise ValueError(f"{path}: nested BEGIN marker")
             pending = begin.groupdict()
             json_lines = []
+            json_started = False
+            brace_depth = 0
             continue
         if pending is None:
             continue
@@ -52,6 +58,8 @@ def parse_log(path: Path) -> list[dict[str, object]]:
         if end:
             if end.group("label") != pending["label"] or end.group("run") != pending["run"]:
                 raise ValueError(f"{path}: BEGIN/END mismatch")
+            if not json_lines or brace_depth != 0:
+                raise ValueError(f"{path}: incomplete fio JSON payload")
             payload = json.loads("\n".join(json_lines))
             operation = pending["operation"]
             io_key = "read" if operation in {"read", "randread"} else "write"
@@ -72,7 +80,13 @@ def parse_log(path: Path) -> list[dict[str, object]]:
             pending = None
             json_lines = []
             continue
-        json_lines.append(raw_line)
+        if not json_started and line.startswith("{"):
+            json_started = True
+        if json_started and brace_depth == 0 and json_lines:
+            continue
+        if json_started:
+            json_lines.append(raw_line)
+            brace_depth += raw_line.count("{") - raw_line.count("}")
     if pending is not None:
         raise ValueError(f"{path}: missing END marker")
     if not rows:
@@ -120,38 +134,20 @@ def write_summary(path: Path, rows: list[dict[str, object]]) -> None:
         "block_size",
         "queue_depth",
         "runs",
-        "median_bw_mib_s",
-        "median_iops",
-        "median_p50_us",
-        "median_p95_us",
-        "median_p99_us",
+        "metric", "mean", "median", "stddev",
     )
     with path.open("w", newline="", encoding="utf-8") as target:
         writer = csv.DictWriter(target, fieldnames=fields)
         writer.writeheader()
         for key, group in sorted(grouped.items()):
-            writer.writerow(
-                {
-                    "label": key[0],
-                    "operation": key[1],
-                    "block_size": key[2],
-                    "queue_depth": key[3],
-                    "runs": len(group),
-                    "median_bw_mib_s": statistics.median(
-                        float(row["bw_mib_s"]) for row in group
-                    ),
-                    "median_iops": statistics.median(float(row["iops"]) for row in group),
-                    "median_p50_us": statistics.median(
-                        float(row["p50_us"]) for row in group
-                    ),
-                    "median_p95_us": statistics.median(
-                        float(row["p95_us"]) for row in group
-                    ),
-                    "median_p99_us": statistics.median(
-                        float(row["p99_us"]) for row in group
-                    ),
-                }
-            )
+            for metric in ("bw_mib_s", "iops", "p50_us", "p95_us", "p99_us"):
+                values = [float(row[metric]) for row in group]
+                writer.writerow({
+                    "label": key[0], "operation": key[1], "block_size": key[2],
+                    "queue_depth": key[3], "runs": len(group), "metric": metric,
+                    "mean": statistics.fmean(values), "median": statistics.median(values),
+                    "stddev": statistics.stdev(values) if len(values) >= 2 else 0.0,
+                })
 
 
 def main() -> None:

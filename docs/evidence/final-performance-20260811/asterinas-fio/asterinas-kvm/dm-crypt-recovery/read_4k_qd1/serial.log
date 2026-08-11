@@ -1,0 +1,1919 @@
+[dm-bench-meta] commit=426db48c7d01c94cf0c6e761d0edda63040d787b dirty=1 profile=release-lto stage_stats=1 timestamp_utc=2026-08-10T19:23:23Z
+[dm-bench-meta] accelerator=kvm cpu_model=host vcpus=1 memory=8G device_model=virtio-blk
+[dm-bench-meta] TARGET_FAMILY=crypt HOST_IMAGE=/target/crypt-bench.img GUEST_DEVICE=/dev/vdc MAPPER_DEVICE=/dev/mapper/dm-crypt-bench
+[dm-bench-meta] rw=read block_size=4k ioengine=sync queue_depth=1 jobs=1 size=256m runtime=10 ramp=2 runs=5
+these 4 derivations will be built:
+  /nix/store/6lzb898c88q3sjl3bc22bf7xdwhcmg93-benchmark-0.1.0.drv
+  /nix/store/q5g1yk790jsdvd1k2qk144y9w74mql8z-resolv-conf.drv
+  /nix/store/yhjnx973f44fnmrbz5w9m96drvifvkxd-runtime-deps.drv
+  /nix/store/3qh1zqhqb10gf39w8lh473g9kh02h1lh-initramfs.drv
+these 2 paths will be fetched (154.4 KiB download, 598.9 KiB unpacked):
+  /nix/store/p01g81imwyfhfn8p6nsfn4m2vdk24g9g-cryptsetup-2.7.5-bin
+  /nix/store/xam5b9xk11767mz35dc9i5gcmy9ggsaf-popt-1.19
+copying path '/nix/store/xam5b9xk11767mz35dc9i5gcmy9ggsaf-popt-1.19' from 'https://cache.nixos.org'...
+building '/nix/store/6lzb898c88q3sjl3bc22bf7xdwhcmg93-benchmark-0.1.0.drv'...
+building '/nix/store/q5g1yk790jsdvd1k2qk144y9w74mql8z-resolv-conf.drv'...
+resolv.conf is generated from the host's /etc/resolv.conf
+copying path '/nix/store/p01g81imwyfhfn8p6nsfn4m2vdk24g9g-cryptsetup-2.7.5-bin' from 'https://cache.nixos.org'...
+building '/nix/store/yhjnx973f44fnmrbz5w9m96drvifvkxd-runtime-deps.drv'...
+structuredAttrs is enabled
+building '/nix/store/3qh1zqhqb10gf39w8lh473g9kh02h1lh-initramfs.drv'...
+/nix/store/mr860wx0wga47hf26dwwzp2c9xx7k4pc-initramfs
+this derivation will be built:
+  /nix/store/vv1475ylq0vn4ph8gmscjz9mwr06vggk-initramfs-image.drv
+building '/nix/store/vv1475ylq0vn4ph8gmscjz9mwr06vggk-initramfs-image.drv'...
+/build/tmp.MuhHn5IP4T /build
+194570 blocks
+/build
+/nix/store/7l2zhk5s4nvzwca7m2qvwmlrqdh1f9mn-initramfs-image
+info: syncing channel updates for nightly-2026-04-03-x86_64-unknown-linux-gnu
+info: latest update on 2026-04-03 for version 1.96.0-nightly (55e86c996 2026-04-02)
+info: component llvm-tools is up to date
+info: component rust-src is up to date
+info: component rustc-dev is up to date
+info: downloading 3 components
+  Installing cargo-osdk v0.18.0 (/work/osdk)
+warning: default toolchain implicitly overridden with `nightly-2026-04-03-x86_64-unknown-linux-gnu` by rustup toolchain file
+  |
+  = help: use `cargo +stable install` if you meant to use the stable toolchain
+  = note: rustup selects the toolchain based on the parent environment and not the environment of the package being installed
+    Updating crates.io index
+     Locking 164 packages to latest Rust 1.96.0-nightly compatible versions
+      Adding indicatif v0.17.11 (available: v0.18.6)
+      Adding inferno v0.11.21 (available: v0.12.8)
+      Adding shlex v1.3.0 (available: v2.0.1)
+      Adding syn v2.0.119 (available: v3.0.3)
+      Adding toml v0.8.23 (available: v1.1.4+spec-1.1.0)
+      Adding whoami v1.6.1 (available: v2.1.2)
+ Downloading crates ...
+  Downloaded env_filter v2.0.0
+  Downloaded adler32 v1.2.0
+  Downloaded bitflags v1.3.2
+  Downloaded libflate_lz77 v2.3.0
+  Downloaded is-terminal v0.4.17
+  Downloaded number_prefix v0.4.0
+  Downloaded autocfg v1.5.1
+  Downloaded fastrand v2.5.0
+  Downloaded defmt-parser v1.0.0
+  Downloaded toml_datetime v0.6.11
+  Downloaded toml_write v0.1.2
+  Downloaded dashmap v6.2.1
+  Downloaded serde_spanned v0.6.9
+  Downloaded zero v0.1.3
+  Downloaded xmas-elf v0.10.0
+  Downloaded arrayvec v0.7.8
+  Downloaded defmt-macros v1.1.1
+  Downloaded str_stack v0.1.1
+  Downloaded quote v1.0.47
+  Downloaded dary_heap v0.3.9
+  Downloaded defmt v1.1.1
+  Downloaded zmij v1.0.23
+  Downloaded thiserror-impl v2.0.20
+  Downloaded which v8.0.5
+  Downloaded rev_buf_reader v0.3.0
+  Downloaded bitflags v2.13.1
+  Downloaded clap_derive v4.6.4
+  Downloaded bytemuck v1.25.2
+  Downloaded env_logger v0.11.11
+  Downloaded proc-macro2 v1.0.107
+  Downloaded console v0.15.11
+  Downloaded getrandom v0.4.3
+  Downloaded libflate v2.3.1
+  Downloaded no_std_io2 v0.9.4
+  Downloaded whoami v1.6.1
+  Downloaded log v0.4.33
+  Downloaded clap v4.6.6
+  Downloaded toml v0.8.23
+  Downloaded crossbeam-utils v0.8.22
+  Downloaded thiserror v2.0.20
+  Downloaded num-format v0.4.4
+  Downloaded rle-decode-fast v1.0.3
+  Downloaded serde_derive v1.0.229
+  Downloaded serde_core v1.0.229
+  Downloaded toml_edit v0.22.27
+  Downloaded serde v1.0.229
+  Downloaded indicatif v0.17.11
+  Downloaded crossbeam-channel v0.5.16
+  Downloaded inferno v0.11.21
+  Downloaded aho-corasick v1.1.5
+  Downloaded memchr v2.8.3
+  Downloaded zerocopy-derive v0.8.56
+  Downloaded quick-xml v0.26.0
+  Downloaded jiff-core v0.1.0
+  Downloaded chrono v0.4.45
+  Downloaded clap_builder v4.6.6
+  Downloaded regex v1.13.1
+  Downloaded serde_json v1.0.151
+  Downloaded portable-atomic v1.15.0
+  Downloaded zerocopy v0.8.56
+  Downloaded syn v2.0.119
+  Downloaded syn v3.0.3
+  Downloaded regex-syntax v0.8.11
+  Downloaded regex-automata v0.4.18
+  Downloaded jiff v0.2.35
+  Downloaded libc v0.2.189
+    Finished `release` profile [optimized] target(s) in 22.59s
+  Installing /root/.cargo/bin/cargo-osdk
+   Installed package `cargo-osdk v0.18.0 (/work/osdk)` (executable `cargo-osdk`)
+[Info] [normal] Forwarded QEMU guest port: 40517->22; 18460->8080 18808->6379 65183->5201 64192->31234 13567->31236 46464->11211
+[Info] [test] Forwarded QEMU guest port: 13151->22; 42679->8080 8221->6379 21403->5201 14582->31234 10571->31236 14337->11211
+    Updating crates.io index
+    Updating git repository `https://github.com/asterinas/inherit-methods-macro`
+    Updating git repository `https://github.com/asterinas/smoltcp`
+    Updating git repository `https://github.com/asterinas/inventory`
+    Updating git repository `https://github.com/asterinas/rust-ctor`
+warning: spurious network error (3 tries remaining): SSL error: syscall failure: ; class=Os (2)
+ Downloading crates ...
+  Downloaded aead v0.4.3
+  Downloaded acpi v5.2.0
+  Downloaded deranged v0.5.8
+  Downloaded ext-trait v1.0.1
+  Downloaded ext-trait-proc_macros v1.0.1
+  Downloaded extension-traits v1.0.1
+  Downloaded getset v0.1.7
+  Downloaded managed v0.8.0
+  Downloaded memoffset v0.9.1
+  Downloaded defmt v0.3.100
+  Downloaded funty v2.0.0
+  Downloaded ghash v0.4.4
+  Downloaded bit_field v0.10.3
+  Downloaded hash32 v0.2.1
+  Downloaded lending-iterator-proc_macros v0.1.7
+  Downloaded hash32 v0.3.1
+  Downloaded macro_rules_attribute v0.1.3
+  Downloaded never-say-never v6.6.666
+  Downloaded ptr_meta_derive v0.3.2
+  Downloaded nougat-proc_macros v0.2.4
+  Downloaded num-conv v0.2.2
+  Downloaded time-core v0.1.9
+  Downloaded universal-hash v0.4.1
+  Downloaded ptr_meta v0.3.2
+  Downloaded tap v1.0.1
+  Downloaded radium v0.7.0
+  Downloaded takeable v0.2.2
+  Downloaded byteorder v1.5.0
+  Downloaded cobs v0.3.0
+  Downloaded darling_macro v0.13.4
+  Downloaded cipher v0.3.0
+  Downloaded macro_rules_attribute-proc_macro v0.1.3
+  Downloaded opaque-debug v0.3.1
+  Downloaded volatile v0.4.6
+  Downloaded subtle v2.4.1
+  Downloaded ctr v0.8.0
+  Downloaded bittle v0.5.7
+  Downloaded nougat v0.2.4
+  Downloaded darling v0.13.4
+  Downloaded paste v1.0.15
+  Downloaded wyz v0.5.1
+  Downloaded uguid v2.2.1
+  Downloaded rustversion v1.0.23
+  Downloaded volatile v0.6.1
+  Downloaded ghost v0.1.23
+  Downloaded polonius-the-crab v0.2.1
+  Downloaded lru v0.16.4
+  Downloaded either v1.17.0
+  Downloaded tdx-guest v0.2.4
+  Downloaded polyval v0.5.3
+  Downloaded font8x8 v0.2.7
+  Downloaded lending-iterator v0.1.7
+  Downloaded spin v0.9.9
+  Downloaded unwinding v0.2.8
+  Downloaded postcard v1.1.3
+  Downloaded darling_core v0.13.4
+  Downloaded multiboot2 v0.24.1
+  Downloaded toml v0.7.8
+  Downloaded owo-colors v4.3.0
+  Downloaded intrusive-collections v0.9.7
+  Downloaded heapless v0.8.0
+  Downloaded uefi-raw v0.12.0
+  Downloaded heapless v0.7.17
+  Downloaded toml_edit v0.19.15
+  Downloaded x86_64 v0.14.13
+  Downloaded json v0.12.4
+  Downloaded rand v0.9.5
+  Downloaded typenum v1.20.1
+  Downloaded raw-cpuid v10.7.0
+  Downloaded aes v0.7.5
+  Downloaded winnow v0.5.40
+  Downloaded aes-gcm v0.9.4
+  Downloaded bitvec v1.1.1
+  Downloaded time v0.3.55
+  Downloaded gimli v0.28.1
+  Downloaded gimli v0.32.3
+  Downloaded multiboot2-common v0.3.0
+  Downloaded x86 v0.52.0
+    Updating crates.io index
+ Downloading crates ...
+  Downloaded rustc-demangle v0.1.27
+  Downloaded rustc-literal-escaper v0.0.7
+  Downloaded libc v0.2.183
+warning: unstable feature specified for `-Ctarget-feature`: `ermsb`
+  |
+  = note: this feature is not stably supported; its behavior can change in the future
+
+warning: `ostd-test` (lib) generated 1 warning
+warning: `align_ext` (lib) generated 1 warning (1 duplicate)
+warning: `linux-boot-params` (lib) generated 1 warning (1 duplicate)
+warning: `id-alloc` (lib) generated 1 warning (1 duplicate)
+warning: `int-to-c-enum` (lib) generated 1 warning (1 duplicate)
+warning: `typeflags-util` (lib) generated 1 warning (1 duplicate)
+warning: `ostd-pod` (lib) generated 1 warning (1 duplicate)
+warning: `aster-rights` (lib) generated 1 warning (1 duplicate)
+warning: `io-util` (lib) generated 1 warning (1 duplicate)
+warning: `ostd` (lib) generated 1 warning (1 duplicate)
+warning: `jhash` (lib) generated 1 warning (1 duplicate)
+warning: `osdk-heap-allocator` (lib) generated 1 warning (1 duplicate)
+warning: `component` (lib) generated 1 warning (1 duplicate)
+warning: `aster-util` (lib) generated 1 warning (1 duplicate)
+warning: `aster-fuse` (lib) generated 1 warning (1 duplicate)
+warning: `device-id` (lib) generated 1 warning (1 duplicate)
+warning: `aster-console` (lib) generated 1 warning (1 duplicate)
+warning: `aster-input` (lib) generated 1 warning (1 duplicate)
+warning: `aster-softirq` (lib) generated 1 warning (1 duplicate)
+warning: `aster-cmdline` (lib) generated 1 warning (1 duplicate)
+warning: `aster-pci` (lib) generated 1 warning (1 duplicate)
+warning: `aster-systree` (lib) generated 1 warning (1 duplicate)
+warning: `aster-time` (lib) generated 1 warning (1 duplicate)
+warning: `aster-block` (lib) generated 1 warning (1 duplicate)
+warning: `aster-bigtcp` (lib) generated 1 warning (1 duplicate)
+warning: `aster-logger` (lib) generated 1 warning (1 duplicate)
+warning: `aster-uart` (lib) generated 1 warning (1 duplicate)
+warning: `aster-framebuffer` (lib) generated 1 warning (1 duplicate)
+warning: `aster-i8042` (lib) generated 1 warning (1 duplicate)
+warning: `cpio-decoder` (lib) generated 1 warning (1 duplicate)
+warning: `xarray` (lib) generated 1 warning (1 duplicate)
+warning: `ring-buffer` (lib) generated 1 warning (1 duplicate)
+warning: `osdk-frame-allocator` (lib) generated 1 warning (1 duplicate)
+warning: use of deprecated struct `aes::cipher::generic_array::GenericArray`: please upgrade to generic-array 1.x
+ --> /work/kernel/comps/dm/src/crypto.rs:5:73
+  |
+5 |     cipher::{BlockDecrypt, BlockEncrypt, NewBlockCipher, generic_array::GenericArray},
+  |                                                                         ^^^^^^^^^^^^
+  |
+  = note: `#[warn(deprecated)]` on by default
+
+warning: use of deprecated struct `aes::cipher::generic_array::GenericArray`: please upgrade to generic-array 1.x
+  --> /work/kernel/comps/dm/src/crypto.rs:45:36
+   |
+45 |         Self::Portable(Aes256::new(GenericArray::from_slice(key)))
+   |                                    ^^^^^^^^^^^^
+
+warning: use of deprecated struct `aes::cipher::generic_array::GenericArray`: please upgrade to generic-array 1.x
+  --> /work/kernel/comps/dm/src/crypto.rs:50:60
+   |
+50 |             Self::Portable(cipher) => cipher.encrypt_block(GenericArray::from_mut_slice(block)),
+   |                                                            ^^^^^^^^^^^^
+
+warning: use of deprecated struct `aes::cipher::generic_array::GenericArray`: please upgrade to generic-array 1.x
+  --> /work/kernel/comps/dm/src/crypto.rs:58:60
+   |
+58 |             Self::Portable(cipher) => cipher.decrypt_block(GenericArray::from_mut_slice(block)),
+   |                                                            ^^^^^^^^^^^^
+
+warning: use of deprecated associated function `aes::cipher::generic_array::GenericArray::<T, N>::from_slice`: please upgrade to generic-array 1.x
+  --> /work/kernel/comps/dm/src/crypto.rs:45:50
+   |
+45 |         Self::Portable(Aes256::new(GenericArray::from_slice(key)))
+   |                                                  ^^^^^^^^^^
+
+warning: use of deprecated associated function `aes::cipher::generic_array::GenericArray::<T, N>::from_mut_slice`: please upgrade to generic-array 1.x
+  --> /work/kernel/comps/dm/src/crypto.rs:50:74
+   |
+50 |             Self::Portable(cipher) => cipher.encrypt_block(GenericArray::from_mut_slice(block)),
+   |                                                                          ^^^^^^^^^^^^^^
+
+warning: use of deprecated associated function `aes::cipher::generic_array::GenericArray::<T, N>::from_mut_slice`: please upgrade to generic-array 1.x
+  --> /work/kernel/comps/dm/src/crypto.rs:58:74
+   |
+58 |             Self::Portable(cipher) => cipher.decrypt_block(GenericArray::from_mut_slice(block)),
+   |                                                                          ^^^^^^^^^^^^^^
+
+warning: `aster-network` (lib) generated 1 warning (1 duplicate)
+warning: `aster-nvme` (lib) generated 1 warning (1 duplicate)
+warning: `aster-mlsdisk` (lib) generated 1 warning (1 duplicate)
+warning: `aster-dm` (lib) generated 8 warnings (1 duplicate)
+warning: `logo-ascii-art` (lib) generated 1 warning (1 duplicate)
+warning: `keyable-arc` (lib) generated 1 warning (1 duplicate)
+warning: `aster-virtio` (lib) generated 1 warning (1 duplicate)
+   Compiling aster-kernel v0.1.0 (/work/kernel)
+warning: `aster-kernel` (lib) generated 1 warning (1 duplicate)
+   Compiling aster-kernel-osdk-bin v0.1.0 (/work/target/osdk/aster-kernel-run-base)
+warning: `aster-kernel-osdk-bin` (bin "aster-kernel-osdk-bin") generated 1 warning (1 duplicate)
+    Finished `release-lto` profile [optimized] target(s) in 1m 59s
+grub-mkrescue: warning: cannot open directory `/usr/local/grub/share/locale': No such file or directory.
+xorriso 1.5.6 : RockRidge filesystem manipulator, libburnia project.
+
+Drive current: -outdev 'stdio:/work/target/osdk/aster-kernel-osdk-bin.iso'
+Media current: stdio file, overwriteable
+Media status : is blank
+Media summary: 0 sessions, 0 data blocks, 0 data,  875g free
+Added to ISO image: directory '/'='/tmp/grub.OG1afC'
+xorriso : UPDATE :     298 files added in 1 seconds
+Added to ISO image: directory '/'='/work/target/osdk/iso_root'
+xorriso : UPDATE :     303 files added in 1 seconds
+ISO image produced: 25311 sectors
+Written to medium : 25311 sectors at LBA 0
+Writing to 'stdio:/work/target/osdk/aster-kernel-osdk-bin.iso' completed successfully.
+
+[2J[01;01H[=3h[2J[01;01H[2J[01;01H[8;042;160t0[2J[01;01H[2J[01;01H[8;056;240t0[2J[01;01H[2J[01;01H[8;042;160t0[2J[01;01H[2J[01;01H[8;056;240t0[2J[01;01HBdsDxe: loading Boot0002 "UEFI QEMU DVD-ROM QM00005 " from PciRoot(0x0)/Pci(0x1F,0x2)/Sata(0x2,0xFFFF,0x0)
+BdsDxe: starting Boot0002 "UEFI QEMU DVD-ROM QM00005 " from PciRoot(0x0)/Pci(0x1F,0x2)/Sata(0x2,0xFFFF,0x0)
+WARNING: no console will be available to OS
+Spawn the first kernel thread
+[kernel] unpacking initramfs.cpio.gz to rootfs ...
+[kernel] rootfs is ready
+
+                                  [38;2;87;180;249m.[39m[38;2;89;185;249m.[39m[38;2;91;189;250m.[39m[38;2;93;193;250m.[39m[38;2;94;197;250m.[39m[38;2;96;201;250m.[39m
+                                [38;2;83;172;249m.[39m[38;2;85;176;249m-[39m[38;2;87;180;249m+[39m[38;2;89;185;249m+[39m[38;2;91;189;250m+[39m[38;2;93;193;250m+[39m[38;2;94;197;250m=[39m[38;2;96;201;250m:[39m
+                               [38;2;82;168;249m.[39m[38;2;83;172;249m=[39m[38;2;85;176;249m+[39m[38;2;87;180;249m+[39m[38;2;89;185;249m+[39m[38;2;91;189;250m+[39m[38;2;93;193;250m+[39m[38;2;94;197;250m=[39m[38;2;96;201;250m:[39m
+                              [38;2;80;163;249m:[39m[38;2;82;168;249m+[39m[38;2;83;172;249m+[39m[38;2;85;176;249m+[39m[38;2;87;180;249m+[39m[38;2;89;185;249m+[39m[38;2;91;189;250m+[39m[38;2;93;193;250m+[39m[38;2;94;197;250m=[39m[38;2;96;201;250m:[39m
+                            [38;2;76;155;248m.[39m[38;2;78;159;248m-[39m[38;2;80;163;249m+[39m[38;2;82;168;249m+[39m[38;2;83;172;249m+[39m[38;2;85;176;249m+[39m[38;2;87;180;249m+[39m[38;2;89;185;249m+[39m[38;2;91;189;250m+[39m[38;2;93;193;250m+[39m[38;2;94;197;250m=[39m[38;2;96;201;250m.[39m
+                           [38;2;74;151;248m.[39m[38;2;76;155;248m=[39m[38;2;78;159;248m*[39m[38;2;80;163;249m*[39m[38;2;82;168;249m+[39m[38;2;83;172;249m+[39m[38;2;85;176;249m=[39m[38;2;87;180;249m=[39m[38;2;89;185;249m+[39m[38;2;91;189;250m+[39m[38;2;93;193;250m+[39m[38;2;94;197;250m=[39m[38;2;96;201;250m.[39m
+                          [38;2;73;147;248m:[39m[38;2;74;151;248m*[39m[38;2;76;155;248m*[39m[38;2;78;159;248m*[39m[38;2;80;163;249m*[39m[38;2;82;168;249m+[39m[38;2;83;172;249m-[39m[38;2;85;176;249m.[39m[38;2;87;180;249m=[39m[38;2;89;185;249m+[39m[38;2;91;189;250m+[39m[38;2;93;193;250m+[39m[38;2;94;197;250m=[39m[38;2;96;201;250m.[39m
+                        [38;2;69;138;248m.[39m[38;2;71;142;248m=[39m[38;2;73;147;248m*[39m[38;2;74;151;248m*[39m[38;2;76;155;248m*[39m[38;2;78;159;248m*[39m[38;2;80;163;249m+[39m[38;2;82;168;249m:[39m [38;2;85;176;249m.[39m[38;2;87;180;249m+[39m[38;2;89;185;249m+[39m[38;2;91;189;250m+[39m[38;2;93;193;250m+[39m[38;2;94;197;250m=[39m[38;2;96;201;250m.[39m
+                       [38;2;67;134;248m.[39m[38;2;69;138;248m+[39m[38;2;71;142;248m*[39m[38;2;73;147;248m*[39m[38;2;74;151;248m*[39m[38;2;76;155;248m*[39m[38;2;78;159;248m=[39m[38;2;80;163;249m.[39m  [38;2;85;176;249m.[39m[38;2;87;180;249m+[39m[38;2;89;185;249m+[39m[38;2;91;189;250m+[39m[38;2;93;193;250m+[39m[38;2;94;197;250m-[39m
+                     [38;2;63;125;247m.[39m[38;2;65;130;247m-[39m[38;2;67;134;248m*[39m[38;2;69;138;248m*[39m[38;2;71;142;248m*[39m[38;2;73;147;248m*[39m[38;2;74;151;248m*[39m[38;2;76;155;248m=[39m[38;2;78;159;248m.[39m   [38;2;85;176;249m:[39m[38;2;87;180;249m+[39m[38;2;89;185;249m+[39m[38;2;91;189;250m+[39m[38;2;93;193;250m+[39m[38;2;94;197;250m-[39m
+    [38;2;33;54;245m.[39m[38;2;34;58;245m:[39m[38;2;36;62;245m:[39m[38;2;38;66;245m-[39m[38;2;40;70;245m=[39m[38;2;42;75;245m=[39m[38;2;43;79;245m=[39m[38;2;45;83;246m=[39m[38;2;47;87;246m=[39m[38;2;49;92;246m=[39m[38;2;51;96;246m=[39m[38;2;53;100;246m=[39m[38;2;54;104;246m=[39m[38;2;56;108;247m=[39m[38;2;58;113;247m=[39m[38;2;60;117;247m=[39m[38;2;62;121;247m=[39m[38;2;63;125;247m+[39m[38;2;65;130;247m*[39m[38;2;67;134;248m*[39m[38;2;69;138;248m*[39m[38;2;71;142;248m*[39m[38;2;73;147;248m*[39m[38;2;74;151;248m+[39m[38;2;76;155;248m-[39m[38;2;78;159;248m-[39m[38;2;80;163;249m-[39m[38;2;82;168;249m-[39m[38;2;83;172;249m-[39m[38;2;85;176;249m=[39m[38;2;87;180;249m+[39m[38;2;89;185;249m+[39m[38;2;91;189;250m+[39m[38;2;93;193;250m+[39m[38;2;94;197;250m=[39m[38;2;96;201;250m-[39m[38;2;98;206;250m:[39m[38;2;100;210;250m:[39m[38;2;102;214;251m:[39m[38;2;103;218;251m:[39m[38;2;105;223;251m:[39m[38;2;107;227;251m:[39m[38;2;109;231;251m:[39m[38;2;111;235;251m.[39m
+        [38;2;40;70;245m.[39m[38;2;42;75;245m.[39m[38;2;43;79;245m:[39m[38;2;45;83;246m-[39m[38;2;47;87;246m*[39m[38;2;49;92;246m#[39m[38;2;51;96;246m#[39m[38;2;53;100;246m#[39m[38;2;54;104;246m#[39m[38;2;56;108;247m#[39m[38;2;58;113;247m#[39m[38;2;60;117;247m#[39m[38;2;62;121;247m#[39m[38;2;63;125;247m#[39m[38;2;65;130;247m*[39m[38;2;67;134;248m*[39m[38;2;69;138;248m*[39m[38;2;71;142;248m*[39m[38;2;73;147;248m*[39m[38;2;74;151;248m*[39m[38;2;76;155;248m*[39m[38;2;78;159;248m*[39m[38;2;80;163;249m*[39m[38;2;82;168;249m+[39m[38;2;83;172;249m+[39m[38;2;85;176;249m+[39m[38;2;87;180;249m+[39m[38;2;89;185;249m+[39m[38;2;91;189;250m+[39m[38;2;93;193;250m+[39m[38;2;94;197;250m=[39m[38;2;96;201;250m=[39m[38;2;98;206;250m=[39m[38;2;100;210;250m=[39m[38;2;102;214;251m=[39m[38;2;103;218;251m=[39m[38;2;105;223;251m=[39m[38;2;107;227;251m:[39m[38;2;109;231;251m.[39m
+              [38;2;51;96;246m.[39m[38;2;53;100;246m:[39m[38;2;54;104;246m+[39m[38;2;56;108;247m*[39m[38;2;58;113;247m#[39m[38;2;60;117;247m#[39m[38;2;62;121;247m#[39m[38;2;63;125;247m#[39m[38;2;65;130;247m#[39m[38;2;67;134;248m*[39m[38;2;69;138;248m*[39m[38;2;71;142;248m*[39m[38;2;73;147;248m*[39m[38;2;74;151;248m+[39m[38;2;76;155;248m+[39m[38;2;78;159;248m+[39m[38;2;80;163;249m+[39m[38;2;82;168;249m+[39m[38;2;83;172;249m+[39m[38;2;85;176;249m+[39m[38;2;87;180;249m+[39m[38;2;89;185;249m+[39m[38;2;91;189;250m+[39m[38;2;93;193;250m+[39m[38;2;94;197;250m=[39m[38;2;96;201;250m=[39m[38;2;98;206;250m=[39m[38;2;100;210;250m=[39m[38;2;102;214;251m=[39m[38;2;103;218;251m-[39m[38;2;105;223;251m.[39m[38;2;107;227;251m.[39m
+                 [38;2;56;108;247m.[39m[38;2;58;113;247m.[39m[38;2;60;117;247m-[39m[38;2;62;121;247m+[39m[38;2;63;125;247m#[39m[38;2;65;130;247m*[39m[38;2;67;134;248m*[39m[38;2;69;138;248m*[39m[38;2;71;142;248m*[39m[38;2;73;147;248m*[39m[38;2;74;151;248m*[39m[38;2;76;155;248m=[39m[38;2;78;159;248m.[39m[38;2;80;163;249m.[39m  [38;2;85;176;249m-[39m[38;2;87;180;249m+[39m[38;2;89;185;249m+[39m[38;2;91;189;250m+[39m[38;2;93;193;250m+[39m[38;2;94;197;250m.[39m
+                [38;2;54;104;246m-[39m[38;2;56;108;247m+[39m[38;2;58;113;247m=[39m[38;2;60;117;247m.[39m[38;2;62;121;247m.[39m[38;2;63;125;247m.[39m[38;2;65;130;247m:[39m[38;2;67;134;248m*[39m[38;2;69;138;248m*[39m[38;2;71;142;248m*[39m[38;2;73;147;248m*[39m[38;2;74;151;248m*[39m[38;2;76;155;248m*[39m[38;2;78;159;248m*[39m[38;2;80;163;249m=[39m[38;2;82;168;249m.[39m[38;2;83;172;249m.[39m[38;2;85;176;249m=[39m[38;2;87;180;249m+[39m[38;2;89;185;249m+[39m[38;2;91;189;250m+[39m[38;2;93;193;250m+[39m[38;2;94;197;250m.[39m
+              [38;2;51;96;246m.[39m[38;2;53;100;246m+[39m[38;2;54;104;246m*[39m[38;2;56;108;247m+[39m[38;2;58;113;247m+[39m[38;2;60;117;247m+[39m[38;2;62;121;247m=[39m[38;2;63;125;247m.[39m [38;2;67;134;248m.[39m[38;2;69;138;248m.[39m[38;2;71;142;248m=[39m[38;2;73;147;248m*[39m[38;2;74;151;248m*[39m[38;2;76;155;248m*[39m[38;2;78;159;248m*[39m[38;2;80;163;249m*[39m[38;2;82;168;249m+[39m[38;2;83;172;249m-[39m[38;2;85;176;249m=[39m[38;2;87;180;249m+[39m[38;2;89;185;249m+[39m[38;2;91;189;250m+[39m[38;2;93;193;250m+[39m[38;2;94;197;250m.[39m
+            [38;2;47;87;246m.[39m[38;2;49;92;246m:[39m[38;2;51;96;246m*[39m[38;2;53;100;246m*[39m[38;2;54;104;246m*[39m[38;2;56;108;247m+[39m[38;2;58;113;247m=[39m[38;2;60;117;247m.[39m[38;2;62;121;247m.[39m     [38;2;73;147;248m.[39m[38;2;74;151;248m-[39m[38;2;76;155;248m+[39m[38;2;78;159;248m*[39m[38;2;80;163;249m*[39m[38;2;82;168;249m+[39m[38;2;83;172;249m+[39m[38;2;85;176;249m+[39m[38;2;87;180;249m+[39m[38;2;89;185;249m+[39m[38;2;91;189;250m+[39m[38;2;93;193;250m=[39m[38;2;94;197;250m.[39m
+           [38;2;45;83;246m.[39m[38;2;47;87;246m-[39m[38;2;49;92;246m*[39m[38;2;51;96;246m*[39m[38;2;53;100;246m*[39m[38;2;54;104;246m+[39m[38;2;56;108;247m:[39m          [38;2;76;155;248m.[39m[38;2;78;159;248m-[39m[38;2;80;163;249m+[39m[38;2;82;168;249m+[39m[38;2;83;172;249m+[39m[38;2;85;176;249m+[39m[38;2;87;180;249m+[39m[38;2;89;185;249m+[39m[38;2;91;189;250m+[39m[38;2;93;193;250m=[39m
+          [38;2;43;79;245m.[39m[38;2;45;83;246m*[39m[38;2;47;87;246m#[39m[38;2;49;92;246m*[39m[38;2;51;96;246m=[39m[38;2;53;100;246m.[39m              [38;2;80;163;249m.[39m[38;2;82;168;249m=[39m[38;2;83;172;249m+[39m[38;2;85;176;249m+[39m[38;2;87;180;249m+[39m[38;2;89;185;249m+[39m[38;2;91;189;250m+[39m[38;2;93;193;250m=[39m
+        [38;2;40;70;245m.[39m[38;2;42;75;245m-[39m[38;2;43;79;245m*[39m[38;2;45;83;246m#[39m[38;2;47;87;246m+[39m[38;2;49;92;246m.[39m[38;2;51;96;246m.[39m                [38;2;82;168;249m.[39m[38;2;83;172;249m:[39m[38;2;85;176;249m=[39m[38;2;87;180;249m+[39m[38;2;89;185;249m+[39m[38;2;91;189;250m+[39m[38;2;93;193;250m-[39m
+       [38;2;38;66;245m.[39m[38;2;40;70;245m=[39m[38;2;42;75;245m#[39m[38;2;43;79;245m=[39m[38;2;45;83;246m.[39m                     [38;2;85;176;249m.[39m[38;2;87;180;249m=[39m[38;2;89;185;249m+[39m[38;2;91;189;250m+[39m[38;2;93;193;250m-[39m
+      [38;2;36;62;245m:[39m[38;2;38;66;245m*[39m[38;2;40;70;245m=[39m[38;2;42;75;245m.[39m                         [38;2;89;185;249m.[39m[38;2;91;189;250m.[39m[38;2;93;193;250m.[39m
+    [38;2;33;54;245m.[39m[38;2;34;58;245m:[39m[38;2;36;62;245m-[39m[38;2;38;66;245m.[39m [38;2;42;75;245mP[39m[38;2;43;79;245mr[39m[38;2;45;83;246me[39m[38;2;47;87;246ms[39m[38;2;49;92;246me[39m[38;2;51;96;246mn[39m[38;2;53;100;246mt[39m[38;2;54;104;246me[39m[38;2;56;108;247md[39m [38;2;60;117;247mb[39m[38;2;62;121;247my[39m [38;2;65;130;247mt[39m[38;2;67;134;248mh[39m[38;2;69;138;248me[39m [38;2;73;147;248mA[39m[38;2;74;151;248ms[39m[38;2;76;155;248mt[39m[38;2;78;159;248me[39m[38;2;80;163;249mr[39m[38;2;82;168;249mi[39m[38;2;83;172;249mn[39m[38;2;85;176;249ma[39m[38;2;87;180;249ms[39m [38;2;91;189;250md[39m[38;2;93;193;250me[39m[38;2;94;197;250mv[39m[38;2;96;201;250me[39m[38;2;98;206;250ml[39m[38;2;100;210;250mo[39m[38;2;102;214;251mp[39m[38;2;103;218;251me[39m[38;2;105;223;251mr[39m[38;2;107;227;251ms[39m
+    [38;2;33;54;245m.[39m[38;2;34;58;245m.[39m [38;2;38;66;245mR[39m[38;2;40;70;245me[39m[38;2;42;75;245ml[39m[38;2;43;79;245me[39m[38;2;45;83;246ma[39m[38;2;47;87;246ms[39m[38;2;49;92;246me[39m[38;2;51;96;246md[39m [38;2;54;104;246mu[39m[38;2;56;108;247mn[39m[38;2;58;113;247md[39m[38;2;60;117;247me[39m[38;2;62;121;247mr[39m [38;2;65;130;247mM[39m[38;2;67;134;248mo[39m[38;2;69;138;248mz[39m[38;2;71;142;248mi[39m[38;2;73;147;248ml[39m[38;2;74;151;248ml[39m[38;2;76;155;248ma[39m [38;2;80;163;249mP[39m[38;2;82;168;249mu[39m[38;2;83;172;249mb[39m[38;2;85;176;249ml[39m[38;2;87;180;249mi[39m[38;2;89;185;249mc[39m [38;2;93;193;250mL[39m[38;2;94;197;250mi[39m[38;2;96;201;250mc[39m[38;2;98;206;250me[39m[38;2;100;210;250mn[39m[38;2;102;214;251ms[39m[38;2;103;218;251me[39m [38;2;107;227;251mv[39m[38;2;109;231;251m2[39m[38;2;111;235;251m.[39m[38;2;113;240;252m0[39m
+
+[init] mounting sysfs
+[init] mounting proc
+[init] mounting cgroup2
+[init] mounting configfs
+[init] mounting ext2
+[init] mounting exfat
+[init] mounts complete
+[dm-bench] fio=fio-3.39
+[dm-bench] matrix=raw,dm-crypt runs=5 rw=read bs=4k ioengine=sync qd=1 jobs=1 size=256m runtime=10s ramp=2s
+[dm-bench-audit] cmdline=SHELL=/bin/sh LOGNAME=root HOME=/ USER=root PATH=/bin:/benchmark init=/init ostd.log_level=error console=hvc0 dm.perf_stats=1 -- sh -l /benchmark/common/bench_runner.sh dm-verity asterinas dm-bench /dev/vdc /dev/mapper/dm-crypt-bench read 4k 1 256m 10 5 2 sync 1 crypt /bin/true
+[dm-bench-audit] ls-targets
+brw-------    1 root     root      252,   0 Aug 10 19:26 [1;35m/dev/mapper/dm-crypt-bench[m
+brw-------    1 root     root      253,  32 Aug 10 19:26 [1;35m/dev/vdc[m
+[dm-bench-audit] lsblk
+/init: line 204: lsblk: not found
+[dm-bench-audit] dmsetup-table
+/init: line 206: dmsetup: not found
+[dm-bench-audit] dmsetup-status
+/init: line 208: dmsetup: not found
+[dm-bench] BLOCK_TARGET_OK lower=/dev/vdc
+[dm-bench] BLOCK_TARGET_OK crypt=/dev/mapper/dm-crypt-bench
+[dm-bench] PREFILL target=/dev/mapper/dm-crypt-bench size=256m direct=1
+{
+  "fio version" : "fio-3.39",
+  "timestamp" : 1786390012,
+  "timestamp_ms" : 1786390012014,
+  "time" : "Mon Aug 10 19:26:52 2026",
+  "jobs" : [
+    {
+      "jobname" : "prefill",
+      "groupid" : 0,
+      "job_start" : 1786390009203,
+      "error" : 0,
+      "eta" : 0,
+      "elapsed" : 3,
+      "job options" : {
+        "name" : "prefill",
+        "filename" : "/dev/mapper/dm-crypt-bench",
+        "rw" : "write",
+        "bs" : "256k",
+        "ioengine" : "sync",
+        "direct" : "1",
+        "iodepth" : "1",
+        "size" : "256m",
+        "numjobs" : "1",
+        "group_reporting" : "1"
+      },
+      "read" : {
+        "io_bytes" : 0,
+        "io_kbytes" : 0,
+        "bw_bytes" : 0,
+        "bw" : 0,
+        "iops" : 0.000000,
+        "runtime" : 0,
+        "total_ios" : 0,
+        "short_ios" : 0,
+        "drop_ios" : 0,
+        "slat_ns" : {
+          "min" : 0,
+          "max" : 0,
+          "mean" : 0.000000,
+          "stddev" : 0.000000,
+          "N" : 0
+        },
+        "clat_ns" : {
+          "min" : 0,
+          "max" : 0,
+          "mean" : 0.000000,
+          "stddev" : 0.000000,
+          "N" : 0
+        },
+        "lat_ns" : {
+          "min" : 0,
+          "max" : 0,
+          "mean" : 0.000000,
+          "stddev" : 0.000000,
+          "N" : 0
+        },
+        "bw_min" : 0,
+        "bw_max" : 0,
+        "bw_agg" : 0.000000,
+        "bw_mean" : 0.000000,
+        "bw_dev" : 0.000000,
+        "bw_samples" : 0,
+        "iops_min" : 0,
+        "iops_max" : 0,
+        "iops_mean" : 0.000000,
+        "iops_stddev" : 0.000000,
+        "iops_samples" : 0
+      },
+      "write" : {
+        "io_bytes" : 268435456,
+        "io_kbytes" : 262144,
+        "bw_bytes" : 96733497,
+        "bw" : 94466,
+        "iops" : 369.009009,
+        "runtime" : 2775,
+        "total_ios" : 1024,
+        "short_ios" : 0,
+        "drop_ios" : 0,
+        "slat_ns" : {
+          "min" : 0,
+          "max" : 0,
+          "mean" : 0.000000,
+          "stddev" : 0.000000,
+          "N" : 0
+        },
+        "clat_ns" : {
+          "min" : 1778638,
+          "max" : 4498173,
+          "mean" : 2700793.270508,
+          "stddev" : 315442.367059,
+          "N" : 1024,
+          "percentile" : {
+            "1.000000" : 2072576,
+            "5.000000" : 2244608,
+            "10.000000" : 2342912,
+            "20.000000" : 2441216,
+            "30.000000" : 2539520,
+            "40.000000" : 2605056,
+            "50.000000" : 2670592,
+            "60.000000" : 2736128,
+            "70.000000" : 2834432,
+            "80.000000" : 2932736,
+            "90.000000" : 3096576,
+            "95.000000" : 3227648,
+            "99.000000" : 3588096,
+            "99.500000" : 3817472,
+            "99.900000" : 4292608,
+            "99.950000" : 4489216,
+            "99.990000" : 4489216
+          }
+        },
+        "lat_ns" : {
+          "min" : 1781397,
+          "max" : 4504642,
+          "mean" : 2705717.746094,
+          "stddev" : 315747.929956,
+          "N" : 1024
+        },
+        "bw_min" : 90822,
+        "bw_max" : 97596,
+        "bw_agg" : 99.989091,
+        "bw_mean" : 94456.200000,
+        "bw_dev" : 3062.551420,
+        "bw_samples" : 5,
+        "iops_min" : 354,
+        "iops_max" : 381,
+        "iops_mean" : 368.400000,
+        "iops_stddev" : 11.970798,
+        "iops_samples" : 5
+      },
+      "trim" : {
+        "io_bytes" : 0,
+        "io_kbytes" : 0,
+        "bw_bytes" : 0,
+        "bw" : 0,
+        "iops" : 0.000000,
+        "runtime" : 0,
+        "total_ios" : 0,
+        "short_ios" : 0,
+        "drop_ios" : 0,
+        "slat_ns" : {
+          "min" : 0,
+          "max" : 0,
+          "mean" : 0.000000,
+          "stddev" : 0.000000,
+          "N" : 0
+        },
+        "clat_ns" : {
+          "min" : 0,
+          "max" : 0,
+          "mean" : 0.000000,
+          "stddev" : 0.000000,
+          "N" : 0
+        },
+        "lat_ns" : {
+          "min" : 0,
+          "max" : 0,
+          "mean" : 0.000000,
+          "stddev" : 0.000000,
+          "N" : 0
+        },
+        "bw_min" : 0,
+        "bw_max" : 0,
+        "bw_agg" : 0.000000,
+        "bw_mean" : 0.000000,
+        "bw_dev" : 0.000000,
+        "bw_samples" : 0,
+        "iops_min" : 0,
+        "iops_max" : 0,
+        "iops_mean" : 0.000000,
+        "iops_stddev" : 0.000000,
+        "iops_samples" : 0
+      },
+      "sync" : {
+        "total_ios" : 0,
+        "lat_ns" : {
+          "min" : 0,
+          "max" : 0,
+          "mean" : 0.000000,
+          "stddev" : 0.000000,
+          "N" : 0
+        }
+      },
+      "job_runtime" : 2774,
+      "usr_cpu" : 0.576784,
+      "sys_cpu" : 18.817592,
+      "ctx" : 0,
+      "majf" : 0,
+      "minf" : 0,
+      "iodepth_level" : {
+        "1" : 100.000000,
+        "2" : 0.000000,
+        "4" : 0.000000,
+        "8" : 0.000000,
+        "16" : 0.000000,
+        "32" : 0.000000,
+        ">=64" : 0.000000
+      },
+      "iodepth_submit" : {
+        "0" : 0.000000,
+        "4" : 100.000000,
+        "8" : 0.000000,
+        "16" : 0.000000,
+        "32" : 0.000000,
+        "64" : 0.000000,
+        ">=64" : 0.000000
+      },
+      "iodepth_complete" : {
+        "0" : 0.000000,
+        "4" : 100.000000,
+        "8" : 0.000000,
+        "16" : 0.000000,
+        "32" : 0.000000,
+        "64" : 0.000000,
+        ">=64" : 0.000000
+      },
+      "latency_ns" : {
+        "2" : 0.000000,
+        "4" : 0.000000,
+        "10" : 0.000000,
+        "20" : 0.000000,
+        "50" : 0.000000,
+        "100" : 0.000000,
+        "250" : 0.000000,
+        "500" : 0.000000,
+        "750" : 0.000000,
+        "1000" : 0.000000
+      },
+      "latency_us" : {
+        "2" : 0.000000,
+        "4" : 0.000000,
+        "10" : 0.000000,
+        "20" : 0.000000,
+        "50" : 0.000000,
+        "100" : 0.000000,
+        "250" : 0.000000,
+        "500" : 0.000000,
+        "750" : 0.000000,
+        "1000" : 0.000000
+      },
+      "latency_ms" : {
+        "2" : 0.488281,
+        "4" : 99.218750,
+        "10" : 0.292969,
+        "20" : 0.000000,
+        "50" : 0.000000,
+        "100" : 0.000000,
+        "250" : 0.000000,
+        "500" : 0.000000,
+        "750" : 0.000000,
+        "1000" : 0.000000,
+        "2000" : 0.000000,
+        ">=2000" : 0.000000
+      },
+      "latency_depth" : 1,
+      "latency_target" : 0,
+      "latency_percentile" : 100.000000,
+      "latency_window" : 0
+    }
+  ]
+}
+[dm-bench] PREFILL_PASS target=/dev/mapper/dm-crypt-bench
+[dm-bench] BEGIN label=dm-crypt run=1 device=/dev/mapper/dm-crypt-bench operation=read block_size=4k ioengine=sync queue_depth=1 jobs=1
+[dm-bench] STATS_BEFORE label=dm-crypt run=1 target=none enabled=0
+[dm-bench-audit] command=/benchmark/bin/fio --name=dm-crypt-1 --filename=/dev/mapper/dm-crypt-bench --rw=read --bs=4k --ioengine=sync --direct=1 --iodepth=1 --size=256m --time_based=1 --ramp_time=2 --runtime=10 --numjobs=1 --group_reporting=1 --percentile_list=50:95:99:99.9 --output-format=json
+{
+  "fio version" : "fio-3.39",
+  "timestamp" : 1786390024,
+  "timestamp_ms" : 1786390024491,
+  "time" : "Mon Aug 10 19:27:04 2026",
+  "jobs" : [
+    {
+      "jobname" : "dm-crypt-1",
+      "groupid" : 0,
+      "job_start" : 1786390014228,
+      "error" : 0,
+      "eta" : 0,
+      "elapsed" : 13,
+      "job options" : {
+        "name" : "dm-crypt-1",
+        "filename" : "/dev/mapper/dm-crypt-bench",
+        "rw" : "read",
+        "bs" : "4k",
+        "ioengine" : "sync",
+        "direct" : "1",
+        "iodepth" : "1",
+        "size" : "256m",
+        "time_based" : "1",
+        "ramp_time" : "2",
+        "runtime" : "10",
+        "numjobs" : "1",
+        "group_reporting" : "1",
+        "percentile_list" : "50:95:99:99.9"
+      },
+      "read" : {
+        "io_bytes" : 94130176,
+        "io_kbytes" : 91924,
+        "bw_bytes" : 9412076,
+        "bw" : 9191,
+        "iops" : 2297.870213,
+        "runtime" : 10001,
+        "total_ios" : 22981,
+        "short_ios" : 0,
+        "drop_ios" : 0,
+        "slat_ns" : {
+          "min" : 0,
+          "max" : 0,
+          "mean" : 0.000000,
+          "stddev" : 0.000000,
+          "N" : 0
+        },
+        "clat_ns" : {
+          "min" : 234086,
+          "max" : 3286526,
+          "mean" : 433750.394717,
+          "stddev" : 99522.868766,
+          "N" : 22981,
+          "percentile" : {
+            "50.000000" : 411648,
+            "95.000000" : 610304,
+            "99.000000" : 782336,
+            "99.900000" : 1204224
+          }
+        },
+        "lat_ns" : {
+          "min" : 234174,
+          "max" : 3286639,
+          "mean" : 433917.479527,
+          "stddev" : 99538.973977,
+          "N" : 22981
+        },
+        "bw_min" : 8560,
+        "bw_max" : 9640,
+        "bw_agg" : 100.000000,
+        "bw_mean" : 9206.473684,
+        "bw_dev" : 342.942232,
+        "bw_samples" : 19,
+        "iops_min" : 2140,
+        "iops_max" : 2410,
+        "iops_mean" : 2301.421053,
+        "iops_stddev" : 85.718088,
+        "iops_samples" : 19
+      },
+      "write" : {
+        "io_bytes" : 0,
+        "io_kbytes" : 0,
+        "bw_bytes" : 0,
+        "bw" : 0,
+        "iops" : 0.000000,
+        "runtime" : 0,
+        "total_ios" : 0,
+        "short_ios" : 0,
+        "drop_ios" : 0,
+        "slat_ns" : {
+          "min" : 0,
+          "max" : 0,
+          "mean" : 0.000000,
+          "stddev" : 0.000000,
+          "N" : 0
+        },
+        "clat_ns" : {
+          "min" : 0,
+          "max" : 0,
+          "mean" : 0.000000,
+          "stddev" : 0.000000,
+          "N" : 0
+        },
+        "lat_ns" : {
+          "min" : 0,
+          "max" : 0,
+          "mean" : 0.000000,
+          "stddev" : 0.000000,
+          "N" : 0
+        },
+        "bw_min" : 0,
+        "bw_max" : 0,
+        "bw_agg" : 0.000000,
+        "bw_mean" : 0.000000,
+        "bw_dev" : 0.000000,
+        "bw_samples" : 0,
+        "iops_min" : 0,
+        "iops_max" : 0,
+        "iops_mean" : 0.000000,
+        "iops_stddev" : 0.000000,
+        "iops_samples" : 0
+      },
+      "trim" : {
+        "io_bytes" : 0,
+        "io_kbytes" : 0,
+        "bw_bytes" : 0,
+        "bw" : 0,
+        "iops" : 0.000000,
+        "runtime" : 0,
+        "total_ios" : 0,
+        "short_ios" : 0,
+        "drop_ios" : 0,
+        "slat_ns" : {
+          "min" : 0,
+          "max" : 0,
+          "mean" : 0.000000,
+          "stddev" : 0.000000,
+          "N" : 0
+        },
+        "clat_ns" : {
+          "min" : 0,
+          "max" : 0,
+          "mean" : 0.000000,
+          "stddev" : 0.000000,
+          "N" : 0
+        },
+        "lat_ns" : {
+          "min" : 0,
+          "max" : 0,
+          "mean" : 0.000000,
+          "stddev" : 0.000000,
+          "N" : 0
+        },
+        "bw_min" : 0,
+        "bw_max" : 0,
+        "bw_agg" : 0.000000,
+        "bw_mean" : 0.000000,
+        "bw_dev" : 0.000000,
+        "bw_samples" : 0,
+        "iops_min" : 0,
+        "iops_max" : 0,
+        "iops_mean" : 0.000000,
+        "iops_stddev" : 0.000000,
+        "iops_samples" : 0
+      },
+      "sync" : {
+        "total_ios" : 0,
+        "lat_ns" : {
+          "min" : 0,
+          "max" : 0,
+          "mean" : 0.000000,
+          "stddev" : 0.000000,
+          "N" : 0
+        }
+      },
+      "job_runtime" : 10000,
+      "usr_cpu" : 0.670000,
+      "sys_cpu" : 12.960000,
+      "ctx" : 0,
+      "majf" : 0,
+      "minf" : 0,
+      "iodepth_level" : {
+        "1" : 100.000000,
+        "2" : 0.000000,
+        "4" : 0.000000,
+        "8" : 0.000000,
+        "16" : 0.000000,
+        "32" : 0.000000,
+        ">=64" : 0.000000
+      },
+      "iodepth_submit" : {
+        "0" : 0.000000,
+        "4" : 100.000000,
+        "8" : 0.000000,
+        "16" : 0.000000,
+        "32" : 0.000000,
+        "64" : 0.000000,
+        ">=64" : 0.000000
+      },
+      "iodepth_complete" : {
+        "0" : 0.000000,
+        "4" : 100.000000,
+        "8" : 0.000000,
+        "16" : 0.000000,
+        "32" : 0.000000,
+        "64" : 0.000000,
+        ">=64" : 0.000000
+      },
+      "latency_ns" : {
+        "2" : 0.000000,
+        "4" : 0.000000,
+        "10" : 0.000000,
+        "20" : 0.000000,
+        "50" : 0.000000,
+        "100" : 0.000000,
+        "250" : 0.000000,
+        "500" : 0.000000,
+        "750" : 0.000000,
+        "1000" : 0.000000
+      },
+      "latency_us" : {
+        "2" : 0.000000,
+        "4" : 0.000000,
+        "10" : 0.000000,
+        "20" : 0.000000,
+        "50" : 0.000000,
+        "100" : 0.000000,
+        "250" : 0.017406,
+        "500" : 83.586441,
+        "750" : 15.090727,
+        "1000" : 1.066098
+      },
+      "latency_ms" : {
+        "2" : 0.234977,
+        "4" : 0.010000,
+        "10" : 0.000000,
+        "20" : 0.000000,
+        "50" : 0.000000,
+        "100" : 0.000000,
+        "250" : 0.000000,
+        "500" : 0.000000,
+        "750" : 0.000000,
+        "1000" : 0.000000,
+        "2000" : 0.000000,
+        ">=2000" : 0.000000
+      },
+      "latency_depth" : 1,
+      "latency_target" : 0,
+      "latency_percentile" : 100.000000,
+      "latency_window" : 0
+    }
+  ]
+}
+[dm-bench] STATS label=dm-crypt run=1 backend=AES-NI perf=target=none enabled=0
+[dm-bench] END label=dm-crypt run=1
+[dm-bench] BEGIN label=dm-crypt run=2 device=/dev/mapper/dm-crypt-bench operation=read block_size=4k ioengine=sync queue_depth=1 jobs=1
+[dm-bench] STATS_BEFORE label=dm-crypt run=2 target=none enabled=0
+[dm-bench-audit] command=/benchmark/bin/fio --name=dm-crypt-2 --filename=/dev/mapper/dm-crypt-bench --rw=read --bs=4k --ioengine=sync --direct=1 --iodepth=1 --size=256m --time_based=1 --ramp_time=2 --runtime=10 --numjobs=1 --group_reporting=1 --percentile_list=50:95:99:99.9 --output-format=json
+{
+  "fio version" : "fio-3.39",
+  "timestamp" : 1786390036,
+  "timestamp_ms" : 1786390036982,
+  "time" : "Mon Aug 10 19:27:16 2026",
+  "jobs" : [
+    {
+      "jobname" : "dm-crypt-2",
+      "groupid" : 0,
+      "job_start" : 1786390026719,
+      "error" : 0,
+      "eta" : 0,
+      "elapsed" : 13,
+      "job options" : {
+        "name" : "dm-crypt-2",
+        "filename" : "/dev/mapper/dm-crypt-bench",
+        "rw" : "read",
+        "bs" : "4k",
+        "ioengine" : "sync",
+        "direct" : "1",
+        "iodepth" : "1",
+        "size" : "256m",
+        "time_based" : "1",
+        "ramp_time" : "2",
+        "runtime" : "10",
+        "numjobs" : "1",
+        "group_reporting" : "1",
+        "percentile_list" : "50:95:99:99.9"
+      },
+      "read" : {
+        "io_bytes" : 92745728,
+        "io_kbytes" : 90572,
+        "bw_bytes" : 9273645,
+        "bw" : 9056,
+        "iops" : 2264.073593,
+        "runtime" : 10001,
+        "total_ios" : 22643,
+        "short_ios" : 0,
+        "drop_ios" : 0,
+        "slat_ns" : {
+          "min" : 0,
+          "max" : 0,
+          "mean" : 0.000000,
+          "stddev" : 0.000000,
+          "N" : 0
+        },
+        "clat_ns" : {
+          "min" : 250045,
+          "max" : 2529595,
+          "mean" : 440221.675352,
+          "stddev" : 102260.865685,
+          "N" : 22643,
+          "percentile" : {
+            "50.000000" : 419840,
+            "95.000000" : 626688,
+            "99.000000" : 798720,
+            "99.900000" : 1204224
+          }
+        },
+        "lat_ns" : {
+          "min" : 250195,
+          "max" : 2529799,
+          "mean" : 440399.323014,
+          "stddev" : 102280.523876,
+          "N" : 22643
+        },
+        "bw_min" : 8080,
+        "bw_max" : 9723,
+        "bw_agg" : 100.000000,
+        "bw_mean" : 9064.157895,
+        "bw_dev" : 360.274165,
+        "bw_samples" : 19,
+        "iops_min" : 2020,
+        "iops_max" : 2430,
+        "iops_mean" : 2265.842105,
+        "iops_stddev" : 90.027936,
+        "iops_samples" : 19
+      },
+      "write" : {
+        "io_bytes" : 0,
+        "io_kbytes" : 0,
+        "bw_bytes" : 0,
+        "bw" : 0,
+        "iops" : 0.000000,
+        "runtime" : 0,
+        "total_ios" : 0,
+        "short_ios" : 0,
+        "drop_ios" : 0,
+        "slat_ns" : {
+          "min" : 0,
+          "max" : 0,
+          "mean" : 0.000000,
+          "stddev" : 0.000000,
+          "N" : 0
+        },
+        "clat_ns" : {
+          "min" : 0,
+          "max" : 0,
+          "mean" : 0.000000,
+          "stddev" : 0.000000,
+          "N" : 0
+        },
+        "lat_ns" : {
+          "min" : 0,
+          "max" : 0,
+          "mean" : 0.000000,
+          "stddev" : 0.000000,
+          "N" : 0
+        },
+        "bw_min" : 0,
+        "bw_max" : 0,
+        "bw_agg" : 0.000000,
+        "bw_mean" : 0.000000,
+        "bw_dev" : 0.000000,
+        "bw_samples" : 0,
+        "iops_min" : 0,
+        "iops_max" : 0,
+        "iops_mean" : 0.000000,
+        "iops_stddev" : 0.000000,
+        "iops_samples" : 0
+      },
+      "trim" : {
+        "io_bytes" : 0,
+        "io_kbytes" : 0,
+        "bw_bytes" : 0,
+        "bw" : 0,
+        "iops" : 0.000000,
+        "runtime" : 0,
+        "total_ios" : 0,
+        "short_ios" : 0,
+        "drop_ios" : 0,
+        "slat_ns" : {
+          "min" : 0,
+          "max" : 0,
+          "mean" : 0.000000,
+          "stddev" : 0.000000,
+          "N" : 0
+        },
+        "clat_ns" : {
+          "min" : 0,
+          "max" : 0,
+          "mean" : 0.000000,
+          "stddev" : 0.000000,
+          "N" : 0
+        },
+        "lat_ns" : {
+          "min" : 0,
+          "max" : 0,
+          "mean" : 0.000000,
+          "stddev" : 0.000000,
+          "N" : 0
+        },
+        "bw_min" : 0,
+        "bw_max" : 0,
+        "bw_agg" : 0.000000,
+        "bw_mean" : 0.000000,
+        "bw_dev" : 0.000000,
+        "bw_samples" : 0,
+        "iops_min" : 0,
+        "iops_max" : 0,
+        "iops_mean" : 0.000000,
+        "iops_stddev" : 0.000000,
+        "iops_samples" : 0
+      },
+      "sync" : {
+        "total_ios" : 0,
+        "lat_ns" : {
+          "min" : 0,
+          "max" : 0,
+          "mean" : 0.000000,
+          "stddev" : 0.000000,
+          "N" : 0
+        }
+      },
+      "job_runtime" : 10000,
+      "usr_cpu" : 0.570000,
+      "sys_cpu" : 12.790000,
+      "ctx" : 0,
+      "majf" : 0,
+      "minf" : 0,
+      "iodepth_level" : {
+        "1" : 100.000000,
+        "2" : 0.000000,
+        "4" : 0.000000,
+        "8" : 0.000000,
+        "16" : 0.000000,
+        "32" : 0.000000,
+        ">=64" : 0.000000
+      },
+      "iodepth_submit" : {
+        "0" : 0.000000,
+        "4" : 100.000000,
+        "8" : 0.000000,
+        "16" : 0.000000,
+        "32" : 0.000000,
+        "64" : 0.000000,
+        ">=64" : 0.000000
+      },
+      "iodepth_complete" : {
+        "0" : 0.000000,
+        "4" : 100.000000,
+        "8" : 0.000000,
+        "16" : 0.000000,
+        "32" : 0.000000,
+        "64" : 0.000000,
+        ">=64" : 0.000000
+      },
+      "latency_ns" : {
+        "2" : 0.000000,
+        "4" : 0.000000,
+        "10" : 0.000000,
+        "20" : 0.000000,
+        "50" : 0.000000,
+        "100" : 0.000000,
+        "250" : 0.000000,
+        "500" : 0.000000,
+        "750" : 0.000000,
+        "1000" : 0.000000
+      },
+      "latency_us" : {
+        "2" : 0.000000,
+        "4" : 0.000000,
+        "10" : 0.000000,
+        "20" : 0.000000,
+        "50" : 0.000000,
+        "100" : 0.000000,
+        "250" : 0.000000,
+        "500" : 82.162258,
+        "750" : 16.402420,
+        "1000" : 1.165923
+      },
+      "latency_ms" : {
+        "2" : 0.256150,
+        "4" : 0.013249,
+        "10" : 0.000000,
+        "20" : 0.000000,
+        "50" : 0.000000,
+        "100" : 0.000000,
+        "250" : 0.000000,
+        "500" : 0.000000,
+        "750" : 0.000000,
+        "1000" : 0.000000,
+        "2000" : 0.000000,
+        ">=2000" : 0.000000
+      },
+      "latency_depth" : 1,
+      "latency_target" : 0,
+      "latency_percentile" : 100.000000,
+      "latency_window" : 0
+    }
+  ]
+}
+[dm-bench] STATS label=dm-crypt run=2 backend=AES-NI perf=target=none enabled=0
+[dm-bench] END label=dm-crypt run=2
+[dm-bench] BEGIN label=dm-crypt run=3 device=/dev/mapper/dm-crypt-bench operation=read block_size=4k ioengine=sync queue_depth=1 jobs=1
+[dm-bench] STATS_BEFORE label=dm-crypt run=3 target=none enabled=0
+[dm-bench-audit] command=/benchmark/bin/fio --name=dm-crypt-3 --filename=/dev/mapper/dm-crypt-bench --rw=read --bs=4k --ioengine=sync --direct=1 --iodepth=1 --size=256m --time_based=1 --ramp_time=2 --runtime=10 --numjobs=1 --group_reporting=1 --percentile_list=50:95:99:99.9 --output-format=json
+{
+  "fio version" : "fio-3.39",
+  "timestamp" : 1786390049,
+  "timestamp_ms" : 1786390049475,
+  "time" : "Mon Aug 10 19:27:29 2026",
+  "jobs" : [
+    {
+      "jobname" : "dm-crypt-3",
+      "groupid" : 0,
+      "job_start" : 1786390039209,
+      "error" : 0,
+      "eta" : 0,
+      "elapsed" : 13,
+      "job options" : {
+        "name" : "dm-crypt-3",
+        "filename" : "/dev/mapper/dm-crypt-bench",
+        "rw" : "read",
+        "bs" : "4k",
+        "ioengine" : "sync",
+        "direct" : "1",
+        "iodepth" : "1",
+        "size" : "256m",
+        "time_based" : "1",
+        "ramp_time" : "2",
+        "runtime" : "10",
+        "numjobs" : "1",
+        "group_reporting" : "1",
+        "percentile_list" : "50:95:99:99.9"
+      },
+      "read" : {
+        "io_bytes" : 93474816,
+        "io_kbytes" : 91284,
+        "bw_bytes" : 9346546,
+        "bw" : 9127,
+        "iops" : 2281.871813,
+        "runtime" : 10001,
+        "total_ios" : 22821,
+        "short_ios" : 0,
+        "drop_ios" : 0,
+        "slat_ns" : {
+          "min" : 0,
+          "max" : 0,
+          "mean" : 0.000000,
+          "stddev" : 0.000000,
+          "N" : 0
+        },
+        "clat_ns" : {
+          "min" : 257027,
+          "max" : 4404532,
+          "mean" : 436731.514438,
+          "stddev" : 112568.075380,
+          "N" : 22821,
+          "percentile" : {
+            "50.000000" : 411648,
+            "95.000000" : 634880,
+            "99.000000" : 806912,
+            "99.900000" : 1335296
+          }
+        },
+        "lat_ns" : {
+          "min" : 257125,
+          "max" : 4404741,
+          "mean" : 436921.584812,
+          "stddev" : 112592.536919,
+          "N" : 22821
+        },
+        "bw_min" : 8394,
+        "bw_max" : 9592,
+        "bw_agg" : 99.917980,
+        "bw_mean" : 9120.105263,
+        "bw_dev" : 307.721536,
+        "bw_samples" : 19,
+        "iops_min" : 2098,
+        "iops_max" : 2398,
+        "iops_mean" : 2279.789474,
+        "iops_stddev" : 76.946286,
+        "iops_samples" : 19
+      },
+      "write" : {
+        "io_bytes" : 0,
+        "io_kbytes" : 0,
+        "bw_bytes" : 0,
+        "bw" : 0,
+        "iops" : 0.000000,
+        "runtime" : 0,
+        "total_ios" : 0,
+        "short_ios" : 0,
+        "drop_ios" : 0,
+        "slat_ns" : {
+          "min" : 0,
+          "max" : 0,
+          "mean" : 0.000000,
+          "stddev" : 0.000000,
+          "N" : 0
+        },
+        "clat_ns" : {
+          "min" : 0,
+          "max" : 0,
+          "mean" : 0.000000,
+          "stddev" : 0.000000,
+          "N" : 0
+        },
+        "lat_ns" : {
+          "min" : 0,
+          "max" : 0,
+          "mean" : 0.000000,
+          "stddev" : 0.000000,
+          "N" : 0
+        },
+        "bw_min" : 0,
+        "bw_max" : 0,
+        "bw_agg" : 0.000000,
+        "bw_mean" : 0.000000,
+        "bw_dev" : 0.000000,
+        "bw_samples" : 0,
+        "iops_min" : 0,
+        "iops_max" : 0,
+        "iops_mean" : 0.000000,
+        "iops_stddev" : 0.000000,
+        "iops_samples" : 0
+      },
+      "trim" : {
+        "io_bytes" : 0,
+        "io_kbytes" : 0,
+        "bw_bytes" : 0,
+        "bw" : 0,
+        "iops" : 0.000000,
+        "runtime" : 0,
+        "total_ios" : 0,
+        "short_ios" : 0,
+        "drop_ios" : 0,
+        "slat_ns" : {
+          "min" : 0,
+          "max" : 0,
+          "mean" : 0.000000,
+          "stddev" : 0.000000,
+          "N" : 0
+        },
+        "clat_ns" : {
+          "min" : 0,
+          "max" : 0,
+          "mean" : 0.000000,
+          "stddev" : 0.000000,
+          "N" : 0
+        },
+        "lat_ns" : {
+          "min" : 0,
+          "max" : 0,
+          "mean" : 0.000000,
+          "stddev" : 0.000000,
+          "N" : 0
+        },
+        "bw_min" : 0,
+        "bw_max" : 0,
+        "bw_agg" : 0.000000,
+        "bw_mean" : 0.000000,
+        "bw_dev" : 0.000000,
+        "bw_samples" : 0,
+        "iops_min" : 0,
+        "iops_max" : 0,
+        "iops_mean" : 0.000000,
+        "iops_stddev" : 0.000000,
+        "iops_samples" : 0
+      },
+      "sync" : {
+        "total_ios" : 0,
+        "lat_ns" : {
+          "min" : 0,
+          "max" : 0,
+          "mean" : 0.000000,
+          "stddev" : 0.000000,
+          "N" : 0
+        }
+      },
+      "job_runtime" : 10000,
+      "usr_cpu" : 0.570000,
+      "sys_cpu" : 12.600000,
+      "ctx" : 0,
+      "majf" : 0,
+      "minf" : 0,
+      "iodepth_level" : {
+        "1" : 100.000000,
+        "2" : 0.000000,
+        "4" : 0.000000,
+        "8" : 0.000000,
+        "16" : 0.000000,
+        "32" : 0.000000,
+        ">=64" : 0.000000
+      },
+      "iodepth_submit" : {
+        "0" : 0.000000,
+        "4" : 100.000000,
+        "8" : 0.000000,
+        "16" : 0.000000,
+        "32" : 0.000000,
+        "64" : 0.000000,
+        ">=64" : 0.000000
+      },
+      "iodepth_complete" : {
+        "0" : 0.000000,
+        "4" : 100.000000,
+        "8" : 0.000000,
+        "16" : 0.000000,
+        "32" : 0.000000,
+        "64" : 0.000000,
+        ">=64" : 0.000000
+      },
+      "latency_ns" : {
+        "2" : 0.000000,
+        "4" : 0.000000,
+        "10" : 0.000000,
+        "20" : 0.000000,
+        "50" : 0.000000,
+        "100" : 0.000000,
+        "250" : 0.000000,
+        "500" : 0.000000,
+        "750" : 0.000000,
+        "1000" : 0.000000
+      },
+      "latency_us" : {
+        "2" : 0.000000,
+        "4" : 0.000000,
+        "10" : 0.000000,
+        "20" : 0.000000,
+        "50" : 0.000000,
+        "100" : 0.000000,
+        "250" : 0.000000,
+        "500" : 82.152403,
+        "750" : 16.129880,
+        "1000" : 1.380308
+      },
+      "latency_ms" : {
+        "2" : 0.315499,
+        "4" : 0.017528,
+        "10" : 0.010000,
+        "20" : 0.000000,
+        "50" : 0.000000,
+        "100" : 0.000000,
+        "250" : 0.000000,
+        "500" : 0.000000,
+        "750" : 0.000000,
+        "1000" : 0.000000,
+        "2000" : 0.000000,
+        ">=2000" : 0.000000
+      },
+      "latency_depth" : 1,
+      "latency_target" : 0,
+      "latency_percentile" : 100.000000,
+      "latency_window" : 0
+    }
+  ]
+}
+[dm-bench] STATS label=dm-crypt run=3 backend=AES-NI perf=target=none enabled=0
+[dm-bench] END label=dm-crypt run=3
+[dm-bench] BEGIN label=dm-crypt run=4 device=/dev/mapper/dm-crypt-bench operation=read block_size=4k ioengine=sync queue_depth=1 jobs=1
+[dm-bench] STATS_BEFORE label=dm-crypt run=4 target=none enabled=0
+[dm-bench-audit] command=/benchmark/bin/fio --name=dm-crypt-4 --filename=/dev/mapper/dm-crypt-bench --rw=read --bs=4k --ioengine=sync --direct=1 --iodepth=1 --size=256m --time_based=1 --ramp_time=2 --runtime=10 --numjobs=1 --group_reporting=1 --percentile_list=50:95:99:99.9 --output-format=json
+{
+  "fio version" : "fio-3.39",
+  "timestamp" : 1786390061,
+  "timestamp_ms" : 1786390061969,
+  "time" : "Mon Aug 10 19:27:41 2026",
+  "jobs" : [
+    {
+      "jobname" : "dm-crypt-4",
+      "groupid" : 0,
+      "job_start" : 1786390051705,
+      "error" : 0,
+      "eta" : 0,
+      "elapsed" : 13,
+      "job options" : {
+        "name" : "dm-crypt-4",
+        "filename" : "/dev/mapper/dm-crypt-bench",
+        "rw" : "read",
+        "bs" : "4k",
+        "ioengine" : "sync",
+        "direct" : "1",
+        "iodepth" : "1",
+        "size" : "256m",
+        "time_based" : "1",
+        "ramp_time" : "2",
+        "runtime" : "10",
+        "numjobs" : "1",
+        "group_reporting" : "1",
+        "percentile_list" : "50:95:99:99.9"
+      },
+      "read" : {
+        "io_bytes" : 92434432,
+        "io_kbytes" : 90268,
+        "bw_bytes" : 9242518,
+        "bw" : 9025,
+        "iops" : 2256.474353,
+        "runtime" : 10001,
+        "total_ios" : 22567,
+        "short_ios" : 0,
+        "drop_ios" : 0,
+        "slat_ns" : {
+          "min" : 0,
+          "max" : 0,
+          "mean" : 0.000000,
+          "stddev" : 0.000000,
+          "N" : 0
+        },
+        "clat_ns" : {
+          "min" : 246832,
+          "max" : 2216868,
+          "mean" : 441657.754730,
+          "stddev" : 104041.887164,
+          "N" : 22567,
+          "percentile" : {
+            "50.000000" : 415744,
+            "95.000000" : 634880,
+            "99.000000" : 806912,
+            "99.900000" : 1236992
+          }
+        },
+        "lat_ns" : {
+          "min" : 246957,
+          "max" : 2217045,
+          "mean" : 441847.302344,
+          "stddev" : 104059.754622,
+          "N" : 22567
+        },
+        "bw_min" : 8424,
+        "bw_max" : 9480,
+        "bw_agg" : 100.000000,
+        "bw_mean" : 9040.684211,
+        "bw_dev" : 341.673504,
+        "bw_samples" : 19,
+        "iops_min" : 2106,
+        "iops_max" : 2370,
+        "iops_mean" : 2260.105263,
+        "iops_stddev" : 85.466624,
+        "iops_samples" : 19
+      },
+      "write" : {
+        "io_bytes" : 0,
+        "io_kbytes" : 0,
+        "bw_bytes" : 0,
+        "bw" : 0,
+        "iops" : 0.000000,
+        "runtime" : 0,
+        "total_ios" : 0,
+        "short_ios" : 0,
+        "drop_ios" : 0,
+        "slat_ns" : {
+          "min" : 0,
+          "max" : 0,
+          "mean" : 0.000000,
+          "stddev" : 0.000000,
+          "N" : 0
+        },
+        "clat_ns" : {
+          "min" : 0,
+          "max" : 0,
+          "mean" : 0.000000,
+          "stddev" : 0.000000,
+          "N" : 0
+        },
+        "lat_ns" : {
+          "min" : 0,
+          "max" : 0,
+          "mean" : 0.000000,
+          "stddev" : 0.000000,
+          "N" : 0
+        },
+        "bw_min" : 0,
+        "bw_max" : 0,
+        "bw_agg" : 0.000000,
+        "bw_mean" : 0.000000,
+        "bw_dev" : 0.000000,
+        "bw_samples" : 0,
+        "iops_min" : 0,
+        "iops_max" : 0,
+        "iops_mean" : 0.000000,
+        "iops_stddev" : 0.000000,
+        "iops_samples" : 0
+      },
+      "trim" : {
+        "io_bytes" : 0,
+        "io_kbytes" : 0,
+        "bw_bytes" : 0,
+        "bw" : 0,
+        "iops" : 0.000000,
+        "runtime" : 0,
+        "total_ios" : 0,
+        "short_ios" : 0,
+        "drop_ios" : 0,
+        "slat_ns" : {
+          "min" : 0,
+          "max" : 0,
+          "mean" : 0.000000,
+          "stddev" : 0.000000,
+          "N" : 0
+        },
+        "clat_ns" : {
+          "min" : 0,
+          "max" : 0,
+          "mean" : 0.000000,
+          "stddev" : 0.000000,
+          "N" : 0
+        },
+        "lat_ns" : {
+          "min" : 0,
+          "max" : 0,
+          "mean" : 0.000000,
+          "stddev" : 0.000000,
+          "N" : 0
+        },
+        "bw_min" : 0,
+        "bw_max" : 0,
+        "bw_agg" : 0.000000,
+        "bw_mean" : 0.000000,
+        "bw_dev" : 0.000000,
+        "bw_samples" : 0,
+        "iops_min" : 0,
+        "iops_max" : 0,
+        "iops_mean" : 0.000000,
+        "iops_stddev" : 0.000000,
+        "iops_samples" : 0
+      },
+      "sync" : {
+        "total_ios" : 0,
+        "lat_ns" : {
+          "min" : 0,
+          "max" : 0,
+          "mean" : 0.000000,
+          "stddev" : 0.000000,
+          "N" : 0
+        }
+      },
+      "job_runtime" : 10000,
+      "usr_cpu" : 0.710000,
+      "sys_cpu" : 12.470000,
+      "ctx" : 0,
+      "majf" : 0,
+      "minf" : 0,
+      "iodepth_level" : {
+        "1" : 100.000000,
+        "2" : 0.000000,
+        "4" : 0.000000,
+        "8" : 0.000000,
+        "16" : 0.000000,
+        "32" : 0.000000,
+        ">=64" : 0.000000
+      },
+      "iodepth_submit" : {
+        "0" : 0.000000,
+        "4" : 100.000000,
+        "8" : 0.000000,
+        "16" : 0.000000,
+        "32" : 0.000000,
+        "64" : 0.000000,
+        ">=64" : 0.000000
+      },
+      "iodepth_complete" : {
+        "0" : 0.000000,
+        "4" : 100.000000,
+        "8" : 0.000000,
+        "16" : 0.000000,
+        "32" : 0.000000,
+        "64" : 0.000000,
+        ">=64" : 0.000000
+      },
+      "latency_ns" : {
+        "2" : 0.000000,
+        "4" : 0.000000,
+        "10" : 0.000000,
+        "20" : 0.000000,
+        "50" : 0.000000,
+        "100" : 0.000000,
+        "250" : 0.000000,
+        "500" : 0.000000,
+        "750" : 0.000000,
+        "1000" : 0.000000
+      },
+      "latency_us" : {
+        "2" : 0.000000,
+        "4" : 0.000000,
+        "10" : 0.000000,
+        "20" : 0.000000,
+        "50" : 0.000000,
+        "100" : 0.000000,
+        "250" : 0.010000,
+        "500" : 81.721097,
+        "750" : 16.555147,
+        "1000" : 1.426862
+      },
+      "latency_ms" : {
+        "2" : 0.288031,
+        "4" : 0.010000,
+        "10" : 0.000000,
+        "20" : 0.000000,
+        "50" : 0.000000,
+        "100" : 0.000000,
+        "250" : 0.000000,
+        "500" : 0.000000,
+        "750" : 0.000000,
+        "1000" : 0.000000,
+        "2000" : 0.000000,
+        ">=2000" : 0.000000
+      },
+      "latency_depth" : 1,
+      "latency_target" : 0,
+      "latency_percentile" : 100.000000,
+      "latency_window" : 0
+    }
+  ]
+}
+[dm-bench] STATS label=dm-crypt run=4 backend=AES-NI perf=target=none enabled=0
+[dm-bench] END label=dm-crypt run=4
+[dm-bench] BEGIN label=dm-crypt run=5 device=/dev/mapper/dm-crypt-bench operation=read block_size=4k ioengine=sync queue_depth=1 jobs=1
+[dm-bench] STATS_BEFORE label=dm-crypt run=5 target=none enabled=0
+[dm-bench-audit] command=/benchmark/bin/fio --name=dm-crypt-5 --filename=/dev/mapper/dm-crypt-bench --rw=read --bs=4k --ioengine=sync --direct=1 --iodepth=1 --size=256m --time_based=1 --ramp_time=2 --runtime=10 --numjobs=1 --group_reporting=1 --percentile_list=50:95:99:99.9 --output-format=json
+{
+  "fio version" : "fio-3.39",
+  "timestamp" : 1786390074,
+  "timestamp_ms" : 1786390074463,
+  "time" : "Mon Aug 10 19:27:54 2026",
+  "jobs" : [
+    {
+      "jobname" : "dm-crypt-5",
+      "groupid" : 0,
+      "job_start" : 1786390064200,
+      "error" : 0,
+      "eta" : 0,
+      "elapsed" : 13,
+      "job options" : {
+        "name" : "dm-crypt-5",
+        "filename" : "/dev/mapper/dm-crypt-bench",
+        "rw" : "read",
+        "bs" : "4k",
+        "ioengine" : "sync",
+        "direct" : "1",
+        "iodepth" : "1",
+        "size" : "256m",
+        "time_based" : "1",
+        "ramp_time" : "2",
+        "runtime" : "10",
+        "numjobs" : "1",
+        "group_reporting" : "1",
+        "percentile_list" : "50:95:99:99.9"
+      },
+      "read" : {
+        "io_bytes" : 93417472,
+        "io_kbytes" : 91228,
+        "bw_bytes" : 9340813,
+        "bw" : 9121,
+        "iops" : 2280.471953,
+        "runtime" : 10001,
+        "total_ios" : 22807,
+        "short_ios" : 0,
+        "drop_ios" : 0,
+        "slat_ns" : {
+          "min" : 0,
+          "max" : 0,
+          "mean" : 0.000000,
+          "stddev" : 0.000000,
+          "N" : 0
+        },
+        "clat_ns" : {
+          "min" : 244867,
+          "max" : 5162286,
+          "mean" : 437081.270487,
+          "stddev" : 104519.034336,
+          "N" : 22807,
+          "percentile" : {
+            "50.000000" : 415744,
+            "95.000000" : 626688,
+            "99.000000" : 782336,
+            "99.900000" : 1138688
+          }
+        },
+        "lat_ns" : {
+          "min" : 244987,
+          "max" : 5162470,
+          "mean" : 437248.642873,
+          "stddev" : 104536.342283,
+          "N" : 22807
+        },
+        "bw_min" : 8280,
+        "bw_max" : 9712,
+        "bw_agg" : 100.000000,
+        "bw_mean" : 9123.157895,
+        "bw_dev" : 424.406548,
+        "bw_samples" : 19,
+        "iops_min" : 2070,
+        "iops_max" : 2428,
+        "iops_mean" : 2280.578947,
+        "iops_stddev" : 105.973433,
+        "iops_samples" : 19
+      },
+      "write" : {
+        "io_bytes" : 0,
+        "io_kbytes" : 0,
+        "bw_bytes" : 0,
+        "bw" : 0,
+        "iops" : 0.000000,
+        "runtime" : 0,
+        "total_ios" : 0,
+        "short_ios" : 0,
+        "drop_ios" : 0,
+        "slat_ns" : {
+          "min" : 0,
+          "max" : 0,
+          "mean" : 0.000000,
+          "stddev" : 0.000000,
+          "N" : 0
+        },
+        "clat_ns" : {
+          "min" : 0,
+          "max" : 0,
+          "mean" : 0.000000,
+          "stddev" : 0.000000,
+          "N" : 0
+        },
+        "lat_ns" : {
+          "min" : 0,
+          "max" : 0,
+          "mean" : 0.000000,
+          "stddev" : 0.000000,
+          "N" : 0
+        },
+        "bw_min" : 0,
+        "bw_max" : 0,
+        "bw_agg" : 0.000000,
+        "bw_mean" : 0.000000,
+        "bw_dev" : 0.000000,
+        "bw_samples" : 0,
+        "iops_min" : 0,
+        "iops_max" : 0,
+        "iops_mean" : 0.000000,
+        "iops_stddev" : 0.000000,
+        "iops_samples" : 0
+      },
+      "trim" : {
+        "io_bytes" : 0,
+        "io_kbytes" : 0,
+        "bw_bytes" : 0,
+        "bw" : 0,
+        "iops" : 0.000000,
+        "runtime" : 0,
+        "total_ios" : 0,
+        "short_ios" : 0,
+        "drop_ios" : 0,
+        "slat_ns" : {
+          "min" : 0,
+          "max" : 0,
+          "mean" : 0.000000,
+          "stddev" : 0.000000,
+          "N" : 0
+        },
+        "clat_ns" : {
+          "min" : 0,
+          "max" : 0,
+          "mean" : 0.000000,
+          "stddev" : 0.000000,
+          "N" : 0
+        },
+        "lat_ns" : {
+          "min" : 0,
+          "max" : 0,
+          "mean" : 0.000000,
+          "stddev" : 0.000000,
+          "N" : 0
+        },
+        "bw_min" : 0,
+        "bw_max" : 0,
+        "bw_agg" : 0.000000,
+        "bw_mean" : 0.000000,
+        "bw_dev" : 0.000000,
+        "bw_samples" : 0,
+        "iops_min" : 0,
+        "iops_max" : 0,
+        "iops_mean" : 0.000000,
+        "iops_stddev" : 0.000000,
+        "iops_samples" : 0
+      },
+      "sync" : {
+        "total_ios" : 0,
+        "lat_ns" : {
+          "min" : 0,
+          "max" : 0,
+          "mean" : 0.000000,
+          "stddev" : 0.000000,
+          "N" : 0
+        }
+      },
+      "job_runtime" : 10000,
+      "usr_cpu" : 0.660000,
+      "sys_cpu" : 12.000000,
+      "ctx" : 0,
+      "majf" : 0,
+      "minf" : 0,
+      "iodepth_level" : {
+        "1" : 100.000000,
+        "2" : 0.000000,
+        "4" : 0.000000,
+        "8" : 0.000000,
+        "16" : 0.000000,
+        "32" : 0.000000,
+        ">=64" : 0.000000
+      },
+      "iodepth_submit" : {
+        "0" : 0.000000,
+        "4" : 100.000000,
+        "8" : 0.000000,
+        "16" : 0.000000,
+        "32" : 0.000000,
+        "64" : 0.000000,
+        ">=64" : 0.000000
+      },
+      "iodepth_complete" : {
+        "0" : 0.000000,
+        "4" : 100.000000,
+        "8" : 0.000000,
+        "16" : 0.000000,
+        "32" : 0.000000,
+        "64" : 0.000000,
+        ">=64" : 0.000000
+      },
+      "latency_ns" : {
+        "2" : 0.000000,
+        "4" : 0.000000,
+        "10" : 0.000000,
+        "20" : 0.000000,
+        "50" : 0.000000,
+        "100" : 0.000000,
+        "250" : 0.000000,
+        "500" : 0.000000,
+        "750" : 0.000000,
+        "1000" : 0.000000
+      },
+      "latency_us" : {
+        "2" : 0.000000,
+        "4" : 0.000000,
+        "10" : 0.000000,
+        "20" : 0.000000,
+        "50" : 0.000000,
+        "100" : 0.000000,
+        "250" : 0.010000,
+        "500" : 82.080063,
+        "750" : 16.595782,
+        "1000" : 1.104924
+      },
+      "latency_ms" : {
+        "2" : 0.201692,
+        "4" : 0.010000,
+        "10" : 0.010000,
+        "20" : 0.000000,
+        "50" : 0.000000,
+        "100" : 0.000000,
+        "250" : 0.000000,
+        "500" : 0.000000,
+        "750" : 0.000000,
+        "1000" : 0.000000,
+        "2000" : 0.000000,
+        ">=2000" : 0.000000
+      },
+      "latency_depth" : 1,
+      "latency_target" : 0,
+      "latency_percentile" : 100.000000,
+      "latency_window" : 0
+    }
+  ]
+}
+[dm-bench] STATS label=dm-crypt run=5 backend=AES-NI perf=target=none enabled=0
+[dm-bench] END label=dm-crypt run=5
+[dm-bench] PASS 5-run raw/dm-crypt matrix completed

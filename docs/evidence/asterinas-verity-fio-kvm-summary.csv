@@ -1,3 +1,0 @@
-label,runs,bw_mib_s_median,iops_median,p95_us_median,p99_us_median
-raw,5,1.881,481.518,2899.968,3751.936
-dm-verity,5,0.303,77.612,18743.296,23199.744

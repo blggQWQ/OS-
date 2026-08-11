@@ -45,16 +45,17 @@ hash 后才能进入缓存。缓存命中不会降低完整性边界。
 
 ## 3. Linux 对照不是装饰性跑分
 
-`scripts/benchmark_linux_dm.sh` 使用相同镜像、块大小、队列深度和 fio 参数交替测试
-Linux raw block 与内核 dm-crypt。每个场景至少运行五次，保留每轮原始 CSV，并记录：
+`scripts/run_fio_matrix.sh --platform linux-host` 在同一 backing image 上创建真实 raw
+block device 与 dm-crypt mapper，按统一参数执行 13 个 workload。每个场景运行五次，
+保留每轮 fio JSON、CSV 和设备元数据，并记录：
 
 - MiB/s 与 IOPS；
 - 平均、p50、p95、p99 完成延迟；
 - fio 用户态与内核态 CPU 占用。
 
-`scripts/summarize_benchmark.py` 计算各指标中位数，并直接给出 dm-crypt 相对 raw 的
-吞吐保留率和 p95 延迟开销。报告不得选择最好的一轮，也不得把内存微基准当成 Linux
-对照结果。
+`scripts/summarize_fio_matrix.py` 计算均值、中位数和标准差。报告不得选择最好的一轮，
+不得把内存微基准当成 block device 结果，也不得把 Linux 与 Asterinas 的不同环境
+直接换算为性能倍率。
 
 ## 4. cryptsetup 兼容边界
 
@@ -85,4 +86,4 @@ metadata 继续由 cryptsetup 用户态管理，内核只接收 volume key 和 t
 首数据块一个字节的镜像报告 `status=integrity-rejected`，没有任何 rootfs PASS。
 
 完整串口、五轮 fio CSV 和 hash-cache A/B 汇总见
-`docs/evidence/FINAL_VALIDATION.md`。
+`docs/evidence/final-performance-20260811/PERFORMANCE_VALIDATION_REPORT.md`。
