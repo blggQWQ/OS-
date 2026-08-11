@@ -206,7 +206,12 @@
     \end{tabular}
 \end{table}
 
-每阶段均通过 QEMU/KVM 端到端测试，并在启动日志中验证。组合路径在补丁 0004 中通过 \texttt{demo-stack} 命令展示，用户态可演示完整栈。
+每阶段均通过 QEMU/KVM 端到端测试，并在启动日志中验证。
+Combined 阶段提供双路径：内核补丁 \texttt{0007}（\texttt{dm\_stack=crypt,verity}，
+\texttt{scripts/build\_stack\_rootfs.sh} + \texttt{scripts/run\_dm\_stack.sh}，
+串口关键字 \texttt{[dm] stacked mapper:}）以及用户态 \texttt{dmctl demo-stack}
+（\texttt{DmStackBuilder::crypt().verity()}）。两条路径的装饰器顺序一致：
+\texttt{virtio-blk $\to$ DmCryptDevice $\to$ DmVerityDevice $\to$ ext2}。
 
 \section{实验性优化探索}
 

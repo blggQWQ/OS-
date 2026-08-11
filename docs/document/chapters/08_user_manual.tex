@@ -92,11 +92,25 @@ cargo run -p dmctl -- demo-verity
 
 \subsection{演示组合栈（dm-crypt + dm-verity）}
 
+用户态：
+
 \begin{verbatim}
 cargo run -p dmctl -- demo-stack
 \end{verbatim}
 
 预期输出：显示两层映射器（crypt-root、verified-root）及其安全能力（confidentiality、integrity、read\_only），并成功读取数据。
+
+内核 Combined 叠栈（补丁 0007）：
+
+\begin{verbatim}
+sudo bash scripts/build_stack_rootfs.sh
+ENABLE_KVM=1 bash scripts/run_dm_stack.sh
+\end{verbatim}
+
+关键 cmdline：\texttt{dm\_stack=crypt,verity}、\texttt{dm\_crypt.device=vdc}、
+\texttt{rootfs\_verity.device=dm-crypt0}、\texttt{dm-root /dev/dm-verity0}。
+预期串口含 \texttt{[dm] stacked mapper: vdc -> dm-crypt0 -> dm-verity0}
+以及 \texttt{PASS system root switched to protected mapper}。
 
 \subsection{手动命令示例}
 

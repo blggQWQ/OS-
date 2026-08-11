@@ -1,0 +1,242 @@
+From e8815677ba2d9b5eeef9f147b8ada91a5af1cab0 Mon Sep 17 00:00:00 2001
+From: scnu202421326914 <2787304139@qq.com>
+Date: Tue, 11 Aug 2026 13:38:51 +0800
+Subject: [PATCH] feat(dm): stack dm-crypt under dm-verity for Combined rootfs
+
+Add dm_stack=crypt,verity boot path that nests verity on the crypt mapper,
+prints an explicit stacked mapper chain, prefers top-of-stack performance
+stats, and ships tools/run_dm_stack.sh for QEMU/KVM acceptance. Keep the
+caller DM_IMAGE when sourcing image builder metadata under Docker.
+---
+ kernel/comps/dm/src/lib.rs | 79 +++++++++++++++++++++++++++++++-------
+ tools/run_dm_stack.sh      | 73 +++++++++++++++++++++++++++++++++++
+ 2 files changed, 139 insertions(+), 13 deletions(-)
+ create mode 100755 tools/run_dm_stack.sh
+
+diff --git a/kernel/comps/dm/src/lib.rs b/kernel/comps/dm/src/lib.rs
+index 41bc4ea66..d47845135 100644
+--- a/kernel/comps/dm/src/lib.rs
++++ b/kernel/comps/dm/src/lib.rs
+@@ -53,6 +53,8 @@ static VERITY_HASH_START_BLOCK: Once<usize> = Once::new();
+ static VERITY_CACHE_BLOCKS: Once<usize> = Once::new();
+ static VERITY_MAPPER: Once<Arc<DmDevice>> = Once::new();
+ static VERITY_BOOT_STATUS: AtomicU8 = AtomicU8::new(0);
++/// Explicit composable stack, e.g. `dm_stack=crypt,verity`.
++static DM_STACK: Once<String> = Once::new();
+ static DM_MAJOR: Once<MajorIdOwner> = Once::new();
+ 
+ /// Returns the Linux-visible block major allocated to device-mapper.
+@@ -80,13 +82,16 @@ pub fn boot_verity_stats() -> Option<(usize, VerityStats)> {
+ }
+ 
+ /// Returns a live stage-attribution snapshot for the boot-configured mapper.
++///
++/// When crypt and verity are stacked, prefer the top-of-stack (verity) so
++/// procfs attribution is not masked by the lower crypt mapper alone.
+ pub fn boot_performance_stats() -> Option<(&'static str, DmPerformanceStats)> {
+-    if let Some(mapper) = CRYPT_MAPPER.get() {
+-        return Some(("dm-crypt", mapper.performance_stats()));
++    if let Some(mapper) = VERITY_MAPPER.get() {
++        return Some(("dm-verity", mapper.performance_stats()));
+     }
+-    VERITY_MAPPER
++    CRYPT_MAPPER
+         .get()
+-        .map(|mapper| ("dm-verity", mapper.performance_stats()))
++        .map(|mapper| ("dm-crypt", mapper.performance_stats()))
+ }
+ 
+ /// Returns the result of the boot-time dm-verity authenticated read.
+@@ -114,6 +119,7 @@ aster_cmdline::define_kv_param!("rootfs_verity.hash", VERITY_ROOT_HASH);
+ aster_cmdline::define_kv_param!("rootfs_verity.data_blocks", VERITY_DATA_BLOCKS);
+ aster_cmdline::define_kv_param!("rootfs_verity.hash_start", VERITY_HASH_START_BLOCK);
+ aster_cmdline::define_kv_param!("rootfs_verity.cache_blocks", VERITY_CACHE_BLOCKS);
++aster_cmdline::define_kv_param!("dm_stack", DM_STACK);
+ 
+ /// Errors returned while configuring Device Mapper targets.
+ #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+@@ -166,16 +172,24 @@ fn init() -> Result<(), ComponentInitError> {
+         ostd::early_println!("[dm] registered passthrough mapper");
+     }
+ 
++    let crypt_lower_name = CRYPT_DEVICE.get().cloned();
++    let crypt_mapper_name = CRYPT_NAME
++        .get()
++        .cloned()
++        .unwrap_or_else(|| String::from("dm-crypt0"));
++    let verity_mapper_name = VERITY_NAME
++        .get()
++        .cloned()
++        .unwrap_or_else(|| String::from("dm-verity0"));
++    let stack_crypt_verity = is_crypt_verity_stack(&crypt_mapper_name);
++
+     if let Some(device_name) = CRYPT_DEVICE.get() {
+         let Some(key_hex) = CRYPT_KEY.get() else {
+             warn!("dm_crypt.key is required when dm_crypt.device is set");
+             return Err(ComponentInitError::Unknown);
+         };
+         let key = decode_hex(key_hex).map_err(|_| ComponentInitError::Unknown)?;
+-        let mapper_name = CRYPT_NAME
+-            .get()
+-            .cloned()
+-            .unwrap_or_else(|| String::from("dm-crypt0"));
++        let mapper_name = crypt_mapper_name.clone();
+         let Some(lower) = find_device(device_name) else {
+             warn!("cannot find dm-crypt lower device {device_name}");
+             return Err(ComponentInitError::Unknown);
+@@ -216,7 +230,20 @@ fn init() -> Result<(), ComponentInitError> {
+         .get()
+         .is_some_and(|scheme| scheme == "dm-verity")
+     {
+-        let device_name = VERITY_DEVICE.get().ok_or(ComponentInitError::Unknown)?;
++        let configured_device = VERITY_DEVICE.get().ok_or(ComponentInitError::Unknown)?;
++        // With dm_stack=crypt,verity, nest verity on the crypt mapper even if
++        // the cmdline still names the physical disk (same as crypt.lower).
++        let device_name = if stack_crypt_verity
++            && CRYPT_MAPPER.get().is_some()
++            && (configured_device.as_str() == crypt_mapper_name.as_str()
++                || crypt_lower_name
++                    .as_ref()
++                    .is_some_and(|lower| lower.as_str() == configured_device.as_str()))
++        {
++            crypt_mapper_name.as_str()
++        } else {
++            configured_device.as_str()
++        };
+         let root_hash_hex = VERITY_ROOT_HASH.get().ok_or(ComponentInitError::Unknown)?;
+         let root_hash = decode_hash(root_hash_hex).map_err(|_| ComponentInitError::Unknown)?;
+         let data_blocks = *VERITY_DATA_BLOCKS
+@@ -225,10 +252,7 @@ fn init() -> Result<(), ComponentInitError> {
+         let hash_start_block = *VERITY_HASH_START_BLOCK
+             .get()
+             .ok_or(ComponentInitError::Unknown)?;
+-        let mapper_name = VERITY_NAME
+-            .get()
+-            .cloned()
+-            .unwrap_or_else(|| String::from("dm-verity0"));
++        let mapper_name = verity_mapper_name.clone();
+         let Some(lower) = find_device(device_name) else {
+             warn!("cannot find dm-verity lower device {device_name}");
+             return Err(ComponentInitError::Unknown);
+@@ -297,10 +321,39 @@ fn init() -> Result<(), ComponentInitError> {
+         ostd::early_println!("[dm] registered dm-verity mapper");
+     }
+ 
++    if stack_crypt_verity && CRYPT_MAPPER.get().is_some() && VERITY_MAPPER.get().is_some() {
++        let lower = crypt_lower_name
++            .as_deref()
++            .unwrap_or("vdc");
++        ostd::early_println!(
++            "[dm] stacked mapper: {} -> {} -> {}",
++            lower,
++            crypt_mapper_name,
++            verity_mapper_name
++        );
++    }
++
+     ostd::early_println!("[dm] process-stage initialization complete");
+     Ok(())
+ }
+ 
++/// Returns true when the boot cmdline requests a crypt→verity stack.
++///
++/// Enabled by `dm_stack=crypt,verity`, or automatically when verity's lower
++/// device name equals the crypt mapper name (decorator nesting by name).
++fn is_crypt_verity_stack(crypt_mapper_name: &str) -> bool {
++    if DM_STACK
++        .get()
++        .is_some_and(|stack| stack == "crypt,verity")
++    {
++        return true;
++    }
++    CRYPT_DEVICE.get().is_some()
++        && VERITY_DEVICE
++            .get()
++            .is_some_and(|device| device.as_str() == crypt_mapper_name)
++}
++
+ fn allocate_mapper_id() -> Result<DeviceId, DmError> {
+     let major = DM_MAJOR.get().ok_or(DmError::NotFound)?.get();
+     let minor = NEXT_DM_MINOR.fetch_add(1, Ordering::Relaxed);
+diff --git a/tools/run_dm_stack.sh b/tools/run_dm_stack.sh
+new file mode 100755
+index 000000000..d113c2632
+--- /dev/null
++++ b/tools/run_dm_stack.sh
+@@ -0,0 +1,73 @@
++#!/bin/bash
++
++# SPDX-License-Identifier: MPL-2.0
++
++# Boot Asterinas with a stacked mapper chain:
++#   virtio-blk (vdc) -> dm-crypt0 -> dm-verity0 -> ext2 root
++#
++# Expects an image produced by scripts/build_stack_rootfs.sh (or equivalent):
++# plaintext ext2 + on-disk verity hash tree, then whole-disk AES-XTS encryption.
++
++set -euo pipefail
++
++if [ "${DM_AES_NI:-1}" = "1" ]; then
++    export OSDK_ENABLE_AES_NI=1
++else
++    unset OSDK_ENABLE_AES_NI
++fi
++
++# Caller/container may already set DM_IMAGE; do not let .env overwrite it with a
++# host-absolute path from the image builder.
++DM_IMAGE=${DM_IMAGE:-./stack-rootfs.img}
++REQUESTED_DM_IMAGE="$DM_IMAGE"
++if [ -f "${DM_IMAGE}.env" ]; then
++    # shellcheck disable=SC1090
++    set -a
++    source "${DM_IMAGE}.env"
++    set +a
++fi
++DM_IMAGE="$REQUESTED_DM_IMAGE"
++
++DM_DEVICE=${DM_DEVICE:-vdc}
++DM_CRYPT_NAME=${DM_CRYPT_NAME:-${DM_NAME_CRYPT:-dm-crypt0}}
++DM_VERITY_NAME=${DM_VERITY_NAME:-${DM_NAME_VERITY:-dm-verity0}}
++DM_KEY=${DM_KEY:-000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f}
++DM_ROOT_HASH=${DM_ROOT_HASH:-}
++DM_DATA_BLOCKS=${DM_DATA_BLOCKS:-}
++DM_HASH_START=${DM_HASH_START:-}
++DM_CACHE_BLOCKS=${DM_CACHE_BLOCKS:-256}
++export CONSOLE=${DM_CONSOLE:-hvc0}
++
++if [ ! -f "${DM_IMAGE}" ]; then
++    echo "stacked rootfs image not found: ${DM_IMAGE}" >&2
++    exit 1
++fi
++if [ -z "${DM_ROOT_HASH}" ] || [ -z "${DM_DATA_BLOCKS}" ] || [ -z "${DM_HASH_START}" ]; then
++    echo "DM_ROOT_HASH, DM_DATA_BLOCKS and DM_HASH_START are required (or provide ${DM_IMAGE}.env)" >&2
++    exit 1
++fi
++
++KCMD_ARGS="console=${CONSOLE} \
++dm_stack=crypt,verity \
++dm_crypt.device=${DM_DEVICE} \
++dm_crypt.name=${DM_CRYPT_NAME} \
++dm_crypt.key=${DM_KEY} \
++rootfs_verity.scheme=dm-verity \
++rootfs_verity.device=${DM_CRYPT_NAME} \
++rootfs_verity.name=${DM_VERITY_NAME} \
++rootfs_verity.hash=${DM_ROOT_HASH} \
++rootfs_verity.data_blocks=${DM_DATA_BLOCKS} \
++rootfs_verity.hash_start=${DM_HASH_START} \
++rootfs_verity.cache_blocks=${DM_CACHE_BLOCKS}"
++
++export DM_IMAGE
++OSDK_ARGS="--kcmd-args=\"${KCMD_ARGS}\" --init-args=\"dm-root /dev/${DM_VERITY_NAME} /.initramfs/bin/true\""
++QEMU_ARGS=""
++if [ "${ENABLE_KVM:-0}" = "1" ]; then
++    QEMU_ARGS="-accel kvm -cpu host"
++fi
++if [ -n "${QEMU_ARGS}" ]; then
++    OSDK_ARGS="${OSDK_ARGS} --qemu-args=\"${QEMU_ARGS}\""
++fi
++
++exec make run_kernel ENABLE_KVM=0 CARGO_OSDK_BUILD_ARGS="${OSDK_ARGS}"
+-- 
+2.43.0
+

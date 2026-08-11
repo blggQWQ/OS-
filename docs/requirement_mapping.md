@@ -114,6 +114,8 @@ raw、dm-crypt 吞吐分别为 Linux guest 的 82.4% 和 85.5%；dm-verity 中�
 - 内核输出 BIO 复用、补读与 cache hit/miss 指标，可直接证明优化是否生效；
 - mapper 接口统一，后续可继续加入 I/O batch 和异步块 I/O；
 - 用户态 `DmStackBuilder` 支持 target 动态组合与安全能力传播；
+- 内核补丁 `0007` 提供 Combined 叠栈启动路径（`dm_stack=crypt,verity`，
+  `vdc → dm-crypt0 → dm-verity0`），与用户态 `demo-stack` 同序；
 - `InstrumentedDevice` 可插在任意层之间进行分层性能归因。
 
 建议答辩重点：

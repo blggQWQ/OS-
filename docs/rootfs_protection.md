@@ -75,25 +75,28 @@ parse cmdline
 - 直接查看底层 rootfs 镜像看不到明文文件；
 - 通过 dm-crypt mapper 读取文件正常。
 
-## 阶段 5：组合方案
+## 阶段 5：组合方案（已实现）
 
-推荐组合：
-
-```text
-dm-crypt: 保护机密性
-dm-verity: 保护只读系统镜像完整性
-```
-
-常见组合方式：
+推荐组合（与用户态 `demo-stack` / 内核补丁 0007 一致）：
 
 ```text
-encrypted image -> DmCryptDevice -> DmVerityDevice -> read-only rootfs
+dm-crypt: 保护机密性（下层，整盘 AES-XTS）
+dm-verity: 保护解密后明文的只读完整性（上层）
 ```
 
-或根据镜像布局调整为：
+磁盘 → 文件系统方向：
 
 ```text
-verity-protected image -> DmVerityDevice -> DmCryptDevice -> rootfs
+virtio-blk → DmCryptDevice → DmVerityDevice → ext2 rootfs
 ```
 
-答辩时应说明选择哪种顺序，以及威胁模型是什么。
+镜像构建与启动：
+
+```bash
+sudo bash scripts/build_stack_rootfs.sh          # → target/stack-rootfs.img
+ENABLE_KVM=1 bash scripts/run_dm_stack.sh        # dm_stack=crypt,verity, dm-root /dev/dm-verity0
+```
+
+验收串口关键字见 `docs/evidence/stack/README.md`。用户态等价路径：`cargo run -p dmctl -- demo-stack`。
+
+威胁模型：底层镜像对主机/介质不可读明文；对解密后数据块的篡改由 verity 拒绝。

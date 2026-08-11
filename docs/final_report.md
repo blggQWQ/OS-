@@ -155,6 +155,11 @@ fio --name=verity-read --filename=/mnt/testfile --size=128M --rw=read --bs=4k
 后续工作：
 
 1. 扩展 `dm_ioctl` table 参数与错误码兼容性覆盖；
-2. 增加 crypt+verity 叠加根文件系统的长时间端到端压力测试；
+2. 将 Combined 叠栈（补丁 0007 + `scripts/build_stack_rootfs.sh` /
+   `scripts/run_dm_stack.sh`）的 KVM 串口证据归档到 `docs/evidence/stack/`，
+   并补充长时间端到端压力测试；
 3. 扩展到 randread、write、QD32 与更大工作集；
 4. 补充 dm-crypt 根的冷启动和三种场景的热启动对照。
+
+说明：crypt+verity 叠加 rootfs 启动路径本身已在内核补丁 0007 与构建/启动脚本中实现；
+待归档的是本机 KVM 串口日志（见 `docs/evidence/stack/README.md`）。
