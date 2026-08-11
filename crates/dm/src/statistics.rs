@@ -16,6 +16,8 @@ pub struct IoStatsSnapshot {
     pub write_nanoseconds: u64,
     pub max_read_nanoseconds: u64,
     pub max_write_nanoseconds: u64,
+    pub lower_read_ns: u64,
+    pub transform_read_ns: u64,
 }
 
 impl IoStatsSnapshot {
@@ -96,7 +98,7 @@ impl<D: BlockDevice> BlockDevice for InstrumentedDevice<D> {
 }
 
 #[derive(Debug, Default)]
-struct IoStats {
+pub struct IoStats {
     read_operations: AtomicU64,
     write_operations: AtomicU64,
     read_bytes: AtomicU64,
@@ -106,6 +108,8 @@ struct IoStats {
     write_nanoseconds: AtomicU64,
     max_read_nanoseconds: AtomicU64,
     max_write_nanoseconds: AtomicU64,
+    lower_read_ns: AtomicU64,
+    transform_read_ns: AtomicU64,
 }
 
 impl IoStats {
@@ -133,7 +137,16 @@ impl IoStats {
         }
     }
 
-    fn snapshot(&self) -> IoStatsSnapshot {
+    pub fn record_read_breakdown(&self, lower_ns: u64, transform_ns: u64, failed: bool) {
+        self.read_operations.fetch_add(1, Ordering::Relaxed);
+        self.lower_read_ns.fetch_add(lower_ns, Ordering::Relaxed);
+        self.transform_read_ns.fetch_add(transform_ns, Ordering::Relaxed);
+        if failed {
+            self.failed_operations.fetch_add(1, Ordering::Relaxed);
+        }
+    }
+
+    pub fn snapshot(&self) -> IoStatsSnapshot {
         IoStatsSnapshot {
             read_operations: self.read_operations.load(Ordering::Relaxed),
             write_operations: self.write_operations.load(Ordering::Relaxed),
@@ -144,10 +157,12 @@ impl IoStats {
             write_nanoseconds: self.write_nanoseconds.load(Ordering::Relaxed),
             max_read_nanoseconds: self.max_read_nanoseconds.load(Ordering::Relaxed),
             max_write_nanoseconds: self.max_write_nanoseconds.load(Ordering::Relaxed),
+            lower_read_ns: self.lower_read_ns.load(Ordering::Relaxed),
+            transform_read_ns: self.transform_read_ns.load(Ordering::Relaxed),
         }
     }
 
-    fn reset(&self) {
+    pub fn reset(&self) {
         self.read_operations.store(0, Ordering::Relaxed);
         self.write_operations.store(0, Ordering::Relaxed);
         self.read_bytes.store(0, Ordering::Relaxed);
@@ -157,6 +172,8 @@ impl IoStats {
         self.write_nanoseconds.store(0, Ordering::Relaxed);
         self.max_read_nanoseconds.store(0, Ordering::Relaxed);
         self.max_write_nanoseconds.store(0, Ordering::Relaxed);
+        self.lower_read_ns.store(0, Ordering::Relaxed);
+        self.transform_read_ns.store(0, Ordering::Relaxed);
     }
 }
 

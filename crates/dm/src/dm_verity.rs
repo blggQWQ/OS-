@@ -1,12 +1,16 @@
 use crate::block_device::BlockDevice;
 use crate::error::{DmError, Result};
 use crate::hash_tree::HashTree;
+use std::sync::Arc;
+use std::time::Instant;
+use crate::statistics::{IoStats, IoStatsSnapshot};
 
 #[derive(Clone, Debug)]
 pub struct DmVerityDevice<D> {
     lower: D,
     tree: HashTree,
     root_hash: [u8; 32],
+    stats: Arc<IoStats>,
 }
 
 impl<D: BlockDevice> DmVerityDevice<D> {
@@ -17,6 +21,7 @@ impl<D: BlockDevice> DmVerityDevice<D> {
             lower,
             tree,
             root_hash,
+            stats: Arc::new(IoStats::default()),
         })
     }
 
@@ -25,6 +30,7 @@ impl<D: BlockDevice> DmVerityDevice<D> {
             lower,
             tree,
             root_hash,
+            stats: Arc::new(IoStats::default()),
         }
     }
 
@@ -39,6 +45,14 @@ impl<D: BlockDevice> DmVerityDevice<D> {
     pub fn lower(&self) -> &D {
         &self.lower
     }
+
+    pub fn reset_stats(&self) {
+        self.stats.reset();
+    }
+
+    pub fn stats_snapshot(&self) -> IoStatsSnapshot {
+        self.stats.snapshot()
+    }
 }
 
 impl<D: BlockDevice> BlockDevice for DmVerityDevice<D> {
@@ -51,8 +65,16 @@ impl<D: BlockDevice> BlockDevice for DmVerityDevice<D> {
     }
 
     fn read_block(&self, block_id: u64, buf: &mut [u8]) -> Result<()> {
+        let start_lower = Instant::now();
         self.lower.read_block(block_id, buf)?;
+        let lower_elapsed = start_lower.elapsed().as_nanos() as u64;
+
+        let start_transform = Instant::now();
         let verified_tree = self.tree.verify_block(block_id, buf);
+        let transform_elapsed = start_transform.elapsed().as_nanos() as u64;
+
+        self.stats.record_read_breakdown(lower_elapsed, transform_elapsed, false);
+
         if verified_tree && self.tree.root_hash() == self.root_hash {
             Ok(())
         } else {
