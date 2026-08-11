@@ -162,6 +162,7 @@ let verity = DmVerityDevice::new(crypt, root_hash)?;
 - 用户态 `dm` crate 的 verity tree 保存在内存中；Asterinas `aster-dm` 使用镜像尾部 on-disk hash tree
 - Asterinas 补丁中的 `aster-dm` 已接入真实 VirtIO BIO
 - 已新增 `dm-root` init 模式：从 crypt/verity mapper 挂载 ext2 后通过 `pivot_root` 切换系统 `/`
+- 已新增内核 Combined 叠栈（补丁 0007）：`vdc → dm-crypt0 → dm-verity0`，与用户态 `demo-stack` 同序
 
 ---
 
@@ -623,6 +624,8 @@ dm_crypt.device=/dev/vda dm_crypt.key=<128-char-hex-key>
 | 0003 | 根切换 | `dm-root` 参数解析、`pivot_root` 切换到受保护 rootfs |
 | 0004 | 评审功能固化 | cryptsetup 控制面、KVM 验证链和完整 dm 实现 |
 | 0005 | 性能与基准收尾 | crypt 缓冲池、verity 认证捷径、可配置 fio 矩阵 |
+| 0006 | 性能归因 | `/proc/dm-performance-stats`、分阶段计时与正式基准合同 |
+| 0007 | Combined 叠栈 | `dm_stack=crypt,verity`、verity 嵌套 crypt、`run_dm_stack.sh` |
 
 ### 五阶段渐进式保护路径
 
@@ -633,6 +636,11 @@ dm_crypt.device=/dev/vda dm_crypt.key=<128-char-hex-key>
 | 3 | dm-verity | virtio-blk → DmVerityDevice → ext2 | 只读完整性校验 |
 | 4 | dm-crypt | virtio-blk → DmCryptDevice → ext2 | 透明解密 |
 | 5 | Combined | virtio-blk → DmCryptDevice → DmVerityDevice → ext2 | 全面保护 |
+
+Combined 阶段有两条等价演示路径：
+
+- **内核**：补丁 `0007` + `sudo bash scripts/build_stack_rootfs.sh` + `ENABLE_KVM=1 bash scripts/run_dm_stack.sh`（cmdline：`dm_stack=crypt,verity`，`dm-root /dev/dm-verity0`）
+- **用户态**：`cargo run -p dmctl -- demo-stack`（`DmStackBuilder::crypt().verity()`）
 
 ---
 

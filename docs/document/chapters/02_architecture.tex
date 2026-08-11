@@ -43,6 +43,11 @@ let verity = DmVerityDevice::new(crypt, root_hash)?;
 \end{lstlisting}
 
 在星绽内核中，这种组合通过 \texttt{DmDevice} 结构体实现，它根据 \texttt{DmTarget} 枚举（Passthrough、Crypt、Verity）分发 BIO 请求。
+由于每个 mapper 的下层是 \texttt{Arc<dyn BlockDevice>}，启动阶段可将
+\texttt{rootfs\_verity.device} 指向已注册的 crypt mapper 名（如 \texttt{dm-crypt0}），
+或显式设置 \texttt{dm\_stack=crypt,verity}，从而形成与用户态相同的叠栈：
+\texttt{vdc $\to$ dm-crypt0 $\to$ dm-verity0}。验收脚本为
+\texttt{tools/run\_dm\_stack.sh} / 仓库 \texttt{scripts/run\_dm\_stack.sh}。
 
 \section{核心模块分解}
 
