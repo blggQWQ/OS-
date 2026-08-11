@@ -1,0 +1,4 @@
+[submodule "asterinas"]
+	path = asterinas
+	url = https://github.com/blggQWQ/asterinas.git
+	branch = master

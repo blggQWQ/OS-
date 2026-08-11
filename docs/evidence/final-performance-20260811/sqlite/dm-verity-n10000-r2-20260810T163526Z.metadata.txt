@@ -1,0 +1,11 @@
+git_commit=unknown
+timestamp_utc=2026-08-10T16:35:26Z
+target=dm-verity
+rows=10000
+round=2
+db_dir=/mnt/d/project/target/final-perf/sqlite-env/mnt-verity
+sqlite3=3.45.1 2024-01-30 16:01:20 e876e51a0ed5c5b3126f52e532044363a014bc594cfefa87ffb5b82257ccalt1 (64-bit)
+journal_mode=DELETE
+synchronous=FULL
+workload=select_count,select_point_read
+read_only_target=1

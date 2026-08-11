@@ -3,7 +3,7 @@
 
 \section{概述}
 
-本章为开发者提供完整的部署指南，帮助用户从零开始搭建开发环境、编译星绽内核、配置启动参数并验证 dm-crypt 与 dm-verity 的功能。所有步骤均已在 Ubuntu 24.04 上验证通过。
+本章为开发者提供完整的部署指南，帮助用户从零开始搭建开发环境、编译星绽内核、配置启动参数并验证 dm-crypt 与 dm-verity 的功能。所有步骤均已在 Ubuntu 24.04 LTS 上验证通过。
 
 \section{运行环境准备}
 
@@ -12,10 +12,11 @@
 推荐使用以下环境进行开发和测试：
 
 \begin{itemize}
-    \item \textbf{操作系统}：Ubuntu 24.04 LTS
+    \item \textbf{操作系统}：Ubuntu 24.04 LTS（或 Windows WSL2 上的 Ubuntu 24.04）
     \item \textbf{架构}：x86\_64
     \item \textbf{内存}：至少 8 GiB
     \item \textbf{磁盘空间}：至少 20 GiB
+    \item \textbf{CPU}：支持硬件虚拟化（VT-x/AMD-V）和 AES-NI（推荐）
 \end{itemize}
 
 \subsection{依赖工具安装}
@@ -30,37 +31,185 @@
         \midrule
         Rust / Cargo & 1.75.0+ & 核心语言工具链 \\
         QEMU & 8.2.2+ & 硬件虚拟化 \\
-        Docker & 29.4.3+ & 容器化构建环境 \\
-        星绽镜像 & asterinas/asterinas:0.18.0-20260618 & 官方工具链 \\
+        Docker & 29.4.3+ & 容器化构建环境（仅用于内核构建） \\
+        星绽镜像 & \texttt{asterinas/asterinas:0.18.0-20260618} & 官方工具链 \\
         Clang / LLVM & 18.0.0+ & 内核编译 \\
         \bottomrule
     \end{tabular}
 \end{table}
 
+Ubuntu 24.04 上可通过以下命令安装基础依赖：
+\begin{verbatim}
+sudo apt update
+sudo apt install -y build-essential clang lld qemu-system-x86 docker.io
+\end{verbatim}
+
+Rust 工具链安装：
+\begin{verbatim}
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+rustup default stable
+\end{verbatim}
+
 \section{快速开始：用户态演示}
 
-\subsection{运行测试套件}
+本节演示如何在宿主机上直接运行 \texttt{dmctl} 工具，无需启动虚拟机即可验证核心功能。
+
+\subsection{克隆仓库与运行测试套件}
 
 \begin{verbatim}
+git clone <repository-url>
+cd OS-
 cargo test
 \end{verbatim}
 
-\subsection{演示透明加密}
+预期输出：所有测试通过（当前 13+ 个测试，包括 \texttt{crypt\_test}、\texttt{verity\_test}、\texttt{file\_device\_test}、\texttt{cryptsetup\_compat\_test} 等）。
+
+\subsection{演示透明加密（dm-crypt）}
 
 \begin{verbatim}
 cargo run -p dmctl -- demo-crypt
 \end{verbatim}
 
-\subsection{演示完整性校验}
+预期输出：
+\begin{itemize}
+    \item \texttt{plain:} 显示可读明文
+    \item \texttt{raw-hex:} 显示十六进制密文，与明文不同
+    \item \texttt{read:} 显示恢复的明文，与原始明文一致
+    \item \texttt{ciphertext\_differs: true}
+\end{itemize}
+
+\subsection{演示完整性校验（dm-verity）}
 
 \begin{verbatim}
 cargo run -p dmctl -- demo-verity
 \end{verbatim}
 
+预期输出：
+\begin{itemize}
+    \item 输出 \texttt{root-hash: <64-char-hex>}
+    \item 篡改后读取报告 \texttt{tamper\_detected: true block=1}
+\end{itemize}
+
+\subsection{演示组合栈（dm-crypt + dm-verity）}
+
+用户态：
+
+\begin{verbatim}
+cargo run -p dmctl -- demo-stack
+\end{verbatim}
+
+预期输出：显示两层映射器（crypt-root、verified-root）及其安全能力（confidentiality、integrity、read\_only），并成功读取数据。
+
+内核 Combined 叠栈（补丁 0007）：
+
+\begin{verbatim}
+sudo bash scripts/build_stack_rootfs.sh
+ENABLE_KVM=1 bash scripts/run_dm_stack.sh
+\end{verbatim}
+
+关键 cmdline：\texttt{dm\_stack=crypt,verity}、\texttt{dm\_crypt.device=vdc}、
+\texttt{rootfs\_verity.device=dm-crypt0}、\texttt{dm-root /dev/dm-verity0}。
+预期串口含 \texttt{[dm] stacked mapper: vdc -> dm-crypt0 -> dm-verity0}
+以及 \texttt{PASS system root switched to protected mapper}。
+
+\subsection{手动命令示例}
+
+\subsubsection{初始化与原始 I/O}
+
+创建测试镜像（8 块，每块 64 字节）：
+\begin{verbatim}
+cargo run -p dmctl -- init-image target/demo.img 8 64
+\end{verbatim}
+
+直接读取底层（绕过映射器）：
+\begin{verbatim}
+cargo run -p dmctl -- raw-read-hex target/demo.img 64 1
+\end{verbatim}
+
+篡改指定块内的字节（测试 verity）：
+\begin{verbatim}
+cargo run -p dmctl -- tamper target/demo.img 64 1 0 ff
+\end{verbatim}
+
+\subsubsection{加密命令（dm-crypt）}
+
+加密写入：
+\begin{verbatim}
+cargo run -p dmctl -- crypt-write target/demo.img 64 my-secret-key 1 "hello dm-crypt"
+\end{verbatim}
+
+通过映射器解密读取：
+\begin{verbatim}
+cargo run -p dmctl -- crypt-read target/demo.img 64 my-secret-key 1
+\end{verbatim}
+
+使用 Linux 兼容表格式填充密文（用于交叉验证）：
+\begin{verbatim}
+cargo run -p dmctl -- crypt-table-fill target/demo.img 512 \
+  "aes-xts-plain64 <64-byte-hex-key> 0 ignored 0" 0 5a 1
+\end{verbatim}
+
+\subsubsection{完整性命令（dm-verity）}
+
+生成根哈希：
+\begin{verbatim}
+root=$(cargo run -p dmctl -- verity-root target/demo.img 64)
+\end{verbatim}
+
+验证完整性：
+\begin{verbatim}
+cargo run -p dmctl -- verity-verify target/demo.img 64 "$root"
+\end{verbatim}
+
+为星绽内核格式化镜像（追加 on-disk 哈希树）：
+\begin{verbatim}
+cargo run -p dmctl -- verity-format-dm target/demo.img 1024
+\end{verbatim}
+
+\subsubsection{微基准测试}
+
+\begin{verbatim}
+cargo run -p dmctl -- benchmark 4096 5
+\end{verbatim}
+
+输出 CSV 格式的吞吐和延迟数据，对比 plain / AES-XTS / verity 三种配置。
+
 \section{星绽内核集成}
+
+\subsection{准备 Asterinas 源码}
+
+在宿主机上拉取星绽源码并切换到基线 commit：
+\begin{verbatim}
+git clone https://github.com/asterinas/asterinas.git
+cd asterinas
+git checkout c6284a9106f5a4c87deb7c8a990af6211dc5f540
+\end{verbatim}
+
+\subsection{应用 Device Mapper 补丁}
+
+将本项目中的补丁序列应用到 Asterinas 源码：
+\begin{verbatim}
+git am /path/to/OS-/asterinas_port/patches/0001-feat-dm-integrate-crypt-and-verity-targets.patch \
+       /path/to/OS-/asterinas_port/patches/0002-fix-dm-validate-crypt-and-verity-BIO-paths.patch \
+       /path/to/OS-/asterinas_port/patches/0003-rootfs-switch.patch \
+       /path/to/OS-/asterinas_port/patches/0004-Rust-Device-Mapper.patch \
+       /path/to/OS-/asterinas_port/patches/0005-dm.patch \
+       /path/to/OS-/asterinas_port/patches/0006-dm-performance-attribution.patch
+\end{verbatim}
+
+补丁说明：
+\begin{itemize}
+    \item 0001：组件集成与目标定义（\texttt{aster-dm} 注册、启动参数）
+    \item 0002：BIO 路径验证与自检（EXT2 魔数 \texttt{0x53EF}）
+    \item 0003：根文件系统 \texttt{pivot\_root} 切换
+    \item 0004：Runtime 控制面与 \texttt{cryptsetup} 兼容
+    \item 0005：性能优化（hash cache、scratch pool、基准）
+    \item 0006：性能阶段归因与正式合同
+\end{itemize}
 
 \subsection{构建内核}
 
+使用官方 Docker 容器构建（推荐）：
 \begin{verbatim}
 docker run --rm --privileged --network=host \
   -v asterinas-src:/root/asterinas \
@@ -68,41 +217,91 @@ docker run --rm --privileged --network=host \
   asterinas/asterinas:0.18.0-20260618 make kernel
 \end{verbatim}
 
+启用 AES-NI 硬件加速构建：
+\begin{verbatim}
+docker run --rm --privileged --network=host \
+  -v asterinas-src:/root/asterinas \
+  -w /root/asterinas \
+  -e OSDK_ENABLE_AES_NI=1 \
+  asterinas/asterinas:0.18.0-20260618 make kernel
+\end{verbatim}
+
+构建产物位于 \texttt{/root/asterinas/target/osdk/aster-kernel-osdk-bin.iso}。
+
 \subsection{构建受保护的根文件系统镜像}
 
-\begin{verbatim}
-# dm-crypt 加密镜像
-./scripts/build_crypt_rootfs.sh
+在项目根目录运行：
 
-# dm-verity 校验镜像
-./scripts/build_verity_rootfs.sh
+\textbf{dm-crypt 加密镜像}：
+\begin{verbatim}
+sudo bash scripts/build_crypt_rootfs.sh
 \end{verbatim}
+
+镜像生成于 \texttt{target/crypt-rootfs.img}，并附带环境变量文件 \texttt{target/crypt-rootfs.img.env}，包含密钥和配置参数。
+
+\textbf{dm-verity 校验镜像}：
+\begin{verbatim}
+bash scripts/build_verity_rootfs.sh
+\end{verbatim}
+
+镜像生成于 \texttt{target/verity-rootfs.img}，并附带环境变量文件 \texttt{target/verity-rootfs.img.env}，包含根哈希、数据块数、哈希起始块号等。
 
 \section{系统运行与参数配置}
 
 \subsection{QEMU 启动命令}
 
+基本启动命令（使用官方内核 ISO）：
 \begin{verbatim}
 qemu-system-x86_64 \
-  -kernel artifacts/asterinas-kernel \
-  -initrd artifacts/initramfs \
+  -accel kvm -cpu host -smp 1 -m 8G \
+  -machine q35,kernel-irqchip=split \
+  -cdrom target/osdk/aster-kernel-osdk-bin.iso \
   -drive file=target/verity-rootfs.img,format=raw,if=virtio \
-  -append "root=/dev/vda console=ttyS0"
+  -nographic -display none
+\end{verbatim}
+
+对于已应用补丁的内核，使用 \texttt{asterinas/} 目录下的启动脚本更方便：
+\begin{verbatim}
+cd asterinas
+DM_IMAGE=../target/verity-rootfs.img ENABLE_KVM=1 \
+  bash tools/run_dm_verity.sh
 \end{verbatim}
 
 \subsection{内核启动参数配置}
 
-启用 dm-verity：
-
+\textbf{启用 dm-verity}（保护根文件系统完整性）：
 \begin{verbatim}
-rootfs_verity.scheme=dm-verity rootfs_verity.hash=<64-char-root-hash>
+rootfs_verity.scheme=dm-verity
+rootfs_verity.device=vdc
+rootfs_verity.name=dm-verity0
+rootfs_verity.hash=6db653b69a094065756dc2770d3af8880ec9beed29df41b5bb2fb2e11b2d49f3
+rootfs_verity.data_blocks=65536
+rootfs_verity.hash_start=65536
+rootfs_verity.cache_blocks=256
 \end{verbatim}
 
-启用 dm-crypt：
-
+\textbf{启用 dm-crypt}（加密根文件系统）：
 \begin{verbatim}
-dm_crypt.device=/dev/vda dm_crypt.key=<128-char-hex-key>
+dm_crypt.device=/dev/vda
+dm_crypt.name=dm-crypt0
+dm_crypt.key=000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f
+dm_crypt.scratch_pool=32
 \end{verbatim}
+
+\textbf{启用性能阶段统计}（仅基准测试）：
+\begin{verbatim}
+dm.perf_stats=1
+\end{verbatim}
+
+启动流程的关键阶段（如图 \ref{fig:root_init} 所示）：
+\begin{enumerate}
+    \item QEMU 加载星绽内核和 initramfs。
+    \item 内核解析命令行参数，构建配置。
+    \item \texttt{aster-dm} 组件初始化映射器链（\texttt{VirtioBlkAdapter} $\to$ \texttt{DmCryptDevice} / \texttt{DmVerityDevice}）。
+    \item 执行 \texttt{self\_test\_ext2\_magic} 自检（检查 EXT2 魔数 \texttt{0x53EF}），失败则 panic。
+    \item initramfs 使用 \texttt{dm-root} 模式执行 \texttt{pivot\_root} 切换到受保护根文件系统。
+    \item 系统进入用户态，串口输出 \texttt{PASS system root switched to protected mapper}。
+\end{enumerate}
 
 \begin{figure}[H]
     \centering
@@ -111,23 +310,97 @@ dm_crypt.device=/dev/vda dm_crypt.key=<128-char-hex-key>
     \label{fig:root_init}
 \end{figure}
 
-启动流程的关键阶段：
-\begin{enumerate}
-    \item QEMU 加载星绽内核和 initramfs。
-    \item 内核解析命令行参数，构建 DmBootConfig。
-    \item aster-dm 组件初始化映射器链（VirtioBlkAdapter 到 DmCryptDevice 到 DmVerityDevice）。
-    \item 执行 self\_test\_ext2\_magic 自检。
-    \item initramfs 执行 pivot\_root 切换到受保护根文件系统。
-    \item 系统进入用户态。
-\end{enumerate}
+\section{基准测试与性能验证}
 
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.9\textwidth]{figures/dmctl_command_flow.png}
-    \caption{dmctl 命令执行流程图}
-    \label{fig:dmctl_flow}
-\end{figure}
+\subsection{正式性能测试}
+
+Linux host 与 Asterinas KVM 分平台执行，每个工况至少五轮：
+\begin{verbatim}
+sudo bash scripts/run_fio_matrix.sh --platform linux-host --runs 5
+bash scripts/run_fio_matrix.sh --platform asterinas-kvm \
+  --asterinas-dir "$PWD/asterinas" --runs 5
+sudo RUNS=5 bash scripts/run_filebench_matrix.sh
+sudo RUNS=5 ROWS=10000 bash scripts/run_sqlite_matrix.sh
+\end{verbatim}
+
+正式输出位于 \texttt{docs/evidence/final-performance-20260811/}。旧假 mapper、失败
+重试和调试结果不会进入生成器输入。
+
+\subsection{启动时间测量}
+
+执行五轮交替冷启动测试：
+\begin{verbatim}
+sudo bash scripts/build_asterinas_boot_images.sh
+RUNS=5 ENABLE_KVM=1 bash scripts/run_boot_matrix.sh
+\end{verbatim}
+
+\subsection{用户态微基准测试}
+
+\begin{verbatim}
+bash scripts/benchmark.sh
+\end{verbatim}
+
+输出 CSV 文件包含 plain / AES-XTS / verity 三种配置的吞吐量对比。
+
+\section{高级配置与调优}
+
+\subsection{dm-crypt 临时缓冲池调优}
+
+启动参数 \texttt{dm\_crypt.scratch\_pool} 控制临时缓冲区池大小（默认 32）。设为 0 可关闭池，便于 A/B 性能对照：
+\begin{verbatim}
+dm_crypt.scratch_pool=0
+\end{verbatim}
+
+\subsection{dm-verity 哈希缓存调优}
+
+启动参数 \texttt{rootfs\_verity.cache\_blocks} 控制已认证哈希块缓存大小（默认 256）。增大容量可提高缓存命中率，但增加内存占用：
+\begin{verbatim}
+rootfs_verity.cache_blocks=512
+\end{verbatim}
+
+\subsection{内核阶段统计}
+
+开启阶段统计（用于性能归因）：
+\begin{verbatim}
+dm.perf_stats=1
+\end{verbatim}
+
+统计信息在每轮 fio 前后通过 \texttt{/proc/dm-performance-stats} 输出，包含以下阶段：
+\begin{itemize}
+    \item \texttt{validation\_ns}、\texttt{scratch\_ns}、\texttt{copy\_ns}、\texttt{crypto\_ns}、\texttt{lower\_wait\_ns}（dm-crypt）
+    \item \texttt{data\_sha256\_ns}、\texttt{cache\_lookup\_ns}、\texttt{hash\_wait\_ns}、\texttt{hash\_sha256\_ns}、\texttt{digest\_compare\_ns}、\texttt{cache\_insert\_ns}（dm-verity）
+\end{itemize}
+
+\section{故障排查}
+
+\subsection{常见问题}
+
+\begin{itemize}
+    \item \textbf{内核构建失败}：确保 Docker 容器使用正确的 Asterinas commit（\texttt{c6284a9}）并已应用全部 6 个补丁。检查 \texttt{asterinas\_port/README.md} 中的补丁顺序。
+
+    \item \textbf{QEMU 无法启动}：检查是否安装了 KVM 支持（\texttt{/dev/kvm} 是否存在），并确保镜像路径正确。对于 WSL2 环境，需要确认 \texttt{/dev/kvm} 可用。
+
+    \item \textbf{dm-verity 启动失败}：确认根哈希与镜像匹配。使用 \texttt{dmctl verity-root} 重新生成根哈希，并与启动参数中的 \texttt{rootfs\_verity.hash} 对比。检查 \texttt{data\_blocks} 和 \texttt{hash\_start} 参数是否与镜像一致。
+
+    \item \textbf{dm-crypt 解密失败}：检查密钥是否正确（64 字节十六进制），且 \texttt{iv\_offset} 和 \texttt{offset} 参数与加密时一致。查看串口日志确认 \texttt{backend} 输出（AES-NI 或 portable-software）。
+
+    \item \textbf{性能数据不可复现}：确保使用 \texttt{release-lto} 构建，KVM 加速和 \texttt{CPU=host}，且 fio 合同完全一致（2s ramp + 10s runtime，交替五轮）。检查 \texttt{dm.perf\_stats=1} 是否开启。
+
+    \item \textbf{自检失败（EXT2 魔数不匹配）}：确认底层镜像确实是 ext2 格式，且文件系统位于镜像开头（无额外偏移）。对于 dm-crypt，确认 \texttt{offset} 参数为 0 或与镜像布局匹配。
+
+    \item \texttt{cryptsetup} 无法控制：检查 \texttt{/dev/mapper/control} 是否存在，以及是否有权限访问。在 Asterinas 中，该设备由 \texttt{aster-dm} 组件在初始化时注册。
+\end{itemize}
+
+\subsection{调试技巧}
+
+\begin{itemize}
+    \item 查看串口日志：在 QEMU 启动时使用 \texttt{-serial stdio} 或 \texttt{-serial file:serial.log}。
+    \item 启用内核调试输出：启动参数中添加 \texttt{console=ttyS0} 并确保 initramfs 使用 \texttt{/dev/console}。
+    \item 阶段统计验证：使用 \texttt{dm.perf\_stats=1} 并检查 \texttt{/proc/dm-performance-stats}。
+    \item 验证镜像完整性：使用 \texttt{dmctl verity-verify} 在用户态测试镜像。
+    \item 检查补丁状态：在 Asterinas 源码中运行 \texttt{git log --oneline} 确认补丁已应用。
+\end{itemize}
 
 \section{小结}
 
-本章提供了完整的用户手册与部署指南，涵盖了从环境准备、代码编译、镜像构建到系统运行的全流程。通过遵循本章的步骤，开发者可以快速验证核心功能并部署星绽内核。
+本章提供了完整的用户手册与部署指南，涵盖了从环境准备、代码编译、镜像构建到系统运行的全流程，并给出了基准测试、调优建议和故障排查方法。通过遵循本章的步骤，开发者可以快速验证核心功能并部署星绽内核到 QEMU/KVM 环境中。

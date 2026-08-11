@@ -1,816 +1,267 @@
-# 星绽操作系统 dm-crypt / dm-verity 设计与实现
+# 星绽操作系统 dm-crypt / dm-verity
 
-> **演示视频**：[Go_Go_Go队演示视频.mp4](https://pan.baidu.com/s/1yg7C7fdbD5cTkvr44VQ0aQ?pwd=oscp)（[百度网盘](https://pan.baidu.com/s/1yg7C7fdbD5cTkvr44VQ0aQ) · 提取码：`oscp`）
-
-**全国操作系统设计赛——功能挑战赛道**
+全国大学生计算机系统能力大赛操作系统设计赛功能挑战项目。项目在 Asterinas 上实现块级透明加密、只读完整性校验和 `dm-crypt → dm-verity` 组合保护链路，同时提供用户态参考实现、可复现测试脚本与原始证据。
 
 | 项目 | 信息 |
-|------|------|
-| 参赛队伍 | Go_Go_Go |
-| 高校 | 华南师范大学 |
+|---|---|
+| 队伍 | Go_Go_Go |
+| 学校 | 华南师范大学 |
 | 成员 | 张乐桁、陈韵、潘利源 |
+| 演示视频 | [百度网盘](https://pan.baidu.com/s/1yg7C7fdbD5cTkvr44VQ0aQ?pwd=oscp)，提取码 `oscp` |
+| 技术文档 | [PDF](docs/document/main.pdf) · [LaTeX 源码](docs/document/) · [答辩 PPT](presentation_project.pptx) |
 
-本项目面向 CSCC/国赛题目「基于 Rust OS 的 dm-crypt 与 dm-verity」，在星绽操作系统（Asterinas）上使用 Rust 实现透明块级加密与只读完整性校验，提供可演示、可测试、可接入 Asterinas 内核的完整参赛工程包。
+## 完成内容
 
-完整 LaTeX 技术文档见 [`docs/document/`](docs/document/)（[`main.pdf`](docs/document/main.pdf)）。答辩 PPT：[presentation_project.pptx](presentation_project.pptx)（项目根目录，可直接下载）。
+- `dm-crypt`：AES-256-XTS、`aes-xts-plain64`、64 字节密钥、可配置 IV/数据偏移、真实 VirtIO BIO 读写。
+- `dm-verity`：SHA-256 磁盘哈希树、按需校验、只读映射、损坏拒绝和受保护 rootfs。
+- 组合栈：`virtio-blk → dm-crypt → dm-verity → ext2`。
+- 用户态工具：镜像初始化、加密读写、verity 格式化/校验、篡改、单层与组合演示。
+- Asterinas：mapper 注册、启动参数、initramfs、自检、挂载与 `pivot_root`。
+- 验证：kernel build、R01–R03、C01–C05、V01–V07、FIO、Filebench、SQLite 和启动耗时。
 
-> 环境已完成：Ubuntu 24.04、Rust/Cargo、QEMU、Docker 和 Asterinas 官方开发镜像均已安装。`cargo test`、`make kernel`、Asterinas dm-crypt 解密与 dm-verity 正反例均已验证通过。
+详细需求对应见 [需求映射](docs/requirement_mapping.md)，正确性结论见 [KVM 正确性报告](KVM_CORRECTNESS_REPORT.md)，性能原始表见 [PERFORMANCE_MATRIX.csv](docs/evidence/final-performance-20260811/PERFORMANCE_MATRIX.csv)。
 
----
-
-## 目录
-
-- [项目背景与目标](#项目背景与目标)
-- [双目标架构创新](#双目标架构创新)
-- [系统架构设计](#系统架构设计)
-- [dm-verity 详细设计](#dm-verity-详细设计)
-- [dm-crypt 详细设计](#dm-crypt-详细设计)
-- [性能优化策略](#性能优化策略)
-- [测试与性能分析](#测试与性能分析)
-- [合规、来源与 AI 声明](#合规来源与-ai-声明)
-- [用户手册与部署指南](#用户手册与部署指南)
-- [研发过程与问题解决](#研发过程与问题解决)
-- [目录结构](#目录结构)
-- [快速验证](#快速验证)
-- [术语表](#术语表)
-- [dmctl 命令参考](#dmctl-命令参考)
-
----
-
-## 项目背景与目标
-
-星绽操作系统（Asterinas）采用 Framekernel 架构，通过 OSTD 框架将内核核心组件运行于非特权级，实现可信计算基（TCB）最小化。在机密计算（CoCo）场景下，星绽作为 Guest Kernel 运行于可信虚拟机中，但持久化存储中的镜像（如 rootfs）仍面临离线篡改、镜像替换等威胁。
-
-Linux 通过 Device Mapper 提供 `dm-crypt`（透明数据加密）和 `dm-verity`（只读完整性校验）。本赛题要求在星绽 OS 中自主实现类 `dm-crypt` 与 `dm-verity` 模块，填补星绽生态在存储安全方面的空白。
-
-### 技术指标
-
-1. **dm-verity 基础功能**：构建 SHA-256 哈希树，支持启动参数配置（`rootfs_verity.scheme=dm-verity rootfs_verity.hash=<hash>`），在启动时验证根文件系统。
-2. **dm-crypt 基础功能**：透明加解密 I/O 路径，支撑 `cryptsetup` 对加密卷的创建和管理。
-3. **根文件系统加密**：使用 `dm-crypt` 加解密根文件系统。
-4. **性能与启动要求**：I/O 吞吐及延迟接近 Linux，`dm-verity` 不显著增加内核启动时间。
-5. **技术探索**：探索基于 Rust OS 的可信存储性能优化技术。
-
-### 当前版本完成项
-
-1. 基于 `BlockDevice` trait 的可组合 Device Mapper 框架；
-2. Linux 兼容的 `aes-xts-plain64` 加密路径与 dm-crypt table 解析；
-3. `dm-verity` 只读完整性校验；
-4. 文件镜像后端，可直接演示密文落盘与篡改检测；
-5. 命令行工具 `dmctl`；
-6. Asterinas `aster-dm` 内核组件、真实 VirtIO BIO 验证、测试与答辩材料。
-
-正式题面逐条对应见 [docs/requirement_mapping.md](docs/requirement_mapping.md)，决赛技术
-亮点、性能优化与验收口径见 [docs/innovation.md](docs/innovation.md)。
-
----
-
-## 双目标架构创新
-
-本项目采用**双目标架构**：核心逻辑实现为与平台无关的 Rust 库（`dm` crate），同时服务于两个环境：
-
-| 环境 | 组件 | 用途 |
-|------|------|------|
-| 用户态 | `dmctl` | 演示、测试、基准测试，在宿主机快速验证加密与完整性机制 |
-| 内核态 | `aster-dm` | 将相同逻辑移植到内核，通过 `virtio-blk` 挂载受保护的文件系统（如 ext2） |
-
-这种设计确保用户态与内核态逻辑一致，测试调试更高效，并为性能优化提供统一抽象基础。
-
-![系统组件关系图](docs/document/figures/architecture.png)
-
----
-
-## 系统架构设计
-
-### 设计原则
-
-使用统一抽象表示任何能够进行块级 I/O 的实体，采用分层/可组合架构，使加密和校验逻辑与底层存储介质完全解耦。
-
-### 核心抽象：BlockDevice Trait
-
-```rust
-pub trait BlockDevice {
-    fn block_size(&self) -> usize;
-    fn num_blocks(&self) -> u64;
-    fn read_block(&self, block_id: u64, buf: &mut [u8]) -> Result<()>;
-    fn write_block(&self, block_id: u64, buf: &[u8]) -> Result<()>;
-}
-```
-
-该 trait 要求实现 `Send` 和 `Sync`，所有 I/O 方法返回 `Result<()>`，错误封装在 `DmError` 枚举中。
-
-![BlockDevice Trait 与后端实现关系图](docs/document/figures/blockdevice_trait_uml.png)
-
-### 可组合的映射器链
-
-映射器（`DmCryptDevice`、`DmVerityDevice`）既实现 `BlockDevice`，又包装下层设备，支持功能任意堆叠：
-
-```rust
-let file = FileBlockDevice::open("disk.img")?;
-let crypt = DmCryptDevice::new(file, key)?;
-let verity = DmVerityDevice::new(crypt, root_hash)?;
-```
-
-映射链路：
+## 仓库结构
 
 ```text
-应用 / 文件系统
-        -> DmCryptDevice / DmVerityDevice
-        -> BlockDevice
-        -> FileBlockDevice / VirtioBlkAdapter
+crates/dm/                 平台无关的 BlockDevice、dm-crypt、dm-verity
+crates/dmctl/              用户态命令行工具
+asterinas/                 Asterinas gitlink
+asterinas_port/            Asterinas 补丁和移植说明
+scripts/                   构建、演示、正确性与性能 runner
+docs/evidence/             最终验证证据
+docs/document/             技术文档源码及 PDF
 ```
-
-![块 I/O 分层栈数据流图](docs/document/figures/block_io_layered_stack.png)
-
-### 核心模块职责
-
-| 模块 | 主要职责 | 关键实体 |
-|------|----------|----------|
-| `block_device` | 基础 I/O 抽象与物理/内存后端 | `BlockDevice`, `FileBlockDevice` |
-| `dm_crypt` | AES-XTS 透明加密逻辑 | `DmCryptDevice`, `DmCryptTable` |
-| `dm_verity` | 只读完整性校验逻辑 | `DmVerityDevice` |
-| `hash_tree` | 默克尔树构建与管理 | `HashTree` |
-| `sha256` | 纯 Rust SHA-256（无外部依赖） | `sha256::update`, `sha256::finalize` |
-| `device_mapper` | 设备链接基础设施 | `PassthroughDevice` |
-| `error` | 统一错误处理 | `DmError`, `Result` |
-
-**BlockDevice 后端实现：**
-
-- `MemoryBlockDevice`：内存向量，用于单元测试
-- `FileBlockDevice`：宿主机文件，由 `dmctl` 使用
-- `PassthroughDevice`：直接转发，验证映射器链
-- `VirtioBlkAdapter`：星绽内核 virtio-blk 适配层
-
-### 跨环境可移植性
-
-![代码实体映射图（用户态 vs 星绽内核）](docs/document/figures/code_entity_mapping_userspace_kernel.png)
-
-- **用户态**：`dmctl` 实例化 `FileBlockDevice`，按命令行参数包装为 `DmCryptDevice` 或 `DmVerityDevice`
-- **内核态**：`VirtioBlkAdapter` 包装内核块设备句柄，`DmCryptDevice` 无需修改即可包装
-- **no_std 兼容**：核心 `dm` 库最小化依赖（`aes` crate 设置 `default-features = false`）
-
-### 线程安全保证
-
-- `MemoryBlockDevice`：块向量外使用 `Mutex`，I/O 串行化
-- `FileBlockDevice`：文件对象外使用 `Mutex`，保护共享偏移量
-- `PassthroughDevice`：依赖底层设备的 `Sync` 实现
-
-### 当前实现边界
-
-- `dm-crypt` 已支持 Linux `aes-xts-plain64`、64 字节 AES-256-XTS key、`iv_offset` 和 data offset
-- `scripts/verify_linux_xts_compat.sh` 与 Linux dm-crypt 逐字节兼容验证
-- 用户态 `dm` crate 的 verity tree 保存在内存中；Asterinas `aster-dm` 使用镜像尾部 on-disk hash tree
-- Asterinas 补丁中的 `aster-dm` 已接入真实 VirtIO BIO
-- 已新增 `dm-root` init 模式：从 crypt/verity mapper 挂载 ext2 后通过 `pivot_root` 切换系统 `/`
-
----
-
-## dm-verity 详细设计
-
-dm-verity 通过将读取数据与预计算默克尔树比对，确保底层存储数据未被篡改，并强制执行只读策略。
-
-![完整性校验组件映射图](docs/document/figures/verity_component_map.png)
-
-### 核心组件
-
-| 组件 | 职责 |
-|------|------|
-| `DmVerityDevice` | 拦截读请求，执行校验，对外接口 |
-| `HashTree` | 存储数据块和中间节点的 SHA-256 哈希 |
-| `sha256` 模块 | 纯 Rust SHA-256，无外部依赖 |
-
-### 默克尔树构建
-
-1. **叶子层**：对每个数据块计算 SHA-256
-2. **中间层**：哈希值两两拼接后再次哈希
-3. **填充**：奇数个哈希时复制最后一个以凑成一对
-4. **根哈希**：最终单一哈希值作为信任锚
-
-![默克尔树数据流图](docs/document/figures/merkle_tree_flow.png)
-
-哈希树追加到数据镜像末尾，标准 ext2 镜像可与哈希树共存。
-
-### 单块校验路径
-
-1. 从底层设备读取原始数据块
-2. `HashTree::verify_block` 计算哈希并重建到根节点的路径
-3. 每层检索兄弟节点哈希值
-4. 与 `DmVerityDevice` 中存储的 root hash 比对
-5. 不匹配则返回错误，阻止访问损坏数据
-
-| 函数 | 职责 |
-|------|------|
-| `DmVerityDevice::read_block` | I/O 入口，校验树结果与根锚点 |
-| `HashTree::verify_block` | 迭代计算各层哈希 |
-| `sha256::hash` | 计算 32 字节摘要 |
-
-### 启动参数
-
-| 参数 | 描述 |
-|------|------|
-| `rootfs_verity.scheme=dm-verity` | 启用 dm-verity 完整性校验 |
-| `rootfs_verity.hash=<64-char-hex>` | 32 字节根哈希的十六进制编码 |
-
-解析器严格验证哈希长度（恰好 64 字符），解析失败则阻止挂载受保护根文件系统。
-
-### 内核自检机制
-
-补丁 0002 引入启动早期自检：
-
-1. 通过映射器同步读取第一个块（偏移量 0）
-2. 检查偏移量 1080 处的 EXT2 魔数（`0x53EF`）
-3. 成功则证明解密和校验路径正常；否则内核 panic
-
-![Ext2 超级块验证路径图](docs/document/figures/ext2_superblock_validation.png)
-
-### 校验失败处理
-
-- `IntegrityViolation` 返回 I/O 错误
-- 根文件系统访问期间触发内核 panic
-- 普通文件访问时应用程序收到 I/O 错误
-
----
-
-## dm-crypt 详细设计
-
-dm-crypt 提供透明块级加密，专注 AES-256-XTS，严格兼容 Linux dm-crypt 表格式和 plain64 IV 生成机制。
-
-### 数据流
-
-1. 应用/文件系统向 `DmCryptDevice` 发起 `write_block`
-2. 根据逻辑块 ID 和 `iv_offset` 计算物理扇区号
-3. `Aes256XtsCipher` 使用扇区号作为 plain64 IV 加密
-4. 密文写入底层 `BlockDevice`
-5. 读路径为逆操作
-
-### 核心组件
-
-**DmCryptTable**（兼容 Linux dmsetup 表行格式）：
-
-| 字段 | 描述 |
-|------|------|
-| `cipher` | 固定为 `aes-xts-plain64` |
-| `key` | 十六进制编码密钥（AES-256-XTS 为 64 字节） |
-| `iv_offset` | 扇区编号 IV 偏移量 |
-| `device` | 底层块设备路径 |
-| `offset` | 底层设备数据偏移（扇区为单位） |
-
-示例：`"aes-xts-plain64 <64-byte-hex-key> 0 /dev/vda 0"`
-
-**Aes256XtsCipher**：
-
-- 严格需要 64 字节密钥（32B 数据密钥 + 32B 微调密钥）
-- 扇区大小固定 512 字节
-- plain64 IV：64 位扇区号小端序编码到 128 位 IV 低半部分，微调密钥加密后生成 tweak
-
-**扇区算术**：`BlockDevice` 以块（通常 4KiB）操作，dm-crypt 以 512B 扇区操作，每个 4KiB 块包含 8 个扇区，逐扇区独立 IV 加解密。
-
-### Linux 兼容性
-
-| 特性 | 本项目实现 | Linux 兼容性 |
-|------|------------|--------------|
-| 密码算法 | AES-256-XTS | `aes-xts-plain64` |
-| IV 生成 | plain64（小端序 64 位扇区） | 完全一致 |
-| 密钥大小 | 512-bit（64 字节） | 完全一致 |
-| 扇区大小 | 512 Bytes | 完全一致 |
-| 表格式 | `DmCryptTable` | 兼容 dmsetup |
-
-交叉验证：Linux `dmsetup` 与 Rust `dmctl crypt-table-fill` 使用相同密钥和参数，`cmp` 逐字节比较密文镜像。
-
-### 根文件系统加密流程
-
-1. 内核引导传递启动参数
-2. 解析参数构建 `DmBootConfig`
-3. `aster-dm` 实例化 `VirtioBlkAdapter` → `DmCryptDevice`
-4. initramfs 挂载加密设备到 `/newroot`
-5. 执行 `pivot_root` 切换到加密卷
-
-![根保护初始化序列图](docs/document/figures/root_protection_init.png)
-
----
-
-## 性能优化策略
-
-dm-crypt 专用完成 worker 已在实验分支实现：VirtIO 回调只登记完成，AES-XTS 解密与
-上层 BIO 完成移到任务上下文；旧路径会停住的 32-job 并发已能连续完成五轮。实现原理、
-阶段占比、A/B 数据和答辩讲法见
-[dm-crypt 完成 worker：实现、结果与答辩说明](docs/dm_completion_worker.md)。这里严格称为
-“32-job 并发”，不把 fio 用户侧的 iodepth 显示误报为 dm 层真实 QD32。
-
-实验提交 `6b3ca2407` 实现批量清空完成队列并抑制重复唤醒，`9a3483571` 在多核环境
-为每个 CPU 创建一个完成 worker。它们证明完成路径仍有优化空间，但实验批次不与下文
-正式主合同混表，也不作为“当前正式性能”数字。完整 before/after CSV 和串口日志见
-[batch A/B](docs/evidence/formal-256m-batch/README.md) 与
-[per-CPU worker A/B](docs/evidence/formal-256m-pool/README.md)。
-
-### 关键性能指标（KPI）
-
-- **吞吐量**：顺序读/写速度（MiB/s）
-- **IOPS**：随机 4 KiB 读/写操作数
-- **延迟**：每块 I/O 延迟，特别是默克尔树遍历开销
-- **启动时间**：QEMU 启动到用户态提示符，对比普通与受保护 rootfs
-
-### 优化措施
-
-| 优化策略 | 涉及代码实体 | 已验证结果 / 状态 |
-|----------|--------------|-------------------|
-| 认证后 hash cache | `asterinas/kernel/comps/dm/src/verity.rs` | 五轮中位吞吐 +24.4%，p95 -8.7% |
-| 完成 BIO 数据复用 | `asterinas/kernel/comps/dm/src/verity.rs` | 两组 A/B 均为 `data_rereads=0` |
-| AES-NI 后端 | `asterinas/kernel/comps/dm/src/crypto.rs` | 五轮 dm-crypt 日志均确认 `backend=AES-NI`；尚无同条件软件 AES A/B |
-| dm-crypt 有界临时缓冲池 | `asterinas/kernel/comps/dm/src/device.rs` | 已实现；`scratch_pool=0/32` A/B 待 KVM 量化 |
-| dm-crypt 异步下层 BIO（实验分支） | `Bio::submit_without_wait`、`DmDevice::process_crypt` | clean release-LTO 五轮完成；相对 raw 无可归因吞吐收益，暂不建议合入基线 |
-| dm-crypt 专用完成 worker | `completion.rs`、`dm_completion.rs` | IRQ 只登记完成；旧路径停滞的 32-job 已五轮通过，`max_in_flight=32` |
-| 完成队列批量 wake/drain | `DmCompletionQueue::enqueue/run` | 1 vCPU：QD1/32-job 归一化保持率分别 +7.66%/+7.07% |
-| 每 CPU 一个完成 worker | `init_in_first_kthread` | 4 vCPU、32-job：队列占比 29.15%→6.55%，p95 -43.62%；QD1 保持率 -4.10% |
-| verity 已认证路径捷径 | `asterinas/kernel/comps/dm/src/verity.rs` | 已实现并输出 `auth_shortcuts`；新增收益待 KVM 量化 |
-| 内核 I/O 分阶段归因 | `asterinas/kernel/comps/dm/src/statistics.rs` | 已完成正式 256 MiB KVM 五轮：crypt 下层等待中位占比 97.84%，verity 为 93.01% |
-
-![性能比较逻辑图](docs/document/figures/performance_comparison_logic.png)
-
-![性能关键代码实体映射图](docs/document/figures/performance_critical_entities.png)
-
-### 微基准测试
-
-`dmctl benchmark` 比较三种配置：
-
-- **Plain**：直接 I/O，理论最大速度
-- **AES-256-XTS**：XTS 模式与 plain64 IV 开销
-- **SHA-256（dm-verity）**：默克尔树路径验证开销
-
-```bash
-bash scripts/benchmark.sh
-```
-
----
-
-## 测试与性能分析
-
-### 测试层级
-
-| 测试层级 | 范围 | 关键组件 |
-|----------|------|----------|
-| 单元测试 | 单个结构体逻辑 | `FileBlockDevice`、`DmCryptDevice`、`HashTree` |
-| 集成测试 | 工作空间端到端 | `dmctl` demo 命令 |
-| 交叉验证 | 与 Linux 内核兼容 | `verify_linux_xts_compat.sh`、`cryptsetup` |
-| 内核端到端 | 星绽内部功能测试 | `VirtioBlkAdapter`、`pivot_root` 流程 |
-
-![测试执行与数据流图](docs/document/figures/test_execution_flow.png)
-
-### 功能正确性测试
-
-**完整测试进度（更新于 2026-08-10）：**
-
-状态说明：`PASS（本轮）` 表示在当前兼容性修改后重新执行；`PASS（已有证据）` 表示仓库中已有可复核日志或 CSV，但本轮没有重复运行；`未运行` 不代表失败。
-
-| 测试项 | 当前状态 | 进度与范围 |
-|---|---|---|
-| Rust 格式检查 | PASS（本轮） | `cargo fmt` / `cargo fmt --check -p aster-dm` 通过 |
-| Rust workspace reference tests | PASS（本轮） | 官方容器中 21 passed、0 failed；Docker 命名管道异常后的归档重试失败日志仍保留 |
-| Python release tools 单测 | PASS（本轮） | 8 passed、0 failed |
-| KVM evidence validator | PASS（本轮） | 4 份版本化 KVM 日志结构和 PASS 标记校验通过 |
-| Release package check | PASS（本轮） | evidence、五轮结构、claims、links、LF、仓库 hygiene 与 diff 检查通过 |
-| Asterinas x86_64 kernel build | PASS（本轮） | 固定镜像和 pinned toolchain 下 `make kernel TARGET_ARCH=x86_64` 成功；确认 `aster-dm` 被实际编译并生成 kernel ISO |
-| cryptsetup runtime crypt | PASS（本轮） | QEMU/KVM 下真实 `cryptsetup open`、mapper 读取与 `cryptsetup close` 全链路通过 |
-| dm-crypt rootfs smoke | PASS（本轮） | AES-NI backend、加密 mapper 挂载、`pivot_root` 和 initramfs runtime 保留通过 |
-| dm-verity rootfs smoke | PASS（本轮） | `status=verified`、校验 mapper 挂载、`pivot_root` 和 initramfs runtime 保留通过 |
-| dm-verity 篡改拒绝 | PASS（已有证据） | 正常 rootfs 与 tampered rootfs 的版本化 KVM 正反例日志均存在并通过证据校验 |
-| Linux AES-XTS/plain64 逐字节兼容 | PASS（已有证据） | Linux dm-crypt 与 Rust 实现的固定向量 SHA-256 一致 |
-| dm-crypt / dm-verity 五轮 fio | PASS（已有证据） | 已有正式 256 MiB、4 KiB、QD1、KVM 五轮日志与 CSV；本轮未重跑性能测试 |
-| verity cache=0 / cache=256 A/B | PASS（已有证据） | 两组五轮 KVM 日志与汇总 CSV 已版本化 |
-| Linux guest / Asterinas 对照 | PASS（已有证据） | 同宿主、同数据区和同 I/O 合同的五轮对照及 metadata 已版本化 |
-| plain / verity boot time | PASS（已有证据） | 各五轮冷启动日志、逐轮 CSV 与汇总 CSV 已版本化 |
-| 完整 fio 参数矩阵 | 未运行 | 本轮未执行 4K/32K/256K × QD1/4/16 全矩阵，不补写或推算结果 |
-| kernel correctness / boundary 全矩阵 | 未运行 | first/last block、大 BIO、多 segment、完整 invalid-parameter、hash-area corruption 等仍需新的 KVM 原始日志 |
-| verity cache=1/16/64 与 eviction | 未运行 | 尚缺完整容量、淘汰和污染安全矩阵 |
-| Filebench | 未运行 | 当前没有可执行结果或版本化数据 |
-| SQLite workload | 未运行 | 当前没有版本化 workload 结果 |
-
-本轮只恢复官方 Asterinas 构建并执行三项最小 KVM smoke；没有运行完整 fio，也没有修改 dm-crypt/dm-verity 算法逻辑。
-
-**dm-verity：**
-
-- 正常启动：正确根哈希 → 成功挂载 rootfs
-- 篡改检测：直接修改底层块 → `DmVerityDevice` 读取返回完整性违规
-
-![Verity 校验逻辑映射图](docs/document/figures/verity_validation_mapping.png)
-
-**dm-crypt：**
-
-- 加密往返：底层为密文，经 `DmCryptDevice` 读回明文
-- 密钥分离：错误密钥无法恢复原始明文
-
-### 性能测试结果
-
-以下数字只引用仓库中已经版本化的 KVM 日志和 CSV，不把不同客体、不同运行时长的
-Linux/WSL 基线与 Asterinas 绝对吞吐直接比较。
-
-新的正式测试合同已经固化为 release-LTO、KVM、CPU=host、1 vCPU、8 GiB、
-相同 264 MiB 容器和前 256 MiB 数据区、4 KiB、QD1、sync、direct、2 秒 ramp、
-10 秒 runtime、交替顺序五轮。`dm.perf_stats=1` 时，guest 会在每轮 fio 前后读取
-`/proc/dm-performance-stats`，由汇总器计算下层等待、AES/SHA、复制、缓存和哈希树
-查找的单轮差值；不得用累计值直接归因。完整入口为：
-
-```bash
-sudo bash scripts/run_formal_dm_benchmark.sh --build-images
-```
-
-该命令生成 raw/dm-crypt/dm-verity 统一三行表、逐轮 CSV、metadata、串口日志和
-阶段耗时 CSV。本轮正式结果如下；raw 行合并两组 raw 的十次测量，target 的相对值
-分别使用同一镜像、同一轮次合同的配对 raw 中位数，避免跨镜像横比：
-
-| 设备 | 五轮中位吞吐（MiB/s） | 中位 p50（us） | 中位 p95（us） | 相对配对 raw |
-|---|---:|---:|---:|---:|
-| raw（两组共十轮） | 4.249 | 892.928 | 1277.952 | 100.0% |
-| dm-crypt | 4.059 | 921.600 | 1318.912 | 95.6% |
-| dm-verity | 3.815 | 954.368 | 1433.600 | 87.3% |
-
-目标百分比使用各自同镜像、同参数的配对 raw 五轮中位数，不使用十轮 pooled raw 计算。
-阶段差值显示 dm-crypt 的下层等待中位占 97.84%、AES-XTS 占 1.82%；dm-verity 的
-下层等待中位占 93.01%、数据 SHA-256 占 5.74%。因此当前瓶颈是下层 I/O 等待，
-不是 AES-NI、复制、cache 查找或哈希树计算。第一步实验 `codex/dm-async-bio` 将
-`submit_and_wait` 改为下层完成回调，但逐轮配对效率没有改善，因此没有把宿主漂移
-包装成异步收益。随后 `codex/dm-completion-worker` 把解密从 VirtIO 硬中断回调迁到
-预分配的专用 worker，使旧路径会停滞的 32-job 并发五轮通过；`codex/dm-completion-batch`
-进一步批量 drain 并减少重复 wake，在 1 vCPU 的 QD1/32-job 合同中分别取得 +7.66%/
-+7.07% 的 raw 归一化保持率变化。4 vCPU 的 `codex/dm-completion-pool` 将 32-job
-完成队列占比从 29.15% 降至 6.55%，但 QD1 保持率下降 4.10%，所以只作为多核并发方案。
-所有已命名阶段之外的余量也单独记为 `unaccounted_ns`：crypt 五轮为 0.14%--0.15%，
-verity 为 0.23%--0.33%，没有把计时与函数衔接开销强行归给某个子过程。
-
-正式证据：[统一三行表](docs/evidence/formal-256m/raw-crypt-verity.csv)、
-[dm-crypt 阶段 CSV](docs/evidence/formal-256m/dm-crypt-stages.csv)、
-[dm-verity 阶段 CSV](docs/evidence/formal-256m/dm-verity-stages.csv)、
-[异步 BIO A/B](docs/evidence/formal-256m-async-after/dm-crypt-async-ab.csv)、
-[批量 worker A/B](docs/evidence/formal-256m-batch/README.md)、
-[多 worker A/B](docs/evidence/formal-256m-pool/README.md)。历史数据仍保留在
-`docs/evidence/` 供追溯，但不在 README 展示，也不参与当前结论。
-
-**Linux guest 与 Asterinas 严格同条件五轮对照（同一宿主机、KVM、CPU=host、
-1 vCPU、8 GiB、同一 virtio-blk 数据盘前 256 MiB、4 KiB、sync、direct=1、QD1、
-ramp 2 秒、runtime 10 秒）：**
-
-| 系统 | raw 中位吞吐（MiB/s） | dm-crypt 中位吞吐（MiB/s） | dm-crypt 保留率 | dm-crypt p95（us） |
-|---|---:|---:|---:|---:|
-| Linux guest | 5.150 | 4.746 | 92.158% | 1384.448 |
-| Asterinas | 4.245 | 4.059 | 95.621% | 1318.912 |
-
-Asterinas 的 raw、dm-crypt 绝对吞吐分别为 Linux guest 的 **82.4%**、**85.5%**。
-95.621% 是 Asterinas 相对自身 raw 的 dm-crypt 保留率，不代表绝对吞吐超过 Linux；
-在本合同下只能说明 Asterinas 测得的增量 dm 层损耗较小（4.379% 对 7.842%）。
-比较器已逐项核对 metadata 和测试区域 SHA-256（`d1a3f55d…584f`），条件不一致时拒绝出表。
-证据：[对照说明](docs/evidence/linux-vs-asterinas-dm-crypt.md)、
-[对照 CSV](docs/evidence/linux-vs-asterinas-dm-crypt.csv)、
-[Linux 原始 CSV](docs/evidence/linux-guest-dm-crypt-kvm.csv)、
-[Asterinas 原始 CSV](docs/evidence/formal-256m/dm-crypt.csv)。
-
-#### 为什么旧数字看起来互相矛盾
-
-早期 README 曾把不同代码版本、镜像大小和运行时的百分比放在同一性能章节，容易让人
-误以为同一次测试得出了相反结论。不同合同不能横向比较。当前 README 只以
-256 MiB 正式合同为主结论：95.621% 表示 Asterinas dm-crypt 相对自身 raw 的保持率，
-85.5% 表示 Asterinas dm-crypt 相对 Linux dm-crypt 的绝对吞吐比，二者分母不同，
-所以并不矛盾。
-
-#### 性能为什么还能继续提升
-
-分阶段计时表明，dm-crypt 单次 I/O 的下层等待约占 97.84%，AES-XTS 仅约占 1.82%；
-dm-verity 的下层等待约占 93.01%，数据 SHA-256 约占 5.74%。因此下一阶段的收益主要
-来自 I/O 路径而不是继续微调 AES：批量处理完成项、减少重复唤醒、让多个 BIO 真正在途、
-合并相邻 4 KiB BIO、启用 VirtIO multiqueue，以及在多核高并发时使用自适应 worker。
-dm-verity 还可继续研究哈希块预取、同一路径请求合并和认证后 cache。所有优化都必须保留
-同合同 before/after 五轮 CSV，并用各自 raw 归一化，避免把宿主机波动误算成优化收益。
-
-**Asterinas 冷启动五轮对照（交替顺序、QEMU/KVM、1 vCPU、8 GiB）：**
-
-| 场景 | 到 root-switch PASS 的中位时间 |
-|---|---:|
-| plain root | 16.058 s |
-| dm-verity root | 16.902 s |
-
-dm-verity 中位启动增量为 **5.256%**。证据：
-[逐轮 CSV](docs/evidence/asterinas-boot-time-kvm.csv)、
-[汇总 CSV](docs/evidence/asterinas-boot-time-kvm-summary.csv)及逐轮串口日志。
-
-![交叉验证数据流图](docs/document/figures/cross_validation_flow.png)
-
----
-
-## 合规、来源与 AI 声明
-
-### 引用的开源代码
-
-| 名称 | 来源 | 使用目的 |
-|------|------|----------|
-| 星绽操作系统（Asterinas） | https://github.com/asterinas/asterinas | 基础 OS 框架和 OSTD 接口 |
-| aes crate | https://crates.io/crates/aes | AES 加密算法 |
-| xts-mode crate | https://crates.io/crates/xts-mode | XTS 加密模式 |
-
-### 开源协议
-
-- **项目源代码与仓库文档**：[MIT License](LICENSE)
-- **第三方依赖**：MIT 或 Apache-2.0，与项目协议兼容
-
-### 本队增量贡献
-
-- 统一的 `BlockDevice` trait 抽象（用户态与内核态共用）
-- 纯 Rust SHA-256 实现（FIPS 180-4）
-- 星绽内核完整集成（可审计 Git 补丁序列）
-- 基于 ext2 超级块魔数的启动自检
-- 五阶段渐进式保护路径（Plain → Combined）
-- 认证后 hash cache、完成 BIO 数据复用、crypt 临时缓冲池、AES-NI 后端
-
-### AI 工具使用声明
-
-| 工具 | 大模型 | 使用场景 |
-|------|--------|----------|
-| OpenAI Codex | GPT-5 | 代码分析、BIO 路径调试、测试/构建脚本、文档整理 |
-| 通义千问（Qwen） | Qwen-Max | 技术文档润色、术语校对 |
-| 豆包（Doubao） | 豆包大模型 | 答辩表述优化、FAQ 整理 |
-
-所有 AI 生成内容均经团队人工审查；代码正确性通过单元测试、Linux 逐字节对照、内核构建及 QEMU 端到端验证。
-
-### Git 提交记录
-
-| 序号 | 时间 | Commit | 说明 |
-|------|------|--------|------|
-| 1 | 06-23 14:15 | `6bb9bc9` | 初始提交，仅源码 |
-| 2 | 06-23 22:36 | `40a5217` | Linux 兼容 Device Mapper 实现 |
-| 3 | 06-23 22:58 | `c72462b` | 验证 Asterinas dm BIO 路径 |
-| 4 | 06-24 01:33 | `2f8a671` | 接入受保护根文件系统 |
-| 5 | 06-24 01:42 | `a0dbb0f` | 补充 AI 工具使用说明 |
-| 6 | 06-24 01:48 | `84970aa` | 文档中文化 |
-| 7 | 06-29 21:06 | `f587893` | 添加 LaTeX 技术文档、PDF 与答辩 PPT |
-| 8 | 06-29 22:10 | `dabfee4` | 更新答辩 PPT 入口 |
-| 9 | 06-30 17:08 | `c22b8b4` | 添加演示视频入口 |
-| 10 | 07-14 18:44 | `5f345a1` | 完成安全存储性能对照与验收证据 |
-
-当前主仓库历史只能识别两个提交身份：`scnu202421326914` 与 `ZLH`。评审 tag 前，
-需要由张乐桁、陈韵、潘利源分别使用可识别的姓名/邮箱提交本人负责的最终改动；不得
-通过改写 author 或伪造空提交补记录。完成后用 `git shortlog -sne --all` 复核三人均可见。
-
-![GitLab 仓库提交历史](docs/document/figures/git_commit_history.png)
-
----
-
-## 用户手册与部署指南
-
-### 运行环境
-
-| 依赖项 | 版本要求 | 用途 |
-|--------|----------|------|
-| Rust / Cargo | 1.75.0+ | 核心语言工具链 |
-| QEMU | 8.2.2+ | 硬件虚拟化 |
-| Docker | 29.4.3+ | 容器化构建 |
-| 星绽镜像 | `asterinas/asterinas:0.18.0-20260618` | 官方工具链 |
-| Clang / LLVM | 18.0.0+ | 内核编译 |
-
-推荐：Ubuntu 24.04 LTS、x86_64、8 GiB 内存、20 GiB 磁盘。
-
-### 构建内核
-
-```bash
-docker run --rm --privileged --network=host \
-  -v asterinas-src:/root/asterinas \
-  -w /root/asterinas \
-  asterinas/asterinas:0.18.0-20260618 make kernel
-```
-
-### 构建受保护根文件系统
-
-```bash
-# dm-crypt 加密镜像
-sudo bash scripts/build_crypt_rootfs.sh
-
-# dm-verity 校验镜像
-bash scripts/build_verity_rootfs.sh
-```
-
-### QEMU 启动
-
-```bash
-qemu-system-x86_64 \
-  -kernel artifacts/asterinas-kernel \
-  -initrd artifacts/initramfs \
-  -drive file=target/verity-rootfs.img,format=raw,if=virtio \
-  -append "root=/dev/vda console=ttyS0"
-```
-
-### 内核启动参数
-
-启用 dm-verity：
-
-```text
-rootfs_verity.scheme=dm-verity rootfs_verity.hash=<64-char-root-hash>
-```
-
-启用 dm-crypt：
-
-```text
-dm_crypt.device=/dev/vda dm_crypt.key=<128-char-hex-key>
-```
-
-启动流程：QEMU 加载内核 → 解析参数构建 `DmBootConfig` → `aster-dm` 初始化映射器链 → `self_test_ext2_magic` 自检 → initramfs `pivot_root` → 进入用户态。
-
-![根切换序列图](docs/document/figures/root_switch_sequence.png)
-
-![dmctl 命令执行流程图](docs/document/figures/dmctl_command_flow.png)
-
----
-
-## 研发过程与问题解决
-
-### 核心技术难题
-
-**Rust 所有权与 I/O 队列管理**
-
-- 问题：多扇区加解密时借用检查器报错
-- 解决：`Arc<Mutex<Vec<u8>>>` 共享缓冲区、`try_borrow_mut` 避免死锁
-
-**星绽 OSTD 框架 API 适配**
-
-- 问题：块设备接口与 DMA 切片访问方式不符
-- 解决：重构 `VirtioBlkAdapter`，直接调用 DMA 切片接口
-
-**DMA 切片与 BIO 路径验证**
-
-- 问题：加密逻辑操作 BIO 虚拟地址而非 DMA 物理缓冲区
-- 解决：使用 DMA 切片接口，引入 ext2 魔数自检验证解密路径
-
-### 内核集成补丁
-
-| 补丁 | 目的 | 关键内容 |
-|------|------|----------|
-| 0001 | 组件集成 | `aster-dm` 注册、`DmTarget` 枚举、`DmDevice` 结构 |
-| 0002 | BIO 路径验证 | DMA 切片访问、ext2 超级块自检（`0x53EF`） |
-| 0003 | 根切换 | `dm-root` 参数解析、`pivot_root` 切换到受保护 rootfs |
-| 0004 | 评审功能固化 | cryptsetup 控制面、KVM 验证链和完整 dm 实现 |
-| 0005 | 性能与基准收尾 | crypt 缓冲池、verity 认证捷径、可配置 fio 矩阵 |
-
-### 五阶段渐进式保护路径
-
-| 阶段 | 名称 | 数据流 | 用途 |
-|------|------|--------|------|
-| 1 | Plain | virtio-blk → ext2 | 基线性能与功能检查 |
-| 2 | Passthrough | virtio-blk → PassthroughDevice → ext2 | 验证抽象层无数据损坏 |
-| 3 | dm-verity | virtio-blk → DmVerityDevice → ext2 | 只读完整性校验 |
-| 4 | dm-crypt | virtio-blk → DmCryptDevice → ext2 | 透明解密 |
-| 5 | Combined | virtio-blk → DmCryptDevice → DmVerityDevice → ext2 | 全面保护 |
-
----
-
-## 目录结构
-
-```text
-Cargo.toml
-crates/
-  dm/                         核心库：BlockDevice、dm-crypt、dm-verity
-  dmctl/                      命令行演示工具
-docs/
-  design.md                   设计文档
-  test.md                     测试说明
-  performance.md              性能测试方案
-  asterinas_integration.md    Asterinas 接入步骤
-  final_report.md             实验报告模板
-  defense_outline.md          答辩提纲
-  requirement_mapping.md      赛题指标对应表
-  rootfs_protection.md        rootfs 加密与校验方案
-  cryptsetup_compatibility.md cryptsetup 兼容路线
-  document/                   LaTeX 技术文档、PDF、PPT、插图
-asterinas/kernel/comps/dm/    已接入 Asterinas 的真实 Device Mapper 内核组件
-  src/device.rs               真实块设备映射与 BIO 转发
-  src/lib.rs                  启动参数、设备注册和根文件系统接入
-  src/verity.rs               on-disk Merkle 校验与认证后 hash cache
-asterinas_port/
-  README.md                   移植历史、补丁与真实实现位置说明
-  patches/                    可审计的 Asterinas 集成补丁
-scripts/
-  run_tests.ps1               Windows 测试入口
-  demo_crypt.ps1              Windows dm-crypt 演示
-  demo_verity.ps1             Windows dm-verity 演示
-  build_image.sh              Linux 测试镜像创建
-  run_qemu.sh                 QEMU 启动模板
-  benchmark.sh                Rust plain/crypt/verity CSV 基准
-  verify_linux_xts_compat.sh  与 Linux dm-crypt 逐字节兼容验证
-  linux_cryptsetup_baseline.sh Linux cryptsetup 对照基线
-artifacts/
-  asterinas-kernel.iso        已成功构建的 Asterinas 内核 ISO
-```
-
----
 
 ## 快速验证
 
-安装 Rust 后，在项目根目录运行：
+要求：Linux x86_64、Rust/Cargo、Python 3、QEMU；内核测试推荐 Docker 与 `/dev/kvm`。
 
 ```bash
-cargo test
-```
-
-运行两个一键演示：
-
-```bash
-cargo run -p dmctl -- demo-crypt
-cargo run -p dmctl -- demo-verity
-cargo run -p dmctl -- demo-stack
-```
-
-`demo-crypt` 展示：上层写入明文 → 底层镜像保存密文 → `DmCryptDevice` 读回明文。
-
-`demo-verity` 展示：正常镜像生成 root hash → 篡改底层块 → `DmVerityDevice` 读取返回完整性错误。
-
-### 手动演示命令
-
-```bash
-cargo run -p dmctl -- init-image target/demo.img 8 64
-cargo run -p dmctl -- crypt-write target/demo.img 64 my-secret-key 1 "hello dm-crypt"
-cargo run -p dmctl -- raw-read-hex target/demo.img 64 1
-cargo run -p dmctl -- crypt-read target/demo.img 64 my-secret-key 1
-```
-
-verity 演示：
-
-```bash
-root=$(cargo run -p dmctl -- verity-root target/demo.img 64)
-cargo run -p dmctl -- verity-verify target/demo.img 64 "$root"
-cargo run -p dmctl -- tamper target/demo.img 64 1 0 ff
-cargo run -p dmctl -- verity-verify target/demo.img 64 "$root"  # 预期失败
-```
-
-### 决赛级验证入口
-
-```bash
+git submodule update --init --recursive
+cargo test --workspace
+cargo run --release -p dmctl -- demo-crypt
+cargo run --release -p dmctl -- demo-verity
+cargo run --release -p dmctl -- demo-stack
 bash scripts/final_demo.sh
-python3 scripts/review_release_check.py
 ```
 
-`final_demo.sh` 默认以 fail-closed 顺序验证工作区测试、dm-crypt/dm-verity 演示、
-已归档 Linux XTS 向量、KVM 正反例日志和发布门禁；需要重新启动 KVM 客体时使用
-`bash scripts/final_demo.sh --live-kvm`。同一套 fmt、Clippy、测试和发布检查也由
-[GitHub Actions](.github/workflows/quality.yml) 自动执行。
+实时重跑两个受保护 rootfs：
 
-### 国赛提交建议
+```bash
+bash scripts/final_demo.sh --live-kvm
+```
 
-1. `cargo test` 全部通过截图
-2. `demo-crypt` / `demo-verity` 输出截图
-3. Asterinas + QEMU 启动日志
-4. VirtIO 识别与读写日志
-5. 性能对比表：plain / dm-crypt / dm-verity
+## 用户态功能命令
 
-更多细节见 [docs/final_report.md](docs/final_report.md) 和 [docs/defense_outline.md](docs/defense_outline.md)。
+```bash
+# 创建 4 KiB × 1024 块的镜像
+cargo run --release -p dmctl -- init-image target/disk.img 1024 4096
 
----
+# 原始读取和单字节篡改
+cargo run --release -p dmctl -- raw-read-hex target/disk.img 4096 0
+cargo run --release -p dmctl -- tamper target/disk.img 4096 0 0 ff
 
-## 术语表
+# dm-crypt 加密写入/解密读取
+KEY=000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f
+cargo run --release -p dmctl -- crypt-write target/crypt.img 4096 "$KEY" 0 hello
+cargo run --release -p dmctl -- crypt-read  target/crypt.img 4096 "$KEY" 0
 
-| 术语 | 定义 | 代码位置 |
-|------|------|----------|
-| BlockDevice | 块级 I/O 的 trait 抽象 | `src/block_device.rs` |
-| dm-crypt | 透明磁盘加密映射器 | `src/dm_crypt.rs` |
-| dm-verity | 透明完整性校验映射器 | `src/dm_verity.rs` |
-| HashTree | 默克尔树结构 | `src/hash_tree.rs` |
-| AES-256-XTS | 磁盘加密标准密码模式 | `src/crypto.rs` |
-| plain64 IV | 64 位扇区号作为 IV | `src/crypto.rs` |
-| IntegrityViolation | 哈希不匹配错误 | `src/error.rs` |
-| Root Hash | 默克尔树顶层哈希（信任锚） | `src/hash_tree.rs` |
-| DmDevice | Asterinas BIO 块设备映射 | `asterinas/kernel/comps/dm/src/device.rs` |
-| DM 启动参数 | crypt/verity 启动参数与设备注册 | `asterinas/kernel/comps/dm/src/lib.rs` |
-| aster-dm | 星绽内核 Device Mapper 组件 | `asterinas/kernel/comps/dm/` |
-| self_test_ext2_magic | 启动时自检函数 | 补丁 0002 |
-| pivot_root | 切换根文件系统 | 补丁 0003 |
-| dmctl | 用户态命令行工具 | `dmctl/src/main.rs` |
+# Linux dmsetup table 兼容路径
+TABLE="aes-xts-plain64 $KEY 0 /dev/loop0 0"
+cargo run --release -p dmctl -- crypt-table-fill target/crypt.img 4096 "$TABLE" 0 aa 1
 
----
+# dm-verity 根哈希、校验和 Asterinas 镜像格式化
+cargo run --release -p dmctl -- verity-root target/verity.img 4096
+cargo run --release -p dmctl -- verity-verify target/verity.img 4096 <ROOT_HASH>
+cargo run --release -p dmctl -- verity-format-dm target/verity.img <DATA_BLOCKS>
 
-## dmctl 命令参考
+# Linux AES-XTS 逐字节兼容性
+sudo bash scripts/verify_linux_xts_compat.sh
+bash scripts/verify_archived_linux_xts.sh
+```
 
-### 初始化与原始 I/O
+## Asterinas 构建与启动
 
-| 命令 | 签名 | 说明 |
-|------|------|------|
-| `init-image` | `init-image <path> <blocks> <block_size>` | 创建零填充虚拟块设备文件 |
-| `raw-read-hex` | `raw-read-hex <path> <block_size> <block_id>` | 十六进制读取块（绕过映射器） |
-| `tamper` | `tamper <path> <block_size> <block_id> <offset> <hex_byte>` | 修改块内字节（测试 verity） |
+固定镜像：`asterinas/asterinas:0.18.0-20260618`。首次运行可联网填充缓存；正式复现使用持久化 Cargo/rustup volume。
 
-### 加密命令（dm-crypt）
+```bash
+docker run --rm --privileged --network=host \
+  --device=/dev/kvm \
+  -v "$PWD/asterinas:/root/asterinas" \
+  -v asterinas-cargo:/root/.cargo \
+  -v asterinas-rustup:/root/.rustup \
+  -w /root/asterinas \
+  asterinas/asterinas:0.18.0-20260618 \
+  bash -lc 'make kernel TARGET_ARCH=x86_64'
+```
 
-| 命令 | 签名 | 说明 |
-|------|------|------|
-| `crypt-write` | `crypt-write <path> <block_size> <key> <block_id> <data>` | 加密写入 |
-| `crypt-read` | `crypt-read <path> <block_size> <key> <block_id>` | 解密读取 |
-| `crypt-table-fill` | `crypt-table-fill <path> <block_size> <table> <start> <byte> <count>` | 按 Linux 表格式填充密文 |
+构建并启动单层保护镜像：
 
-### 完整性命令（dm-verity）
+```bash
+sudo bash scripts/build_crypt_rootfs.sh
+sudo bash scripts/build_verity_rootfs.sh
 
-| 命令 | 签名 | 说明 |
-|------|------|------|
-| `verity-root` | `verity-root <path> <block_size>` | 计算根哈希 |
-| `verity-verify` | `verity-verify <path> <block_size> <root_hash_hex>` | 校验完整性 |
-| `verity-format-dm` | `verity-format-dm <path> <data_blocks>` | 为星绽内核格式化镜像 |
+DM_IMAGE="$PWD/target/crypt-rootfs.img" ENABLE_KVM=1 \
+  bash asterinas/tools/run_dm_crypt.sh
 
-### 演示与基准测试
+set -a
+source target/verity-rootfs.img.env
+set +a
+DM_IMAGE="$PWD/target/verity-rootfs.img" ENABLE_KVM=1 \
+  bash asterinas/tools/run_dm_verity.sh
+```
 
-| 命令 | 签名 | 说明 |
-|------|------|------|
-| `demo-crypt` | `demo-crypt` | 一键加密演示 |
-| `demo-verity` | `demo-verity` | 一键完整性演示 |
-| `benchmark` | `benchmark [blocks] [iterations]` | 微基准测试，输出 CSV |
+组合保护链：
+
+```bash
+sudo bash scripts/build_stack_rootfs.sh
+DM_IMAGE="$PWD/target/stack-rootfs.img" ENABLE_KVM=1 \
+  bash scripts/run_dm_stack.sh
+```
+
+## 正确性测试命令
+
+以下命令在 Asterinas 官方容器的 `/root/asterinas` 中执行；镜像路径按实际挂载点调整。
+
+```bash
+# R01：cryptsetup open/read/close
+DM_IMAGE=/root/target/dm-crypt-test.img ENABLE_KVM=1 \
+  bash tools/run_cryptsetup_compat.sh
+
+# R02：dm-crypt rootfs
+DM_IMAGE=/root/target/crypt-rootfs.img ENABLE_KVM=1 \
+  bash tools/run_dm_crypt.sh
+
+# R03 / V01：dm-verity rootfs 正常启动
+set -a
+source /root/target/verity-rootfs.img.env
+set +a
+DM_IMAGE=/root/target/verity-rootfs.img ENABLE_KVM=1 \
+  bash tools/run_dm_verity.sh
+
+# C01–C05：正确密钥、错误密钥、4/32/256 KiB 往返
+DM_IMAGE=/root/target/dm-crypt-test.img \
+PERSIST_EXPECT=0 TEST_COMMIT="$(git rev-parse HEAD)" ENABLE_KVM=1 \
+  bash tools/run_dm_crypt_correctness.sh
+
+# V02：保持镜像不变，只替换为错误 root hash
+DM_IMAGE=/root/target/verity-rootfs.img \
+DM_ROOT_HASH=<错误的64位十六进制哈希> \
+DM_DATA_BLOCKS=<数据块数> DM_HASH_START=<哈希树起始块> ENABLE_KVM=1 \
+  bash tools/run_dm_verity.sh
+
+# V03–V07：对指定物理位置做单字节变异后探测目标逻辑块
+DM_IMAGE=/root/target/verity-mutated.img \
+DM_ROOT_HASH=<原始正确哈希> DM_DATA_BLOCKS=<数据块数> \
+DM_HASH_START=<哈希树起始块> PROBE_BLOCK=<逻辑块号> \
+  bash tools/run_dm_verity_probe.sh
+```
+
+变异位置和探测块必须来自 [物理变异清单](PHYSICAL_MUTATION_MANIFEST.md)，不得在同一轮重新计算 root hash。最终状态见 [KVM 正确性矩阵](KVM_CORRECTNESS_MATRIX.md)。
+
+## 性能结果
+
+所有数值均为 5 轮中位数。Linux 与 Asterinas 的硬件/runner 不同，分表展示，不计算跨平台倍率。完整环境、统计量和证据路径见 [中文性能报告](docs/evidence/final-performance-20260811/PERFORMANCE_VALIDATION_REPORT.md)。
+
+### Linux FIO：真实 raw block device 与 dm-crypt mapper
+
+单位：MiB/s；参数为 `libaio`、`direct=1`、`numjobs=1`，除设备外保持一致。
+
+| workload | bs | qd | raw | dm-crypt |
+|---|---:|---:|---:|---:|
+| read | 4K | 1 | 16.296 | 15.010 |
+| read | 32K | 1 | 95.450 | 80.133 |
+| read | 256K | 1 | 129.599 | 128.337 |
+| randread | 4K | 1 | 11.648 | 13.727 |
+| randread | 4K | 16 | 16.163 | 15.558 |
+| randread | 32K | 1 | 86.876 | 82.026 |
+| randread | 256K | 1 | 127.962 | 124.750 |
+| write | 4K | 1 | 13.818 | 14.928 |
+| write | 32K | 1 | 81.429 | 84.973 |
+| write | 256K | 1 | 131.499 | 115.788 |
+| randwrite | 4K | 1 | 14.276 | 14.092 |
+| randwrite | 32K | 1 | 90.672 | 81.667 |
+| randwrite | 256K | 1 | 127.062 | 117.576 |
+
+### Asterinas KVM FIO：真实保护 mapper
+
+单位：MiB/s。这里展示恢复后 dm-crypt 与修正后 dm-verity 的独立实测值；不与 Linux raw 横向计算倍率。
+
+| workload | bs | qd | dm-crypt | dm-verity |
+|---|---:|---:|---:|---:|
+| read | 4K | 1 | 8.908 | 7.505 |
+| read | 32K | 1 | 52.810 | 33.893 |
+| read | 256K | 1 | 97.456 | 53.363 |
+| randread | 4K | 1 | 8.514 | 4.970 |
+| randread | 4K | 16 | 8.614 | 4.618 |
+| randread | 32K | 1 | 52.176 | 26.110 |
+| randread | 256K | 1 | 96.890 | 50.050 |
+| write | 4K | 1 | 8.926 | N/A（只读） |
+| write | 32K | 1 | 54.782 | N/A（只读） |
+| write | 256K | 1 | 94.097 | N/A（只读） |
+| randwrite | 4K | 1 | 8.482 | N/A（只读） |
+| randwrite | 32K | 1 | 53.551 | N/A（只读） |
+| randwrite | 256K | 1 | 93.541 | N/A（只读） |
+
+### Filebench、SQLite 与启动耗时
+
+| 测试 | raw/plain | dm-crypt | dm-verity |
+|---|---:|---:|---:|
+| Filebench fileserver，ops/s | 147672.049 | 156507.741 | N/A（只读） |
+| Filebench fileserver，MB/s | 3542.7 | 3752.1 | N/A（只读） |
+| SQLite 10,000 行，总耗时 s | 0.060128 | 0.066395 | 0.003865（仅查询） |
+| Asterinas 启动中位耗时 s | 51.331303 | 51.629820 | 52.743415 |
+
+旧 Asterinas FIO 目录曾把不存在的 mapper 当普通文件测试，已判定为 `HARNESS_BUG`，不在仓库正式数据或生成器输入中。
+
+## 性能测试命令
+
+```bash
+# Linux FIO：raw + dm-crypt，13 个 workload，每项 5 轮
+sudo OUT_ROOT="$PWD/docs/evidence/fio-matrix" \
+  bash scripts/run_fio_matrix.sh --platform linux-host --runs 5
+
+# Asterinas KVM FIO
+OUT_ROOT="$PWD/docs/evidence/asterinas-fio" \
+  bash scripts/run_fio_matrix.sh --platform asterinas-kvm \
+  --asterinas-dir "$PWD/asterinas" --runs 5
+
+# Filebench fileserver：raw + dm-crypt，各 5 轮
+sudo OUT_DIR="$PWD/docs/evidence/filebench" RUNS=5 \
+  bash scripts/run_filebench_matrix.sh
+
+# SQLite：raw + dm-crypt + dm-verity，各 5 轮
+sudo OUT_DIR="$PWD/docs/evidence/sqlite" RUNS=5 ROWS=10000 \
+  bash scripts/run_sqlite_matrix.sh
+
+# Asterinas plain / dm-crypt / dm-verity 启动，各 5 轮
+sudo bash scripts/build_asterinas_boot_images.sh
+OUT_DIR="$PWD/docs/evidence/boot-matrix" RUNS=5 ENABLE_KVM=1 \
+  bash scripts/run_boot_matrix.sh
+
+# 重新生成正式性能表和中文报告
+python3 scripts/build_performance_validation_report.py \
+  docs/evidence/final-performance-20260811 \
+  --top-commit <测试时顶层提交> \
+  --asterinas-commit <测试时Asterinas提交> \
+  --image-digest <Docker镜像摘要>
+```
+
+## 最终验收
+
+```bash
+cargo fmt --all -- --check
+cargo test --workspace
+python3 -B scripts/check_benchmark_package.py
+python3 -B scripts/verify_kvm_evidence.py
+python3 -B scripts/review_release_check.py
+git submodule status
+git status --short
+```
+
+正式证据只保留有效结果、必要环境信息和最小审计链；生成镜像、临时 loop 文件、缓存与失败重试不属于提交内容。
+
+## 许可证与来源
+
+用户态 `dm`/`dmctl` 代码采用 MIT 许可证，Asterinas 子模块遵循其上游许可证。第三方工具、参考资料、AI 辅助范围和提交合规说明见 [技术文档](docs/document/main.pdf) 与 [最终报告](docs/final_report.md)。

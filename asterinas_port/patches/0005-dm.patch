@@ -490,7 +490,7 @@ index 000000000..8b3c95dd5
 +# Run a five-round raw-vs-dm-crypt fio matrix in the Asterinas KVM guest.
 +# Keep the I/O contract aligned with run_dm_verity_bench.sh: 4 KiB, QD1,
 +# direct reads, five rounds.  Capture stdout to a serial log, then summarize
-+# it with scripts/summarize_asterinas_dm_crypt_bench.py.
++# it with scripts/summarize_asterinas_dm_matrix.py.
 +set -euo pipefail
 +
 +if [ "${DM_AES_NI:-1}" = "1" ]; then

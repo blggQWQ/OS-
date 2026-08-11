@@ -1,206 +1,102 @@
 % chapters/05_performance.tex
-\chapter{性能优化策略}
+\chapter{性能设计与评测}
 
-\section{概述}
+\section{评测原则}
 
-在实现 dm-crypt 与 dm-verity 功能正确性的基础上，性能优化是本项目的关键挑战之一。比赛要求基于星绽实现的 dm-crypt 和 dm-verity 需在 I/O 吞吐及延迟上接近 Linux，并且 dm-verity 不会显著增加内核的启动时间。
+性能评测同时覆盖 Linux host 上的真实块设备对照和 Asterinas KVM 中的保护 mapper。
+两类环境分别报告，不使用跨平台结果计算倍率。每个有效工况固定运行五轮，保留原始
+JSON、CSV、串口日志和环境元数据，并报告均值、中位数和标准差。
 
-本章详细阐述我们为达到上述目标所采取的多层次优化策略，涵盖哈希树构建与校验、I/O 路径、启动时间以及硬件加速等关键维度。
-
-\section{性能评估框架}
-
-在讨论优化策略之前，我们首先建立性能评估的框架和基准。
-
-\subsection{关键性能指标}
-
-评估聚焦于以下关键性能指标（KPI）：
+FIO 使用的诚实字段如下：
 
 \begin{itemize}
-    \item \textbf{吞吐量（Throughput）}：以 MiB/s 为单位测量的顺序读/写速度。
-    \item \textbf{IOPS}：每秒随机 4 KiB 读/写操作数。
-    \item \textbf{延迟（Latency）}：每块 I/O 延迟，特别关注 dm-verity 中默克尔树遍历的开销。
-    \item \textbf{启动时间（Boot Time）}：从调用 QEMU 到出现第一个用户态提示符的持续时间，对比普通 rootfs 与受保护的 rootfs。
+    \item \texttt{iodepth\_set} 仅表示 fio 配置值；
+    \item 无法观测真实并发时，\texttt{max\_in\_flight\_observed} 记为 \texttt{unavailable}；
+    \item dm-verity 是只读目标，写入工况记为 N/A；
+    \item Filebench 使用工具原始 MB/s，FIO 使用 MiB/s，不混用单位。
 \end{itemize}
 
-\section{哈希树优化}
+正式合同见仓库 \texttt{docs} 目录，最终结果见 \texttt{docs/evidence} 下的
+\texttt{final-performance-20260811} 目录。
 
-默克尔树的构建和校验是 dm-verity 最主要的性能开销来源。我们采取了以下优化措施：
+\section{真实性审计}
 
-\subsection{哈希块缓存}
+早期 Asterinas dm-crypt FIO 在 mapper 初始化失败后继续执行，fio 将不存在的设备
+路径创建为普通文件，产生了数量级异常。该批结果被分类为 \texttt{HARNESS\_BUG}，
+未进入正式矩阵，旧数字和失败重试也不作为生成器输入。重新执行的 dm-crypt 使用
+guest 内真实 \texttt{/dev/mapper/dm-crypt-bench}，dm-verity 则使用修正后的真实
+mapper runner。
 
-在 dm-verity 路径中，每次读操作都需要从叶子节点向上遍历至根节点，期间需要多次读取兄弟节点的哈希值。我们实现了哈希块缓存机制：
+\section{FIO 结果}
 
-\begin{itemize}
-    \item 将最近访问的哈希树节点缓存在内存中。
-    \item 采用有界 FIFO 淘汰策略管理缓存空间，容量由启动参数控制。
-    \item 对于频繁访问的块（如根节点附近的层），缓存命中率显著提升。
-\end{itemize}
-
-现有 KVM 五轮顺序读 A/B 表明，cache=256 相对 cache=0 的 dm-verity 中位吞吐
-从 0.320 MiB/s 提升到 0.398 MiB/s（+24.4\%），中位 p95 从 15007.744 us
-降到 13697.024 us（-8.7\%）。两组均为 \texttt{data\_rereads=0}。
-本轮又加入已认证 hash block 的可信后缀捷径：当前数据摘要仍必须与缓存块比对，
-只有命中已经完整认证到 root hash 的缓存块后才停止重算上层后缀，并输出
-\texttt{auth\_shortcuts} 计数。该新增捷径的收益仍待独立 KVM A/B。
-
-\subsection{批量读取相邻块（后续方向）}
-
-在构建默克尔树时，批量读取可进一步减少调用开销，但当前版本尚未把该变量做成
-可隔离验证的实现，因此仅列为后续方向：
-
-\begin{itemize}
-    \item 将多个相邻数据块一次性读入内存。
-    \item 批量计算哈希值，减少 I/O 次数和系统调用开销。
-    \item 预期主要作用于镜像构建阶段（如 dmctl verity-root 命令）。
-\end{itemize}
-
-\section{I/O 吞吐优化}
-
-\subsection{完成 BIO 数据复用}
-
-verity 认证路径直接复用下层已经完成的 BIO 数据进行哈希校验，避免为了认证再次读取
-同一数据块。内核计数器 \texttt{data\_rereads} 用于验证这项优化是否生效：
-
-\begin{itemize}
-    \item 从完成的 BIO segment 中读取待认证数据。
-    \item 只为 Merkle hash block 发起必要的额外读取。
-    \item cache=0 与 cache=256 的五轮测试均记录 \texttt{data\_rereads=0}。
-\end{itemize}
-
-\subsection{临时缓冲区重用}
-
-在加密/解密过程中复用 CPU 临时 \texttt{Vec}，减少热路径中的重复分配。该措施已经进入真实
-Asterinas BIO 路径，但当前没有隔离该变量的五轮 A/B，因此只报告实现状态，
-不单独给出性能收益。
-
-\begin{itemize}
-    \item mapper 使用容量为 32 的有界池管理加解密临时 \texttt{Vec}。
-    \item 写路径仍为下层 BIO 分配独立 bounce segment，读路径完成后写回调用方 segment；
-    本优化不宣称消除了 DMA/BIO segment 分配。
-    \item 启动参数 \texttt{dm\_crypt.scratch\_pool=0} 可关闭池，
-    与默认值 32 做同镜像、同 fio 参数的五轮 A/B。
-\end{itemize}
-
-\section{Boot 时间控制}
-
-dm-verity 的引入不应显著增加内核启动时间。我们采取了以下措施：
-
-\subsection{延迟校验策略}
-
-\begin{itemize}
-    \item 在系统启动阶段，不立即校验所有数据块。
-    \item 仅在校验根哈希和超级块时执行必要的哈希计算。
-    \item 大部分数据块的校验推迟到首次访问时进行（即按需校验）。
-\end{itemize}
-
-\subsection{校验路径优化}
-
-\begin{itemize}
-    \item 在启动阶段，仅验证根哈希的有效性，而不遍历整棵树。
-    \item 利用自检机制快速验证解密路径是否正确。
-    \item 当前串口日志证明受保护 rootfs 可以完成根切换；启动时间增量仍待五轮计时
-    对照，不给出无日志支撑的百分比。
-\end{itemize}
-
-\section{硬件加速}
-
-\subsection{AES-NI 指令利用}
-
-AES-256-XTS 加密是 dm-crypt 的核心计算密集型操作。我们确保：
-
-\begin{itemize}
-    \item 生产版本构建利用 CPU 的 AES-NI 指令集加速。
-    \item Rust 的 aes crate 在启用 aesni 特性时自动使用硬件加速。
-    \item 在不支持 AES-NI 的 CPU 上，自动回退到软件实现。
-\end{itemize}
-
-现有五轮 Asterinas dm-crypt 串口日志均确认使用 AES-NI 后端。由于尚无相同
-KVM、镜像和 FIO 参数下的软件 AES 五轮 A/B，本报告不声称 AES-NI 的加速倍数。
-
-\subsection{并行化处理（后续方向）}
-
-当前加解密循环按 segment 和 sector 顺序执行，尚未引入并行迭代器。后续只有在
-QD32 和大块 I/O 的 profile 证明密码计算而非块设备等待占主导后，才考虑请求级
-并行；因此本报告不把并行化列为已完成优化。
-
-\section{Rust 微基准测试}
-
-为了精确量化各项优化的效果，我们使用 dmctl benchmark 命令进行微基准测试。
-
-\subsection{测试方法}
-
-基准测试遵循以下流程：
-
-\begin{enumerate}
-    \item \textbf{设置阶段}：初始化一个 MemoryBlockDevice，大小为指定块数。
-    \item \textbf{映射器构建}：构建目标映射器（Plain、DmCryptDevice 或 DmVerityDevice）。构建时间不纳入 I/O 吞吐量计算。
-    \item \textbf{预热}：执行一次完整的 I/O 循环，预热 CPU 缓存和分支预测。
-    \item \textbf{测量循环}：在指定迭代次数内执行顺序读/写，记录总耗时。
-    \item \textbf{校验和验证}：计算读数据的校验和，防止 Rust 编译器优化掉"未使用"的读取结果。
-\end{enumerate}
-
-\subsection{三种配置对比}
-
-基准测试比较三种配置，以隔离安全特性的成本：
-
-\begin{itemize}
-    \item \textbf{Plain（基线）}：直接对 MemoryBlockDevice 进行 I/O。代表内存总线的理论最大速度和 BlockDevice trait 的开销。
-    \item \textbf{AES-256-XTS（dm-crypt）}：测量 XTS 模式和 AES 加密的开销，包括为每个扇区生成 plain64 IV。
-    \item \textbf{SHA-256（dm-verity）}：测量每次读操作在默克尔树中进行路径验证的开销。
-\end{itemize}
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.9\textwidth]{figures/performance_comparison_logic.png}
-    \caption{性能比较逻辑图}
-    \label{fig:performance_comparison}
-\end{figure}
-
-\subsection{测试结果分析}
-
-微基准测试的输出为 CSV 格式，包含操作类型、块数和吞吐量等列。
-
-解读方法：
-\begin{itemize}
-    \item \textbf{Plain 读/写}：最大理论吞吐量。
-    \item \textbf{Crypt 写/读}：Plain 与 Crypt 的差值 = aes crate 和 XTS 模式的加密开销。
-    \item \textbf{Verity 读}：SHA-256 哈希和默克尔树遍历的开销。
-\end{itemize}
-
-\section{性能优化目标与代码实体关联}
-
-下图将逻辑上的性能瓶颈映射到负责它们的具体代码实体：
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.9\textwidth]{figures/performance_critical_entities.png}
-    \caption{性能关键代码实体映射图}
-    \label{fig:performance_entities}
-\end{figure}
-
-关键优化点与代码实体的对应关系：
+Linux host 对照在同一 backing image 上创建 raw loop block device 和 dm-crypt mapper，
+统一使用 \texttt{libaio}、\texttt{direct=1}、\texttt{numjobs=1}。代表性五轮中位数如下：
 
 \begin{table}[H]
     \centering
-    \caption{优化策略与代码实体映射}
-    \label{tab:optimization_mapping}
-    \begin{tabular}{p{0.30\textwidth}p{0.30\textwidth}p{0.30\textwidth}}
+    \caption{Linux host FIO 五轮中位带宽（MiB/s）}
+    \begin{tabular}{p{0.25\textwidth}p{0.15\textwidth}p{0.15\textwidth}p{0.18\textwidth}p{0.18\textwidth}}
         \toprule
-        \textbf{优化策略} & \textbf{涉及代码实体} & \textbf{证据或状态} \\
+        \textbf{负载} & \textbf{块大小} & \textbf{QD} & \textbf{raw} & \textbf{dm-crypt} \\
         \midrule
-        认证后 hash cache & aster-dm verity & 五轮中位吞吐 +24.4\%，p95 -8.7\% \\
-        完成 BIO 数据复用 & aster-dm verity & 两组 A/B 均为 data\_rereads=0 \\
-        AES-NI 后端 & aster-dm crypto & 五轮日志确认 AES-NI；软件 AES A/B 待补 \\
-        dm-crypt 有界临时缓冲池 & aster-dm device & 已实现；scratch\_pool=0/32 A/B 待补 \\
-        已认证路径捷径 & aster-dm verity & 已实现 auth\_shortcuts 计数；新增收益待补 \\
+        read & 4 KiB & 1 & 16.296 & 15.010 \\
+        read & 256 KiB & 1 & 129.599 & 128.337 \\
+        randread & 4 KiB & 16 & 16.163 & 15.558 \\
+        randwrite & 256 KiB & 1 & 127.062 & 117.576 \\
         \bottomrule
     \end{tabular}
 \end{table}
 
+Asterinas KVM 只展示真实保护 mapper 的独立结果，不与 Linux raw 计算倍率：
+
+\begin{table}[H]
+    \centering
+    \caption{Asterinas KVM FIO 五轮中位带宽（MiB/s）}
+    \begin{tabular}{p{0.25\textwidth}p{0.15\textwidth}p{0.15\textwidth}p{0.18\textwidth}p{0.18\textwidth}}
+        \toprule
+        \textbf{负载} & \textbf{块大小} & \textbf{QD} & \textbf{dm-crypt} & \textbf{dm-verity} \\
+        \midrule
+        read & 4 KiB & 1 & 8.908 & 7.505 \\
+        read & 256 KiB & 1 & 97.456 & 53.363 \\
+        randread & 4 KiB & 16 & 8.614 & 4.618 \\
+        randwrite & 256 KiB & 1 & 93.541 & N/A（只读） \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+正式矩阵共有 Asterinas dm-crypt 13 项、dm-verity 7 项、Linux raw 13 项和 Linux
+dm-crypt 13 项，每项五轮；另有 6 个 dm-verity 写入 N/A。
+
+\section{Filebench、SQLite 与启动耗时}
+
+\begin{table}[H]
+    \centering
+    \caption{补充性能测试五轮中位数}
+    \begin{tabular}{p{0.35\textwidth}p{0.18\textwidth}p{0.18\textwidth}p{0.18\textwidth}}
+        \toprule
+        \textbf{测试} & \textbf{raw/plain} & \textbf{dm-crypt} & \textbf{dm-verity} \\
+        \midrule
+        Filebench fileserver（ops/s） & 147672.049 & 156507.741 & N/A \\
+        Filebench fileserver（MB/s） & 3542.7 & 3752.1 & N/A \\
+        SQLite 10000 行总耗时（s） & 0.060128 & 0.066395 & 0.003865（只读） \\
+        Asterinas 启动耗时（s） & 51.331303 & 51.629820 & 52.743415 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+SQLite dm-verity 只执行查询阶段，不能与完整写事务总耗时横比。启动时间从 QEMU
+进程启动计至串口出现受保护根文件系统 PASS 标记；相对 plain 的中位开销为
+dm-crypt 0.582\%，dm-verity 2.751\%。
+
+\section{实现侧性能设计}
+
+dm-crypt 使用 AES-NI 后端和有界临时缓冲池，降低 AES-XTS 与频繁分配的开销；
+dm-verity 复用已完成 BIO 数据，并对经过完整认证的 hash block 使用有界缓存。
+缓存遵循“先认证、后插入”，命中不会降低 root hash 信任边界。所有优化仍以
+R01--R03、C01--C05 和 V01--V07 正确性测试为前置门禁。
+
 \section{小结}
 
-本章阐述了 dm-crypt 和 dm-verity 的性能优化策略。当前可量化结论限于
-dm-verity 认证后 hash cache 的五轮 A/B；AES-NI 后端、有界临时缓冲池和已认证
-路径捷径已经实现，
-但在形成相同条件的 A/B 前不单独声称其收益。下一章将给出功能正确性和现有
-KVM 五轮基准证据。
+最终报告只接受能够定位到真实 block device 或 mapper、参数完整且轮数满足合同的
+数据。完整 46 个 PASS 单元格、6 个 N/A、逐轮统计和证据路径见
+\texttt{PERFORMANCE\_MATRIX.csv} 与中文性能验证报告。

@@ -1,0 +1,14 @@
+platform,operation,block_size,iodepth_set,raw_bw_median,crypt_bw_median,verity_bw_median,raw_status,crypt_status,verity_status,iodepth_note
+linux-host,randread,256k,1,127.962203,124.750050,N/A,ok,ok,N/A,qd=1
+linux-host,randread,32k,1,86.875687,82.026172,N/A,ok,ok,N/A,qd=1
+linux-host,randread,4k,1,11.648444,13.727142,N/A,ok,ok,N/A,qd=1
+linux-host,randread,4k,16,16.163066,15.557838,N/A,ok,ok,N/A,iodepth_set is fio config only; not observed max_in_flight
+linux-host,randwrite,256k,1,127.062293,117.576485,N/A,ok,ok,N/A,qd=1
+linux-host,randwrite,32k,1,90.672182,81.666833,N/A,ok,ok,N/A,qd=1
+linux-host,randwrite,4k,1,14.276306,14.092340,N/A,ok,ok,N/A,qd=1
+linux-host,read,256k,1,129.599080,128.337166,N/A,ok,ok,N/A,qd=1
+linux-host,read,32k,1,95.449829,80.132611,N/A,ok,ok,N/A,qd=1
+linux-host,read,4k,1,16.295635,15.010218,N/A,ok,ok,N/A,qd=1
+linux-host,write,256k,1,131.498700,115.788421,N/A,ok,ok,N/A,qd=1
+linux-host,write,32k,1,81.429357,84.972753,N/A,ok,ok,N/A,qd=1
+linux-host,write,4k,1,13.817759,14.927804,N/A,ok,ok,N/A,qd=1

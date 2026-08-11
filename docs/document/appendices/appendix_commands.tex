@@ -1,6 +1,6 @@
 % appendices/appendix_commands.tex
-\chapter*{附录B：dmctl 命令参考}
-\addcontentsline{toc}{chapter}{附录B：dmctl 命令参考}
+\chapter{附录B：dmctl 命令参考}
+\label{app:commands}
 
 \section*{初始化与原始 I/O 命令}
 
@@ -9,15 +9,15 @@
 \textbf{命令} & \textbf{签名与示例} & \textbf{实现位置} \\
 \hline
 \endhead
-init-image & \textbf{签名}：init-image <path> <blocks> <block\_size> & main.rs:32 \\
+init-image & \textbf{签名}：init-image <path> <blocks> <block\_size> & \texttt{dmctl/src/main.rs} \\
  & \textbf{示例}：dmctl init-image disk.img 1024 4096 & \\
  & \textbf{说明}：创建零填充文件用作虚拟块设备 & \\
 \hline
-raw-read-hex & \textbf{签名}：raw-read-hex <path> <block\_size> <block\_id> & main.rs:65 \\
+raw-read-hex & \textbf{签名}：raw-read-hex <path> <block\_size> <block\_id> & \texttt{dmctl/src/main.rs} \\
  & \textbf{示例}：dmctl raw-read-hex disk.img 4096 0 & \\
  & \textbf{说明}：读取块以十六进制打印（绕过映射器） & \\
 \hline
-tamper & \textbf{签名}：tamper <path> <block\_size> <block\_id> <offset> <hex\_byte> & main.rs:133-137 \\
+tamper & \textbf{签名}：tamper <path> <block\_size> <block\_id> <offset> <hex\_byte> & \texttt{dmctl/src/main.rs} \\
  & \textbf{示例}：dmctl tamper disk.img 4096 0 10 ff & \\
  & \textbf{说明}：修改块内字节（测试 verity） & \\
 \hline
@@ -30,13 +30,13 @@ tamper & \textbf{签名}：tamper <path> <block\_size> <block\_id> <offset> <hex
 \textbf{命令} & \textbf{签名与示例} & \textbf{实现位置} \\
 \hline
 \endhead
-crypt-write & \textbf{签名}：crypt-write <path> <block\_size> <key> <block\_id> <data\_string> & main.rs:41 \\
+crypt-write & \textbf{签名}：crypt-write <path> <block\_size> <key> <block\_id> <data\_string> & \texttt{dmctl/src/main.rs} \\
  & \textbf{示例}：dmctl crypt-write disk.img 4096 mysecretkey 0 "Hello" & \\
 \hline
-crypt-read & \textbf{签名}：crypt-read <path> <block\_size> <key> <block\_id> & main.rs \\
+crypt-read & \textbf{签名}：crypt-read <path> <block\_size> <key> <block\_id> & \texttt{dmctl/src/main.rs} \\
  & \textbf{示例}：dmctl crypt-read disk.img 4096 mysecretkey 0 & \\
 \hline
-crypt-table-fill & \textbf{签名}：crypt-table-fill <path> <block\_size> <table\_str> <start> <byte> <count> & main.rs:72-77 \\
+crypt-table-fill & \textbf{签名}：crypt-table-fill <path> <block\_size> <table\_str> <start> <byte> <count> & \texttt{dmctl/src/main.rs} \\
  & \textbf{示例}：dmctl crypt-table-fill disk.img 4096 "aes-xts-plain64 <key> 0 /dev/loop0 0" 0 aa 10 & \\
 \hline
 \end{longtable}
@@ -48,13 +48,13 @@ crypt-table-fill & \textbf{签名}：crypt-table-fill <path> <block\_size> <tabl
 \textbf{命令} & \textbf{签名与示例} & \textbf{实现位置} \\
 \hline
 \endhead
-verity-root & \textbf{签名}：verity-root <path> <block\_size> & main.rs:91 \\
+verity-root & \textbf{签名}：verity-root <path> <block\_size> & \texttt{dmctl/src/main.rs} \\
  & \textbf{示例}：dmctl verity-root disk.img 4096 & \\
 \hline
-verity-verify & \textbf{签名}：verity-verify <path> <block\_size> <root\_hash\_hex> & main.rs:104-106 \\
+verity-verify & \textbf{签名}：verity-verify <path> <block\_size> <root\_hash\_hex> & \texttt{dmctl/src/main.rs} \\
  & \textbf{示例}：dmctl verity-verify disk.img 4096 a1b2... & \\
 \hline
-verity-format-dm & \textbf{签名}：verity-format-dm <path> <data\_blocks> & main.rs:113 \\
+verity-format-dm & \textbf{签名}：verity-format-dm <path> <data\_blocks> & \texttt{dmctl/src/main.rs} \\
  & \textbf{示例}：dmctl verity-format-dm disk.img 1024 & \\
  & \textbf{说明}：为星绽内核格式化镜像 & \\
 \hline
@@ -67,13 +67,16 @@ verity-format-dm & \textbf{签名}：verity-format-dm <path> <data\_blocks> & ma
 \textbf{命令} & \textbf{签名与示例} & \textbf{实现位置} \\
 \hline
 \endhead
-demo-crypt & \textbf{签名}：demo-crypt & main.rs:140-141 \\
+demo-crypt & \textbf{签名}：demo-crypt & \texttt{dmctl/src/main.rs} \\
  & \textbf{示例}：dmctl demo-crypt & \\
 \hline
-demo-verity & \textbf{签名}：demo-verity & main.rs:140-141 \\
+demo-verity & \textbf{签名}：demo-verity & \texttt{dmctl/src/main.rs} \\
  & \textbf{示例}：dmctl demo-verity & \\
 \hline
-benchmark & \textbf{签名}：benchmark [blocks] [iterations] & main.rs:142-146 \\
+demo-stack & \textbf{签名}：demo-stack & \texttt{dmctl/src/main.rs} \\
+ & \textbf{示例}：dmctl demo-stack & \\
+\hline
+benchmark & \textbf{签名}：benchmark [blocks] [iterations] & \texttt{dmctl/src/main.rs} \\
  & \textbf{示例}：dmctl benchmark 4096 5 & \\
 \hline
 \end{longtable}

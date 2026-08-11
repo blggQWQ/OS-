@@ -1,0 +1,6 @@
+git_commit=unknown
+timestamp_utc=2026-08-10T16:21:02Z
+marker=PASS system root switched to protected mapper
+runs=5
+qemu_script=scripts/run_asterinas_boot_once.lf.sh
+definition=QEMU process start -> first serial line containing marker

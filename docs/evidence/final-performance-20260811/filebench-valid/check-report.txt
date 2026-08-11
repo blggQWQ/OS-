@@ -1,0 +1,6 @@
+timestamp_utc=2026-08-11T09:11:56Z
+host=Linux 6.6.87.2-microsoft-standard-WSL2 x86_64 GNU/Linux
+filebench_path=/work/install-audit/bin/filebench
+filebench_version=Usage: filebench {-f <wmlscript> | -h | -c [cvartype]}    Filebench version 1.5-alpha3 
+status=available
+STATUS=available

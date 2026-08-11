@@ -1,0 +1,6 @@
+label,run,device,operation,block_size,ioengine,queue_depth,bw_mib_s,iops,p50_us,p95_us,p99_us
+dm-crypt,1,/dev/mapper/dm-crypt-bench,read,32k,sync,1,52.810343742370605,1689.931007,561.152,790.528,987.136
+dm-crypt,2,/dev/mapper/dm-crypt-bench,read,32k,sync,1,53.122812271118164,1699.930007,561.152,790.528,987.136
+dm-crypt,3,/dev/mapper/dm-crypt-bench,read,32k,sync,1,52.707228660583496,1686.631337,569.344,798.72,987.136
+dm-crypt,4,/dev/mapper/dm-crypt-bench,read,32k,sync,1,52.46350288391113,1678.832117,569.344,798.72,1019.904
+dm-crypt,5,/dev/mapper/dm-crypt-bench,read,32k,sync,1,53.78524589538574,1721.127887,552.96,782.336,978.944

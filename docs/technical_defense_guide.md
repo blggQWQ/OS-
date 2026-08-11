@@ -108,18 +108,14 @@ plain64 扇区号解密、写回上层 segment、归还 scratch，最后传播�
 
 ### 性能结果应该怎么表述？
 
-新的严格同条件五轮矩阵中，Linux guest 与 Asterinas 的 dm-crypt 中位吞吐分别为
-4.746 MiB/s 和 4.059 MiB/s，Asterinas 为 Linux 的 85.5%；raw 分别为 5.150 和
-4.245 MiB/s，Asterinas 为 Linux 的 82.4%。plain 与 dm-verity 冷启动
-中位数分别为 16.058 秒和 16.902 秒，增量 5.256%。两组结论都只适用于归档
-metadata 所定义的 1 vCPU、8 GiB、KVM 小规模同步读矩阵。
+最终回答必须分平台。Linux host 使用真实 raw block device 与 dm-crypt mapper，完成
+13+13 个五轮单元格；4 KiB 顺序读中位数为 16.296 和 15.010 MiB/s。Asterinas KVM
+只展示真实保护 mapper，dm-crypt 与 dm-verity 的 4 KiB 顺序读中位数为 8.908 和
+7.505 MiB/s。两套环境不同，不计算跨平台倍率。
 
-旧 Linux 对照的 8 MiB 数字属于历史证据，不再作为 README 结论。新的主表已经按
-release-LTO、相同 264 MiB 容器、前 256 MiB 数据区和 10 秒 runtime 的统一合同归档：
-raw、dm-crypt、dm-verity 中位吞吐分别为 4.249、4.059、3.815 MiB/s。target 相对
-各自配对 raw 的中位数为 95.6% 和 87.3%，即本轮测得 dm-crypt 吞吐损失 4.4%、
-dm-verity 为 12.7%。同一合同下 Linux dm-crypt 保留率为 92.2%。95.6% 高于 92.2%
-只表示相对各自 raw 基线的增量损耗较小；绝对吞吐仍应单独报告为 Linux 的 85.5%。
+plain、dm-crypt、dm-verity 启动中位数分别为 51.331303、51.629820、52.743415 秒，
+相对 plain 开销为 0.582% 和 2.751%。完整 46 个 PASS 单元格和原始路径以最终中文
+性能报告为准。
 
 ### 还有哪些限制？
 

@@ -1,0 +1,6 @@
+pid=1 image=/target/filebench-formal/raw.img loop=/dev/loop4
+pid=1 image=/target/filebench-formal/raw.img loop=/dev/loop4
+pid=1 image=/target/filebench-formal/raw.img loop=/dev/loop4
+pid=1 image=/target/filebench-formal/crypt.img loop=/dev/loop4
+pid=1 image=/target/filebench-formal/raw.img loop=/dev/loop4
+pid=1 image=/target/filebench-formal/crypt.img loop=/dev/loop4

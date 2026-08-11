@@ -1,0 +1,6 @@
+label,operation,block_size,queue_depth,runs,metric,mean,median,stddev
+dm-crypt,randread,4k,1,5,bw_mib_s,8.509305000305176,8.513601303100586,0.097816192797037
+dm-crypt,randread,4k,1,5,iops,2178.3821618,2179.482052,25.040958229867485
+dm-crypt,randread,4k,1,5,p50_us,433.7664,432.128,4.6701585412060735
+dm-crypt,randread,4k,1,5,p95_us,643.072,643.072,5.7926187514802026
+dm-crypt,randread,4k,1,5,p99_us,823.296,815.104,11.585237502960364
