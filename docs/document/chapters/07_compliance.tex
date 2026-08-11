@@ -15,15 +15,16 @@
 
 \begin{table}[H]
     \centering
+    \small
     \caption{引用的开源代码与依赖库}
     \label{tab:open_source_refs}
-    \begin{tabular}{p{0.20\textwidth}p{0.35\textwidth}p{0.35\textwidth}}
+    \begin{tabular}{p{0.18\textwidth}p{0.40\textwidth}p{0.36\textwidth}}
         \toprule
         \textbf{名称} & \textbf{来源/URL} & \textbf{使用目的} \\
         \midrule
-        星绽操作系统（Asterinas） & \texttt{https://github.com/asterinas/asterinas} & 基础操作系统框架和 OSTD 接口 \\
-        \texttt{aes} crate & \texttt{https://crates.io/crates/aes} & AES 加密算法实现（RustCrypto 项目） \\
-        \texttt{xts-mode} crate & \texttt{https://crates.io/crates/xts-mode} & XTS 加密模式实现（RustCrypto 项目） \\
+        星绽操作系统（Asterinas） & \texttt{https://github.com/}\newline\texttt{asterinas/asterinas} & 基础操作系统框架和 OSTD 接口 \\
+        \texttt{aes} crate & \texttt{https://crates.io/}\newline\texttt{crates/aes} & AES 加密算法实现（RustCrypto 项目） \\
+        \texttt{xts-mode} crate & \texttt{https://crates.io/}\newline\texttt{crates/xts-mode} & XTS 加密模式实现（RustCrypto 项目） \\
         \bottomrule
     \end{tabular}
 \end{table}
@@ -80,9 +81,9 @@
         \textbf{工具名称} & \textbf{相关大模型} & \textbf{具体使用场景与辅助内容} \\
         \midrule
         OpenAI Codex & GPT-5 & 1. 阅读和梳理星绽框架、\texttt{dm-crypt}、\texttt{dm-verity} 相关底层代码；\\
-         & & 2. 辅助分析 BIO 数据路径与编译错误；\\
+         & & 2. 辅助分析 BIO 数据路径、启动挂起与构建问题；\\
          & & 3. 生成或修改部分 Rust、Shell 测试和构建脚本；\\
-         & & 4. 协助整理参赛文档表述。 \\
+         & & 4. 协助整理参赛文档表述并进行完成度自查。 \\
         \midrule
         通义千问（Qwen） & Qwen-Max & 技术文档的深度润色，确保中英文专业术语的准确性与一致性。 \\
         \midrule
@@ -111,7 +112,7 @@
     \begin{subfigure}[b]{0.45\textwidth}
         \centering
         \includegraphics[width=\textwidth]{figures/codex_ai_2.png}
-        \caption{BIO 路径辅助分析}
+        \caption{\texttt{sector\_size} 兼容性与算术溢出风险分析}
         \label{fig:codex_2}
     \end{subfigure}
     \caption{OpenAI Codex 交互记录（1/4）}
@@ -123,14 +124,14 @@
     \begin{subfigure}[b]{0.45\textwidth}
         \centering
         \includegraphics[width=\textwidth]{figures/codex_ai_3.png}
-        \caption{Rust 测试脚本生成}
+        \caption{兼容测试矩阵与验证脚本设计}
         \label{fig:codex_3}
     \end{subfigure}
     \hfill
     \begin{subfigure}[b]{0.45\textwidth}
         \centering
         \includegraphics[width=\textwidth]{figures/codex_ai_4.png}
-        \caption{Shell 构建脚本辅助}
+        \caption{AES-XTS 实现与兼容测试验收}
         \label{fig:codex_4}
     \end{subfigure}
     \caption{OpenAI Codex 交互记录（2/4）}
@@ -142,14 +143,14 @@
     \begin{subfigure}[b]{0.45\textwidth}
         \centering
         \includegraphics[width=\textwidth]{figures/codex_ai_5.png}
-        \caption{QEMU 日志解读}
+        \caption{任务完成度自查与如实披露}
         \label{fig:codex_5}
     \end{subfigure}
     \hfill
     \begin{subfigure}[b]{0.45\textwidth}
         \centering
         \includegraphics[width=\textwidth]{figures/codex_ai_6.png}
-        \caption{编译错误调试}
+        \caption{构建脚本调试与 QEMU 串口日志分析}
         \label{fig:codex_6}
     \end{subfigure}
     \caption{OpenAI Codex 交互记录（3/4）}
@@ -161,14 +162,14 @@
     \begin{subfigure}[b]{0.45\textwidth}
         \centering
         \includegraphics[width=\textwidth]{figures/codex_ai_7.png}
-        \caption{内核 panic 追踪}
+        \caption{GDB 硬件断点追踪内核异常}
         \label{fig:codex_7}
     \end{subfigure}
     \hfill
     \begin{subfigure}[b]{0.45\textwidth}
         \centering
         \includegraphics[width=\textwidth]{figures/codex_ai_8.png}
-        \caption{文档表述整理}
+        \caption{BIO/块设备集成差距分析}
         \label{fig:codex_8}
     \end{subfigure}
     \caption{OpenAI Codex 交互记录（4/4）}
@@ -219,25 +220,45 @@
 
 \subsection{提交概览}
 
-以下为项目主要 Git 提交记录（基于主仓库历史）：
+以下为项目主要 Git 提交记录（与 GitLab 仓库历史逐条对应）：
 
 \begin{table}[H]
     \centering
+    \small
     \caption{Git 提交记录概览}
     \label{tab:git_commits}
-    \begin{tabular}{p{0.08\textwidth}p{0.12\textwidth}p{0.18\textwidth}p{0.32\textwidth}p{0.20\textwidth}}
+    \begin{tabular}{p{0.05\textwidth}p{0.09\textwidth}p{0.13\textwidth}p{0.51\textwidth}p{0.12\textwidth}}
         \toprule
-        \textbf{序号} & \textbf{提交时间} & \textbf{Commit Hash} & \textbf{提交说明} & \textbf{变更统计} \\
+        \textbf{序号} & \textbf{日期} & \textbf{Commit Hash} & \textbf{提交说明} & \textbf{作者} \\
         \midrule
-        1 & 06-23 14:15 & \texttt{6bb9bc9} & 初始提交，仅源码 & 44 文件，+2500 行 \\
-        2 & 06-23 22:36 & \texttt{40a5217} & Linux 兼容 Device Mapper 实现 & 18 文件，+1923/-61 行 \\
-        3 & 06-23 22:58 & \texttt{c72462b} & 验证 Asterinas dm BIO 路径 & 6 文件，+280/-12 行 \\
-        4 & 06-24 01:33 & \texttt{2f8a671} & 接入受保护根文件系统 & 12 文件，+186/-25 行 \\
-        5 & 06-24 01:42 & \texttt{a0dbb0f} & 补充 AI 工具使用说明 & 1 文件，+4 行 \\
-        6 & 06-24 01:48 & \texttt{84970aa} & 文档中文化 & 6 文件，+118/-113 行 \\
-        7 & 06-29 21:06 & \texttt{f587893} & 添加 LaTeX 技术文档、PDF 与答辩 PPT & 多文件 \\
-        8 & 06-30 17:08 & \texttt{c22b8b4} & 添加演示视频入口 & 1 文件 \\
-        9 & 07-14 18:44 & \texttt{5f345a1} & 完成安全存储性能对照与验收证据 & 多文件 \\
+        1 & 06-23 & \texttt{6bb9bc92} & 初始提交，仅源码，屏蔽编译产物 & 潘利源 \\
+        2 & 06-23 & \texttt{40a52179} & feat: add Linux-compatible device mapper implementation & 潘利源 \\
+        3 & 06-23 & \texttt{c72462b2} & fix: validate Asterinas dm BIO paths & 潘利源 \\
+        4 & 06-23 & \texttt{2f8a6711} & 接入受保护根文件系统并完善项目文档 & 潘利源 \\
+        5 & 06-23 & \texttt{a0dbb0f5} & 补充国产 AI 工具使用说明 & 潘利源 \\
+        6 & 06-23 & \texttt{84970aae} & 修改文档 & 潘利源 \\
+        7 & 06-29 & \texttt{f5878935} & 添加 LaTeX 项目文档、PDF 与答辩 PPT & 张乐椼 \\
+        8 & 06-29 & \texttt{dabfee4d} & 将答辩 PPT 放到项目根目录并更新 README 链接 & 张乐椼 \\
+        9 & 06-29 & \texttt{c22b8b47} & 在 README 开头添加演示视频百度网盘链接 & 张乐椼 \\
+        10 & 07-14 & \texttt{5f345a18} & 完成安全存储性能对照与国赛验收证据 & 潘利源 \\
+        11 & 07-25 & \texttt{e07ad006} & 修正评审材料并固化 KVM 基准证据 & 潘利源 \\
+        12 & 07-28 & \texttt{c1f9c472} & 优化 dm 热路径并补齐评审基准流程 & 潘利源 \\
+        13 & 08-03 & \texttt{40d8abba} & 增强 dmctl 性能测试框架，支持 IO 拆分解与可配置规模 & 陈韵 \\
+        14 & 08-03 & \texttt{ca5afe46} & 完善安全存储性能验证与交付材料 & 潘利源 \\
+        15 & 08-06 & \texttt{5717d925} & 更新 dm 完成队列性能指标与证据 & 潘利源 \\
+        16 & 08-09 & \texttt{21aa566d} & 更新性能测试数据与优化量化说明 & 陈韵 \\
+        17 & 08-09 & \texttt{6926b356} & change & 陈韵 \\
+        18 & 08-09 & \texttt{7431e5de} & 统一正式性能口径并补充优化证据 & 潘利源 \\
+        19 & 08-09 & \texttt{0e7f4c77} & 修正运行时能力声明并补充 KVM 回归验证 & 潘利源 \\
+        20 & 08-09 & \texttt{09f62e59} & 补充完整测试进度 & 潘利源 \\
+        21 & 08-09 & \texttt{1ac6325c} & 整理性能测试合同、FIO/Filebench/SQLite/Boot 脚本与证据目录 & 张乐椼 \\
+        22 & 08-10 & \texttt{fc548a9e} & 整合最终评测代码与测试材料 & 潘利源 \\
+        23 & 08-10 & \texttt{7350e470} & 修改完善文档 & 陈韵 \\
+        24 & 08-10 & \texttt{dde97a2f} & 更新完善技术文档内容 & 陈韵 \\
+        25 & 08-11 & \texttt{6385e70b} & feat: add kernel Combined crypt$\to$verity stack path & 潘利源 \\
+        26 & 08-11 & \texttt{fda85aa4} & 整合最终评测代码与测试材料 & 潘利源 \\
+        27 & 08-11 & \texttt{84fe076e} & 合并 GitLab 最新代码并同步最终评测材料 & 潘利源 \\
+        28 & 08-11 & \texttt{8b2018e7} & 完善更新图表 & 陈韵 \\
         \bottomrule
     \end{tabular}
 \end{table}
@@ -254,7 +275,33 @@
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.9\textwidth]{figures/git_commit_history.png}
+    \begin{subfigure}[b]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{figures/git_commit_history_1.png}
+        \caption{初始提交与文档阶段（06-23 / 06-29）}
+        \label{fig:git_history_1}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{figures/git_commit_history_2.png}
+        \caption{性能对照与验收阶段（07-14 至 08-06）}
+        \label{fig:git_history_2}
+    \end{subfigure}
+
+    \begin{subfigure}[b]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{figures/git_commit_history_3.png}
+        \caption{测试整合与文档完善阶段（08-09 / 08-10）}
+        \label{fig:git_history_3}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{figures/git_commit_history_4.png}
+        \caption{最终评测整合阶段（08-11）}
+        \label{fig:git_history_4}
+    \end{subfigure}
     \caption{GitLab 仓库提交历史截图}
     \label{fig:git_history}
 \end{figure}
@@ -262,10 +309,12 @@
 \subsection{关键迭代节点说明}
 
 \begin{enumerate}
-    \item \textbf{基础架构与核心逻辑}（Commit \texttt{40a5217}）：完成了 \texttt{BlockDevice} trait 的抽象，实现了纯 Rust 的 AES-256-XTS 加密与 SHA-256 默克尔树校验。
-    \item \textbf{内核集成与 BIO 路径打通}（Commit \texttt{c72462b}、\texttt{2f8a671}）：将用户态逻辑移植至星绽内核，成功实现了基于 \texttt{pivot\_root} 的受保护根文件系统切换。
-    \item \textbf{性能优化与验收证据}（Commit \texttt{5f345a1}）：完成安全存储性能对照，包括正式 256 MiB 五轮基准、Linux guest 同条件对照、启动时间测量和哈希缓存 A/B 验证。
-    \item \textbf{文档与合规性完善}（Commit \texttt{84970aa}、\texttt{f587893}）：全面梳理技术文档，完成中文化翻译，补充 AI 工具使用声明，并添加 LaTeX 技术文档和答辩 PPT。
+    \item \textbf{基础架构与核心逻辑}（Commit \texttt{40a52179}）：完成了 \texttt{BlockDevice} trait 的抽象，实现了纯 Rust 的 AES-256-XTS 加密与 SHA-256 默克尔树校验。
+    \item \textbf{内核集成与 BIO 路径打通}（Commit \texttt{c72462b2}、\texttt{2f8a6711}）：将用户态逻辑移植至星绽内核，成功实现了基于 \texttt{pivot\_root} 的受保护根文件系统切换。
+    \item \textbf{性能对照与验收证据}（Commit \texttt{5f345a18}）：完成安全存储性能对照，包括正式 256 MiB 五轮基准、Linux guest 同条件对照、启动时间测量和哈希缓存 A/B 验证。
+    \item \textbf{性能优化与基准固化}（Commits \texttt{e07ad006}、\texttt{c1f9c472}、\texttt{40d8abba}、\texttt{ca5afe46}、\texttt{5717d925}）：固化 KVM 基准证据，优化 dm 热路径，增强 \texttt{dmctl} 性能测试框架，更新完成队列性能指标与证据。
+    \item \textbf{最终评测整合}（Commits \texttt{1ac6325c} 至 \texttt{8b2018e7}，08-09 至 08-11）：整理性能测试合同与 FIO/Filebench/SQLite/Boot 脚本及证据目录，统一正式性能口径，修正运行时能力声明并补充 KVM 回归验证，整合最终评测代码与测试材料并合并 GitLab 最新代码。
+    \item \textbf{文档与合规性完善}（Commits \texttt{84970aae}、\texttt{f5878935}、\texttt{7350e470}、\texttt{dde97a2f}）：全面梳理技术文档，完成中文化翻译，补充 AI 工具使用声明，并添加 LaTeX 技术文档和答辩 PPT。
 \end{enumerate}
 
 \section{小结}
