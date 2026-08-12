@@ -20,7 +20,7 @@ dm-crypt 子系统提供透明的块级加密，确保写入物理存储设备�
 \begin{enumerate}
     \item 应用程序或文件系统向 \texttt{DmCryptDevice} 发起 \texttt{write\_block} 请求。
     \item \texttt{DmCryptDevice} 根据逻辑块 ID 和 \texttt{iv\_offset} 计算对应的物理扇区号。
-    \item 调用 \texttt{Aes256XtsCipher} 对数据进行加密，使用扇区号作为 plain64 IV。
+    \item 调用 \texttt{Aes256\allowbreak XtsCipher} 对数据进行加密，使用扇区号作为 plain64 IV。
     \item 将密文写入底层的 \texttt{BlockDevice}（如 \texttt{VirtioBlkAdapter} 或 \texttt{FileBlockDevice}）。
     \item 最终数据以密文形式持久化到物理存储介质。
 \end{enumerate}
@@ -58,7 +58,7 @@ dm-crypt 子系统提供透明的块级加密，确保写入物理存储设备�
 
 支持的可选参数包括 \texttt{allow\_discards}、\texttt{same\_cpu\_crypt}、\texttt{submit\_from\_crypt\_cpus}、\texttt{no\_read\_workqueue}、\texttt{no\_write\_workqueue}、\texttt{iv\_large\_sectors}、\texttt{sector\_size:512}，实现与 Linux 行为一致。解析器会验证选项计数（第一个选项为选项个数）并识别已声明的选项。
 
-\subsection{Aes256XtsCipher——核心密码引擎}
+\subsection{Aes256\allowbreak XtsCipher——核心密码引擎}
 
 这是核心密码引擎，使用两个 AES-256 实例实现 XTS 模式：一个用于数据块，另一个用于微调（Tweak/IV）。
 
@@ -92,7 +92,7 @@ dm-crypt 子系统提供透明的块级加密，确保写入物理存储设备�
 
 \section{实现细节：扇区转换与 I/O 路径}
 
-\texttt{transform} 函数是基于块的 \texttt{BlockDevice} 接口与基于扇区的 \texttt{Aes256XtsCipher} 之间的桥梁。
+\texttt{transform} 函数是基于块的 \texttt{BlockDevice} 接口与基于扇区的 \texttt{Aes256\allowbreak XtsCipher} 之间的桥梁。
 
 转换逻辑的核心要点：
 \begin{itemize}
@@ -105,7 +105,7 @@ dm-crypt 子系统提供透明的块级加密，确保写入物理存储设备�
 I/O 路径的优化措施包括：
 \begin{itemize}
     \item 使用有界临时缓冲池（\texttt{scratch\_pool}）复用加解密缓冲区，避免热路径中的频繁分配。池的容量由启动参数 \texttt{dm\_crypt.scratch\_pool} 控制（默认 32），设为 0 可关闭池便于 A/B 性能对比。
-    \item 写路径将明文从调用方的 BIO 段复制到临时缓冲区，加密后再通过 \texttt{BioSegment::alloc\_bytes} 分配下层 I/O 段写入，确保不修改原始调用方数据。
+    \item 写路径将明文从调用方的 BIO 段复制到临时缓冲区，加密后再通过 \texttt{BioSegment::\allowbreak alloc\_bytes} 分配下层 I/O 段写入，确保不修改原始调用方数据。
     \item 读路径从下层读取密文到临时缓冲区，解密后再写回调用方的 DMA 段。
 \end{itemize}
 
@@ -168,4 +168,4 @@ dm_crypt.key=<128-char-hex-key> dm_crypt.scratch_pool=32
 
 \section{小结}
 
-本章详细阐述了 dm-crypt 的设计与实现，包括 \texttt{DmCryptTable} 配置解析、\texttt{Aes256XtsCipher} 密码引擎、扇区算术转换、有界临时缓冲池优化、Linux 兼容性验证以及根文件系统加密方案。通过严格遵循 \texttt{aes-xts-plain64} 标准，并利用交叉验证确保与 Linux 内核的逐字节兼容，dm-crypt 为星绽操作系统提供了可靠的透明加密能力。在下一章中，我们将讨论性能优化策略，包括认证后哈希缓存、完成 BIO 数据复用、有界临时缓冲池和硬件加速等技术手段。
+本章详细阐述了 dm-crypt 的设计与实现，包括 \texttt{DmCryptTable} 配置解析、\texttt{Aes256\allowbreak XtsCipher} 密码引擎、扇区算术转换、有界临时缓冲池优化、Linux 兼容性验证以及根文件系统加密方案。通过严格遵循 \texttt{aes-xts-plain64} 标准，并利用交叉验证确保与 Linux 内核的逐字节兼容，dm-crypt 为星绽操作系统提供了可靠的透明加密能力。在下一章中，我们将讨论性能优化策略，包括认证后哈希缓存、完成 BIO 数据复用、有界临时缓冲池和硬件加速等技术手段。

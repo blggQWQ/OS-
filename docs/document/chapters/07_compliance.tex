@@ -34,8 +34,8 @@
 本项目严格遵守以下开源协议要求：
 
 \begin{itemize}
-    \item \textbf{项目源代码}（位于 \texttt{crates/}、\texttt{asterinas/kernel/comps/dm/} 等）：遵循 MIT 开源协议（见仓库根目录 \texttt{LICENSE} 文件）。
-    \item \textbf{技术文档与答辩材料}（位于 \texttt{docs/document/}）：遵循 CC-BY-SA 4.0 开源协议。
+    \item \textbf{项目源代码}（位于 \texttt{crates/}、\texttt{asterinas/\allowbreak kernel/\allowbreak comps/\allowbreak dm/} 等）：遵循 MIT 开源协议（见仓库根目录 \texttt{LICENSE} 文件）。
+    \item \textbf{技术文档与答辩材料}（位于 \texttt{docs/\allowbreak document/}）：遵循 CC-BY-SA 4.0 开源协议。
     \item \textbf{第三方依赖}：所有引用的 Rust crate（\texttt{aes}、\texttt{xts-mode} 等）均遵循其各自的开源协议（主要为 MIT 或 Apache-2.0），与本项目的 MIT 协议兼容。
     \item \textbf{星绽操作系统}：作为基础框架，星绽本身采用 MPL-2.0 协议，本项目与之兼容（MIT 与 MPL-2.0 均为宽松许可证，可组合使用）。
 \end{itemize}
@@ -48,7 +48,7 @@
 
 \begin{itemize}
     \item \textbf{Linux 内核 Device Mapper 框架}：\texttt{dm-crypt} 和 \texttt{dm-verity} 的功能逻辑、表格式规范（\texttt{DmCryptTable}）和 IV 生成语义（plain64）参考了 Linux 内核的成熟设计。
-    \item \textbf{星绽操作系统 Framekernel 架构}：基于星绽的 OSTD 框架和 \texttt{BlockDevice} 抽象进行适配和集成，具体补丁序列位于 \texttt{asterinas\_port/patches/}。
+    \item \textbf{星绽操作系统 Framekernel 架构}：基于星绽的 OSTD 框架和 \texttt{BlockDevice} 抽象进行适配和集成，具体补丁序列位于 \texttt{asterinas\_\allowbreak port/\allowbreak patches/}。
     \item \textbf{Rust 生态的密码学库}：借鉴了 \texttt{aes} 和 \texttt{xts-mode} crate 的接口设计和安全实践，但本项目的 AES-256-XTS 引擎为独立实现，不直接复制其算法代码。
 \end{itemize}
 
@@ -58,12 +58,12 @@
 
 \begin{itemize}
     \item \textbf{统一的 \texttt{BlockDevice} Trait 抽象}：设计了与平台无关的块设备抽象层，使得同一套核心代码能够同时运行于用户态（\texttt{dmctl}）和星绽内核态（\texttt{aster-dm}）。
-    \item \textbf{纯 Rust 实现的 SHA-256}：独立实现了 FIPS 180-4 标准的 SHA-256 哈希算法（位于 \texttt{crates/dm/src/sha256.rs} 和内核 \texttt{asterinas/kernel/comps/dm/src/sha256.rs}），无外部依赖。
-    \item \textbf{星绽内核完整集成}：通过可审计 Git 补丁序列（\texttt{asterinas\_port/patches/0001--0006}）将 \texttt{dm-crypt} 和 \texttt{dm-verity} 完整集成到星绽内核中，包括启动参数解析、BIO 路径适配、根文件系统切换。
-    \item \textbf{内核启动自检机制}：实现了基于 ext2 超级块魔数（\texttt{0x53EF}）的启动时自检（\texttt{self\_test\_ext2\_magic}），验证加解密路径正确性（补丁 0002）。
+    \item \textbf{纯 Rust 实现的 SHA-256}：独立实现了 FIPS 180-4 标准的 SHA-256 哈希算法（位于 \texttt{crates/\allowbreak dm/\allowbreak src/\allowbreak sha256.rs} 和内核 \texttt{asterinas/\allowbreak kernel/\allowbreak comps/\allowbreak dm/\allowbreak src/\allowbreak sha256.rs}），无外部依赖。
+    \item \textbf{星绽内核完整集成}：通过可审计 Git 补丁序列（\texttt{asterinas\_\allowbreak port/\allowbreak patches/\allowbreak 0001--0006}）将 \texttt{dm-crypt} 和 \texttt{dm-verity} 完整集成到星绽内核中，包括启动参数解析、BIO 路径适配、根文件系统切换。
+    \item \textbf{内核启动自检机制}：实现了基于 ext2 超级块魔数（\texttt{0x53EF}）的启动时自检（\texttt{self\_\allowbreak test\_\allowbreak ext2\_\allowbreak magic}），验证加解密路径正确性（补丁 0002）。
     \item \textbf{五阶段渐进式保护路径}：设计并实现了从 Plain 到 Combined（dm-crypt + dm-verity 叠加）的渐进式安全保护路径。
     \item \textbf{性能设计}：实现了认证后哈希块缓存、完成 BIO 数据复用、有界临时缓冲池（scratch pool）和 AES-NI 硬件加速；正式数字仅引用最终真实性审计后的矩阵。
-    \item \textbf{Linux 兼容控制面}：实现了 \texttt{/dev/mapper/control} 的 Linux \texttt{dm\_ioctl} 兼容接口，支持 \texttt{cryptsetup} 动态创建/删除映射器。
+    \item \textbf{Linux 兼容控制面}：实现了 \texttt{/dev/\allowbreak mapper/\allowbreak control} 的 Linux \texttt{dm\_\allowbreak ioctl} 兼容接口，支持 \texttt{cryptsetup} 动态创建/删除映射器。
 \end{itemize}
 
 \section{AI 工具使用声明}
@@ -255,7 +255,7 @@
         22 & 08-10 & \texttt{fc548a9e} & 整合最终评测代码与测试材料 & 潘利源 \\
         23 & 08-10 & \texttt{7350e470} & 修改完善文档 & 陈韵 \\
         24 & 08-10 & \texttt{dde97a2f} & 更新完善技术文档内容 & 陈韵 \\
-        25 & 08-11 & \texttt{6385e70b} & feat: add kernel Combined crypt$\to$verity stack path & 潘利源 \\
+        25 & 08-11 & \texttt{6385e70b} & feat: add kernel Combined crypt\allowbreak $\to$\allowbreak verity stack path & 潘利源 \\
         26 & 08-11 & \texttt{fda85aa4} & 整合最终评测代码与测试材料 & 潘利源 \\
         27 & 08-11 & \texttt{84fe076e} & 合并 GitLab 最新代码并同步最终评测材料 & 潘利源 \\
         28 & 08-11 & \texttt{8b2018e7} & 完善更新图表 & 陈韵 \\
@@ -263,7 +263,7 @@
     \end{tabular}
 \end{table}
 
-此外，星绽内核集成补丁（\texttt{asterinas\_port/patches/}）包含更细粒度的演进历史：
+此外，星绽内核集成补丁（\texttt{asterinas\_\allowbreak port/\allowbreak patches/}）包含更细粒度的演进历史：
 \begin{itemize}
     \item 0001：组件集成与目标定义
     \item 0002：BIO 路径验证与自检（EXT2 魔数）
@@ -312,9 +312,9 @@
     \item \textbf{基础架构与核心逻辑}（Commit \texttt{40a52179}）：完成了 \texttt{BlockDevice} trait 的抽象，实现了纯 Rust 的 AES-256-XTS 加密与 SHA-256 默克尔树校验。
     \item \textbf{内核集成与 BIO 路径打通}（Commit \texttt{c72462b2}、\texttt{2f8a6711}）：将用户态逻辑移植至星绽内核，成功实现了基于 \texttt{pivot\_root} 的受保护根文件系统切换。
     \item \textbf{性能对照与验收证据}（Commit \texttt{5f345a18}）：完成安全存储性能对照，包括正式 256 MiB 五轮基准、Linux guest 同条件对照、启动时间测量和哈希缓存 A/B 验证。
-    \item \textbf{性能优化与基准固化}（Commits \texttt{e07ad006}、\texttt{c1f9c472}、\texttt{40d8abba}、\texttt{ca5afe46}、\texttt{5717d925}）：固化 KVM 基准证据，优化 dm 热路径，增强 \texttt{dmctl} 性能测试框架，更新完成队列性能指标与证据。
-    \item \textbf{最终评测整合}（Commits \texttt{1ac6325c} 至 \texttt{8b2018e7}，08-09 至 08-11）：整理性能测试合同与 FIO/Filebench/SQLite/Boot 脚本及证据目录，统一正式性能口径，修正运行时能力声明并补充 KVM 回归验证，整合最终评测代码与测试材料并合并 GitLab 最新代码。
-    \item \textbf{文档与合规性完善}（Commits \texttt{84970aae}、\texttt{f5878935}、\texttt{7350e470}、\texttt{dde97a2f}）：全面梳理技术文档，完成中文化翻译，补充 AI 工具使用声明，并添加 LaTeX 技术文档和答辩 PPT。
+    \item \textbf{性能优化与基准固化}（Commits \texttt{e07ad006}、\allowbreak \texttt{c1f9c472}、\allowbreak \texttt{40d8abba}、\allowbreak \texttt{ca5afe46}、\allowbreak \texttt{5717d925}）：固化 KVM 基准证据，优化 dm 热路径，增强 \texttt{dmctl} 性能测试框架，更新完成队列性能指标与证据。
+    \item \textbf{最终评测整合}（Commits \texttt{1ac6325c} 至 \texttt{8b2018e7}，\allowbreak 08-09 至 08-11）：整理性能测试合同与 FIO/Filebench/SQLite/Boot 脚本及证据目录，统一正式性能口径，修正运行时能力声明并补充 KVM 回归验证，整合最终评测代码与测试材料并合并 GitLab 最新代码。
+    \item \textbf{文档与合规性完善}（Commits \texttt{84970aae}、\allowbreak \texttt{f5878935}、\allowbreak \texttt{7350e470}、\allowbreak \texttt{dde97a2f}）：全面梳理技术文档，完成中文化翻译，补充 AI 工具使用声明，并添加 LaTeX 技术文档和答辩 PPT。
 \end{enumerate}
 
 \section{小结}

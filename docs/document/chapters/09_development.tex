@@ -7,7 +7,7 @@
 
 \begin{enumerate}
     \item 在用户态用 \texttt{BlockDevice} 抽象验证 AES-XTS、Merkle tree 与错误边界；
-    \item 通过 \texttt{VirtioBlkAdapter} 接入 Asterinas BIO，不绕过真实下层设备；
+    \item 通过 \texttt{Virtio\allowbreak Blk\allowbreak Adapter} 接入 Asterinas BIO，不绕过真实下层设备；
     \item 分别完成 crypt、verity 与组合栈，再接入受保护 rootfs；
     \item 使用 Linux 兼容性、KVM 正反例和物理损坏测试作为合入门禁；
     \item 性能数据必须通过 target、参数、parser 与完成语义审计。
@@ -44,16 +44,16 @@ root hash 由启动参数提供，镜像内数据和 hash tree 均视为不可�
         \midrule
         0001 & Device Mapper 组件骨架、crypt/verity target 与 VirtIO 适配 \\
         0002 & 启动参数、mapper 注册和 ext2 魔数自检 \\
-        0003 & initramfs 挂载与 \texttt{pivot\_root} \\
+        0003 & initramfs 挂载与 \texttt{pivot\_\allowbreak root} \\
         0004 & cryptsetup 控制面与 mapper 生命周期 \\
         0005 & 正式 benchmark 参数和内核统计接口 \\
         0006 & 性能阶段计数与可复核元数据 \\
-        0007 & \texttt{dm-crypt → dm-verity} Combined 组合栈 \\
+        0007 & \texttt{dm-crypt} $\to$ \texttt{dm-verity} Combined 组合栈 \\
         \bottomrule
     \end{tabular}
 \end{table}
 
-当前仓库 gitlink 已包含正式集成版本；\texttt{asterinas\_port/patches} 用于说明移植
+当前仓库 gitlink 已包含正式集成版本；\texttt{asterinas\_\allowbreak port/\allowbreak patches} 用于说明移植
 边界与复核历史，不要求评委在正常 checkout 后重复应用。
 
 \section{渐进式保护路径}
@@ -66,23 +66,25 @@ root hash 由启动参数提供，镜像内数据和 hash tree 均视为不可�
         \textbf{阶段} & \textbf{名称} & \textbf{数据流} \\
         \midrule
         1 & Plain & virtio-blk $\to$ ext2 \\
-        2 & Passthrough & virtio-blk $\to$ PassthroughDevice $\to$ ext2 \\
-        3 & dm-verity & virtio-blk $\to$ DmVerityDevice $\to$ ext2 \\
-        4 & dm-crypt & virtio-blk $\to$ DmCryptDevice $\to$ ext2 \\
-        5 & Combined & virtio-blk $\to$ DmCryptDevice $\to$ DmVerityDevice $\to$ ext2 \\
+        2 & Passthrough & virtio-blk $\to$ Passthrough\allowbreak Device $\to$ ext2 \\
+        3 & dm-verity & virtio-blk $\to$ DmVerity\allowbreak Device $\to$ ext2 \\
+        4 & dm-crypt & virtio-blk $\to$ DmCrypt\allowbreak Device $\to$ ext2 \\
+        5 & Combined & virtio-blk $\to$ DmCrypt\allowbreak Device $\to$ DmVerity\allowbreak Device $\to$ ext2 \\
         \bottomrule
     \end{tabular}
 \end{table}
 
-Combined 的镜像构建与启动入口为 \texttt{scripts/build\_stack\_rootfs.sh} 和
-\texttt{scripts/run\_dm\_stack.sh}。用户态 \texttt{dmctl demo-stack} 使用相同装饰器顺序。
+\begin{sloppypar}
+Combined 的镜像构建与启动入口为 \texttt{scripts/\allowbreak build\_\allowbreak stack\_\allowbreak rootfs.sh} 和
+\texttt{scripts/\allowbreak run\_\allowbreak dm\_\allowbreak stack.sh}。用户态 \texttt{dmctl demo-stack} 使用相同装饰器顺序。
+\end{sloppypar}
 
 \section{测试代码收口}
 
 最终版本只保留当前正式工作流使用的构建、正确性和性能 runner。一次性调试脚本、旧
 跨 guest 比较器、失败重试和早期小矩阵不进入最终目录。发布检查执行以下门禁：
 
-\begin{lstlisting}[basicstyle=\ttfamily\small]
+\begin{lstlisting}[basicstyle=\ttfamily\small, breaklines=true]
 cargo test --workspace
 python3 scripts/check_benchmark_package.py
 python3 scripts/verify_kvm_evidence.py

@@ -11,20 +11,20 @@ FIO 使用的诚实字段如下：
 
 \begin{itemize}
     \item \texttt{iodepth\_set} 仅表示 fio 配置值；
-    \item 无法观测真实并发时，\texttt{max\_in\_flight\_observed} 记为 \texttt{unavailable}；
+    \item 无法观测真实并发时，\texttt{max\_\allowbreak in\_\allowbreak flight\_\allowbreak observed} 记为 \texttt{unavailable}；
     \item dm-verity 是只读目标，写入工况记为 N/A；
     \item Filebench 使用工具原始 MB/s，FIO 使用 MiB/s，不混用单位。
 \end{itemize}
 
-正式合同见仓库 \texttt{docs} 目录，最终结果见 \texttt{docs/evidence} 下的
-\texttt{final-performance-20260811} 目录。
+正式合同见仓库 \texttt{docs} 目录，最终结果见 \texttt{docs/\allowbreak evidence} 下的
+\texttt{final-\allowbreak performance-\allowbreak 20260811} 目录。
 
 \section{真实性审计}
 
 早期 Asterinas dm-crypt FIO 在 mapper 初始化失败后继续执行，fio 将不存在的设备
-路径创建为普通文件，产生了数量级异常。该批结果被分类为 \texttt{HARNESS\_BUG}，
+路径创建为普通文件，产生了数量级异常。该批结果被分类为 \texttt{HARNESS\_\allowbreak BUG}，
 未进入正式矩阵，旧数字和失败重试也不作为生成器输入。重新执行的 dm-crypt 使用
-guest 内真实 \texttt{/dev/mapper/dm-crypt-bench}，dm-verity 则使用修正后的真实
+guest 内真实 \texttt{/dev/\allowbreak mapper/\allowbreak dm-\allowbreak crypt-\allowbreak bench}，dm-verity 则使用修正后的真实
 mapper runner。
 
 \section{FIO 结果}
@@ -99,4 +99,4 @@ R01--R03、C01--C05 和 V01--V07 正确性测试为前置门禁。
 
 最终报告只接受能够定位到真实 block device 或 mapper、参数完整且轮数满足合同的
 数据。完整 46 个 PASS 单元格、6 个 N/A、逐轮统计和证据路径见
-\texttt{PERFORMANCE\_MATRIX.csv} 与中文性能验证报告。
+\texttt{PERFORMANCE\_\allowbreak MATRIX.csv} 与中文性能验证报告。
