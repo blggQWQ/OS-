@@ -7,7 +7,9 @@
 | 队伍 | Go_Go_Go |
 | 学校 | 华南师范大学 |
 | 成员 | 张乐桁、陈韵、潘利源 |
-| 演示视频 | [百度网盘](https://pan.baidu.com/s/1yg7C7fdbD5cTkvr44VQ0aQ?pwd=oscp)，提取码 `oscp` |
+| 讲解视频 | [百度网盘：星绽守卫讲解视频](https://pan.baidu.com/s/1ol7pTZAZyqmYsqUcwRPung?pwd=oscp)，提取码 `oscp` |
+| 演示视频 | [作品演示视频.mp4](作品演示视频.mp4) |
+| 进展汇报 | [作品进展汇报幻灯片.pptx](作品进展汇报幻灯片.pptx) |
 | 技术文档 | [PDF](docs/document/main.pdf) · [LaTeX 源码](docs/document/) · [答辩 PPT](presentation_project.pptx) |
 
 ## 完成内容
