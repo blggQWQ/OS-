@@ -12,30 +12,26 @@
 | 进展汇报 | [作品进展汇报幻灯片.pptx](作品进展汇报幻灯片.pptx) |
 | 技术文档 | [PDF](docs/design_doc/design_doc.pdf) · [LaTeX 源码](docs/design_doc/) · [答辩 PPT](presentation_project.pptx) |
 
-机密计算 Guest 里内存可受 TEE 保护，rootfs 仍落在宿主机不可信介质上。Linux 用 Device Mapper 的 `dm-crypt` / `dm-verity` 补机密性与完整性；官方星绽没有等价能力。本项目用 Rust 补这一层，算法与 Linux `aes-xts-plain64`、SHA-256 Merkle 布局对齐。题目分析、开发计划、问题与分工见 [技术文档](docs/design_doc/design_doc.pdf)。
-
-| 指标 | 状态 | 证据 |
-|---|---|---|
-| dm-crypt（AES-256-XTS、cryptsetup 控制面） | 完成 | R01、C01–C05 PASS |
-| dm-verity（SHA-256 哈希树、启动参数、只读） | 完成 | R03 / V01–V07 PASS |
-| 根文件系统加密与受保护根 | 完成 | R02 PASS；`virtio-blk → dm-crypt → dm-verity → ext2` + `pivot_root` |
-| 正确性门禁 | 完成 | R01–R03、C01–C05、V01–V07 全部 PASS |
-| 256 MiB 正式合同，4 KiB 同步读相对配对 raw | 完成 | dm-crypt **95.6%**（4.059 / 4.249）、dm-verity **87.3%**（3.815 / 4.249） |
+机密计算 Guest 里内存可受 TEE 保护，rootfs 仍落在宿主机不可信介质上，面临明文可读、离线篡改和整盘替换。Linux 用 Device Mapper 的 `dm-crypt` / `dm-verity` 补机密性与完整性；官方星绽的块设备栈没有等价能力，BIO、设备注册和启动流程也与 Linux 不同，不能直接移植 C 实现。本项目用 Rust 补这一层，算法与 Linux `aes-xts-plain64`、SHA-256 Merkle 布局对齐，并同时落到用户态工具和 Asterinas 内核。题目分析、开发计划、问题与分工见 [技术文档](docs/design_doc/design_doc.pdf)。
 
 ## 完成内容
 
-- `dm-crypt`：AES-256-XTS、`aes-xts-plain64`、64 字节密钥、可配置 IV/数据偏移、真实 VirtIO BIO 读写。
-- `dm-verity`：SHA-256 磁盘哈希树、按需校验、只读映射、损坏拒绝和受保护 rootfs。
-- 组合栈：`virtio-blk → dm-crypt → dm-verity → ext2`。
-- 用户态工具：镜像初始化、加密读写、verity 格式化/校验、篡改、单层与组合演示。
-- Asterinas：mapper 注册、启动参数、initramfs、自检、挂载与 `pivot_root`。
-- 验证：kernel build、R01–R03、C01–C05、V01–V07、FIO、Filebench、SQLite 和启动耗时。
+- `dm-crypt`：AES-256-XTS、`aes-xts-plain64`、64 字节密钥、可配置 IV/数据偏移；用户态走文件镜像，内核态走真实 VirtIO BIO 读写。
+- `dm-verity`：SHA-256 磁盘哈希树、按需校验、只读映射、损坏拒绝；内核态支持启动参数注入 root hash 和受保护 rootfs。
+- 组合栈：用户态 `demo-stack` 与内核态 `virtio-blk → dm-crypt → dm-verity → ext2` + `pivot_root` 对应。
+- 用户态工具 `dmctl`：镜像初始化、加密读写、verity 格式化/校验、篡改、单层与组合演示。
+- Asterinas 内核 `aster-dm`：mapper 注册、启动参数、initramfs、自检、`/dev/mapper/control`、挂载与 `pivot_root`。
+- 验证：用户态 `cargo test` 与 Linux XTS 逐字节比对；内核态 kernel build、R01–R03、C01–C05、V01–V07、FIO、Filebench、SQLite 和启动耗时。
 
 详细需求对应见 [需求映射](docs/requirement_mapping.md)，正确性结论见 [KVM 正确性报告](KVM_CORRECTNESS_REPORT.md)，性能原始表见 [PERFORMANCE_MATRIX.csv](docs/evidence/final-performance-20260811/PERFORMANCE_MATRIX.csv)。
 
 ## 用户态与内核态
 
-同一套 `BlockDevice` 映射逻辑，两处落地：先在用户态把 AES-XTS、Merkle 和叠栈跑通，再打进 Asterinas 走真实 VirtIO BIO。不是两套互不相干的实现。用户态约 3000 行（`crates/dm`）+ `dmctl` 约 800 行；内核补丁 0001–0007 约 4000 行。
+同一套 `BlockDevice` 映射逻辑，两处落地。先在用户态把 AES-XTS、Merkle 树和叠栈跑通，再打进 Asterinas 走真实 VirtIO BIO。不是两套互不相干的实现：用户态是算法与布局的安全网，内核态才是赛题交付物。用户态约 3000 行（`crates/dm`）+ `dmctl` 约 800 行；内核补丁 0001–0007 约 4000 行。
+
+**用户态**（`crates/dm` + `dmctl`）不依赖内核。`FileBlockDevice` / `MemoryBlockDevice` 当后端，外面再包 `DmCryptDevice`、`DmVerityDevice` 或 `DmStackBuilder`。I/O 同步，用 `std::sync::Mutex`。用来证明：明文写入后底层是密文、篡改后 verity 拒绝、组合栈能力可堆叠，以及与 Linux `aes-xts-plain64` 逐字节一致。
+
+**内核态**（`aster-dm`，补丁在 `asterinas_port/patches/`）把同一套 mapper 接到 Asterinas BIO。`VirtioBlkAdapter` 包装 virtio-blk；`DmTarget::Crypt` / `Verity` 分发请求；启动参数注册 mapper，`dm-root` 从顶层设备挂 ext2 再 `pivot_root`。I/O 异步。同步用 `spin::Mutex`，AES-NI 期间还要 `disable_preempt`，避免 XMM 被中断打乱。控制面是 `/dev/mapper/control` 上的 `dm_ioctl`，给 cryptsetup 用。
 
 ```mermaid
 flowchart LR
@@ -58,16 +54,27 @@ flowchart LR
   Trait -.-> Virtio
 ```
 
-| | 用户态 | 内核态 |
+| 功能 | 用户态（dmctl） | 内核态（aster-dm） |
 |---|---|---|
 | 代码 | [`crates/dm/`](crates/dm/)、[`crates/dmctl/`](crates/dmctl/) | `asterinas/kernel/comps/dm/`，补丁 [`asterinas_port/patches/`](asterinas_port/patches/) 0001–0007 |
-| 后端 | `FileBlockDevice` / `MemoryBlockDevice` | `VirtioBlkAdapter`（virtio-blk BIO） |
-| 加密 | `DmCryptDevice` | `DmTarget::Crypt` |
-| 完整性 | `DmVerityDevice` | `DmTarget::Verity` |
-| 叠栈 | `DmStackBuilder` / `demo-stack` | `dm_stack=crypt,verity`（补丁 0007） |
-| 控制面 | `dmctl` 子命令、`crypt-table-fill` | `/dev/mapper/control`（`dm_ioctl`，供 cryptsetup） |
-| 同步 | `std::sync::Mutex` | `spin::Mutex` + `disable_preempt`（AES-NI XMM） |
+| 块设备后端 | `FileBlockDevice` / `MemoryBlockDevice` | `VirtioBlkAdapter`（virtio-blk BIO） |
+| 加密映射器 | `DmCryptDevice` | `DmTarget::Crypt` |
+| 完整性映射器 | `DmVerityDevice` | `DmTarget::Verity` |
+| 组合构建器 | `DmStackBuilder` / `demo-stack` | `dm_stack=crypt,verity`（补丁 0007） |
+| 控制接口 | 命令行直接调用、`crypt-table-fill` | `/dev/mapper/control`（`dm_ioctl`，供 cryptsetup） |
+| 同步 | `std::sync::Mutex` | `spin::Mutex` + `disable_preempt` |
 | 怎么验证 | 下面「用户态功能命令」 | 下面「Asterinas 构建与启动」和「正确性测试命令」 |
+
+读路径两边一样：crypt 先按扇区号做 plain64 IV 的 AES-XTS 解密，verity 再按 Merkle 树校验；对不上就 `IntegrityViolation`。写路径只有 crypt：先加密再交给下层。verity 只读。内核里 crypt 用有界 scratch 缓冲，verity 哈希块「先认证、后进缓存」，避免未校验数据进热路径。
+
+测试也按两态分层，不要拿用户态 `cargo test` 代替 KVM 门禁：
+
+1. 用户态单元测试：`cargo test --workspace`（crypt 往返、verity 篡改、叠栈、table 解析）
+2. Linux 兼容：`verify_linux_xts_compat.sh`，密文与内核 `aes-xts-plain64` 逐字节比对
+3. 内核态 KVM 正确性：R01–R03、C01–C05、V01–V07，真 VirtIO、rootfs 切换、物理损坏
+4. 内核态正式性能：下面 FIO / Filebench / SQLite / boot 表，不要和 `dmctl benchmark` 混读
+
+补丁用法与串口 PASS 行见 [asterinas_port/README.md](asterinas_port/README.md)。
 
 ## 仓库结构
 
@@ -80,8 +87,6 @@ scripts/                   构建、演示、正确性与性能 runner
 docs/evidence/             最终验证证据
 docs/design_doc/           技术文档源码及 PDF
 ```
-
-内核补丁用法与串口 PASS 行见 [asterinas_port/README.md](asterinas_port/README.md)。
 
 ## 快速验证
 
@@ -133,7 +138,7 @@ bash scripts/verify_archived_linux_xts.sh
 
 ## Asterinas 构建与启动
 
-固定镜像：`asterinas/asterinas:0.18.0-20260618`。首次运行可联网填充缓存；正式复现使用持久化 Cargo/rustup volume。
+固定镜像：`asterinas/asterinas:0.18.0-20260618`。首次运行可联网填充缓存；正式复现使用持久化 Cargo/rustup volume。这是内核态路径。
 
 ```bash
 docker run --rm --privileged --network=host \
