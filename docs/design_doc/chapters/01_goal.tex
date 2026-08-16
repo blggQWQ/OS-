@@ -113,7 +113,8 @@ Linux 内核通过 Device Mapper 框架提供的 \texttt{dm-crypt}（透明加�
 赛题要求“在 I/O 吞吐及延迟上接近 Linux，且 dm-verity 不显著增加 boot 时间”。本项目在 Linux QEMU virtio 和 Asterinas KVM 两个平台上分别完成五轮基准测试，结果如下：
 
 \begin{itemize}
-    \item \textbf{Asterinas KVM 4K 顺序读中位带宽}：dm-crypt 8.908 MiB/s，dm-verity 7.505 MiB/s（在同一虚拟化环境下稳定可测）；
+    \item \textbf{Asterinas 256 MiB 正式合同 4K 顺序读}：raw 4.249 MiB/s，dm-crypt 4.059 MiB/s（相对配对 raw 95.6\%），dm-verity 3.815 MiB/s（相对配对 raw 87.3\%）；
+    \item \textbf{Asterinas KVM 13 格 mapper 4K 顺序读中位带宽}：dm-crypt 8.908 MiB/s，dm-verity 7.505 MiB/s（独立矩阵，不与 4.249 计算保留率）；
     \item \textbf{Linux QEMU virtio 4K 顺序读中位带宽}：raw 11.391 MiB/s，dm-crypt 10.942 MiB/s，dm-verity 10.704 MiB/s（QEMU/KVM、8 GiB、\texttt{libaio}，作为对照参考，不跨平台计算倍率）；
     \item \textbf{启动开销}：dm-crypt 相对 plain 根中位开销 0.58\%，dm-verity 相对 plain 根中位开销 2.75\%（均为五轮中位数），满足“不显著增加”的要求；
     \item 提供可复现的 FIO（46 个有效 PASS 单元格）、Filebench（5+5 轮）、SQLite（5+5+5 轮）和启动耗时（5+5+5 轮）矩阵，每个单元格至少五轮，报告中位数和标准差。

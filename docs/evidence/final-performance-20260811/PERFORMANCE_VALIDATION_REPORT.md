@@ -19,7 +19,21 @@
 | Linux QEMU virtio | dm-crypt mapper | 13 | PASS |
 | Linux QEMU virtio | dm-verity 读 | 7 | PASS；另有 6 个只读 N/A |
 
-Linux QEMU virtio FIO 证据见 [`linux-qemu-fio-20260816`](../linux-qemu-fio-20260816/)。Asterinas 正式单元格见 [`PERFORMANCE_MATRIX.csv`](PERFORMANCE_MATRIX.csv)。Linux raw、dm-crypt 与 dm-verity 读使用同一套 `libaio/direct=1/numjobs=1` 参数；Asterinas 保护目标使用 guest 内实际 mapper。Asterinas raw 的旧批次与不存在 mapper 的假 dm-crypt 记录混在同一证据族中，未纳入本报告，也未由生成器读取。
+Linux QEMU virtio FIO 证据见 [`linux-qemu-fio-20260816`](../linux-qemu-fio-20260816/)。Asterinas 13 格 mapper 见 [`PERFORMANCE_MATRIX.csv`](PERFORMANCE_MATRIX.csv)。Linux raw、dm-crypt 与 dm-verity 读使用同一套 `libaio/direct=1/numjobs=1` 参数；Asterinas 保护目标使用 guest 内实际 mapper。13 格 mapper 矩阵不含 Asterinas raw：恢复后的 dm-crypt 批次没有同一次启动的配对 raw，旧 raw 批次曾与假 mapper 混在同一证据族中，未纳入该矩阵。
+
+## 256 MiB 正式合同（Asterinas raw / dm-crypt / dm-verity）
+
+KVM、1 vCPU、8 GiB、virtio-blk、4 KiB 同步读、QD1、10 秒 runtime、交替顺序五轮。raw 行合并两组共十次测量；target 的相对值使用同一镜像、同一轮次合同的配对 raw 中位数，不与上一节 13 格 mapper（8.908 / 7.505）混算保留率。
+
+| 设备 | 五轮中位吞吐（MiB/s） | 中位 p50（us） | 中位 p95（us） | 相对配对 raw |
+|---|---:|---:|---:|---:|
+| raw（两组共十轮） | 4.249 | 892.928 | 1277.952 | 100.0% |
+| dm-crypt | 4.059 | 921.600 | 1318.912 | 95.6% |
+| dm-verity | 3.815 | 954.368 | 1433.600 | 87.3% |
+
+阶段差值：dm-crypt 下层等待中位占 97.84%、AES-XTS 占 1.82%；dm-verity 下层等待中位占 93.01%、数据 SHA-256 占 5.74%。
+
+同一宿主机、同一 virtio-blk 数据盘前 256 MiB 的 Linux guest 对照：Linux raw/dm-crypt 为 5.150 / 4.746（保留率 92.158%），Asterinas 为 4.245 / 4.059（保留率 95.621%）。Asterinas 相对自身 raw 的 crypt 保留率高于 Linux，不代表绝对吞吐超过 Linux。
 
 ## Filebench fileserver（Linux host）
 

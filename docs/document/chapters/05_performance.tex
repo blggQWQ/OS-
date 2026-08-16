@@ -29,6 +29,22 @@ mapper runner。
 
 \section{FIO 结果}
 
+Asterinas 在 256 MiB 正式合同下给出 raw / dm-crypt / dm-verity 配对保留率（4 KiB 同步读、QD1、五轮中位）。raw 行合并两组共十次测量；相对值使用同一镜像的配对 raw，不与后文 13 格 mapper 矩阵混算。
+
+\begin{table}[H]
+    \centering
+    \caption{Asterinas 256 MiB 正式合同（MiB/s）}
+    \begin{tabular}{p{0.28\textwidth}p{0.22\textwidth}p{0.22\textwidth}}
+        \toprule
+        \textbf{设备} & \textbf{中位吞吐} & \textbf{相对配对 raw} \\
+        \midrule
+        raw（两组共十轮） & 4.249 & 100.0\% \\
+        dm-crypt & 4.059 & 95.6\% \\
+        dm-verity & 3.815 & 87.3\% \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
 Linux QEMU virtio 对照在 virtio-blk 上测试 raw、dm-crypt 与 dm-verity 读，
 统一使用 \texttt{libaio}、\texttt{direct=1}、\texttt{numjobs=1}。代表性五轮中位数如下：
 

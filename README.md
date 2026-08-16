@@ -211,7 +211,9 @@ QEMU/KVM、`-cpu host`、1 vCPU、8 GiB、virtio-blk、受测区 256 MiB、fio 3
 
 ### Asterinas KVM FIO：真实保护 mapper
 
-单位：MiB/s。这里展示恢复后 dm-crypt 与修正后 dm-verity 的独立实测值；不与 Linux raw 横向计算倍率。
+Asterinas raw（256 MiB 正式合同，KVM、1 vCPU、8 GiB、virtio-blk、4 KiB 同步读、QD1、两组共十轮中位）：**4.249** MiB/s。该 raw 与上一节三行表为同一口径；恢复后的 dm-crypt / dm-verity 矩阵未带同一次启动的配对 raw，因此不把 4.249 填进下表，也不对 8.908 / 7.505 计算相对 raw 的保留率。
+
+单位：MiB/s。这里展示恢复后 dm-crypt 与修正后 dm-verity 的独立实测值；不与 Linux raw、也不与上面的 4.249 横向计算倍率。
 
 | workload | bs | qd | dm-crypt | dm-verity |
 |---|---:|---:|---:|---:|

@@ -232,6 +232,21 @@ FIO 矩阵覆盖 4 KiB、32 KiB、256 KiB 三种块大小，顺序/随机读/写
 
 \textbf{代表性结果（五轮中位带宽，MiB/s）}：
 
+Asterinas 256 MiB 正式合同（4 KiB 同步读、QD1；相对值为配对 raw，不与下表 8.908 / 7.505 混算）：
+
+\begin{table}[H]
+    \centering
+    \begin{tabular}{p{0.28\textwidth}p{0.22\textwidth}p{0.22\textwidth}}
+        \toprule
+        \textbf{设备} & \textbf{中位吞吐} & \textbf{相对配对 raw} \\
+        \midrule
+        raw（两组共十轮） & 4.249 & 100.0\% \\
+        dm-crypt & 4.059 & 95.6\% \\
+        dm-verity & 3.815 & 87.3\% \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
 \begin{table}[H]
     \centering
     \begin{tabular}{p{0.25\textwidth}p{0.15\textwidth}p{0.15\textwidth}p{0.18\textwidth}p{0.18\textwidth}}
