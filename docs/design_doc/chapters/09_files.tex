@@ -1,0 +1,301 @@
+% chapters/09_files.tex
+\chapter{提交仓库目录和文件描述}
+
+\section*{本章目录结构速览}
+
+\begin{table}[H]
+    \centering
+    \begin{tabular}{p{0.25\textwidth}p{0.35\textwidth}p{0.40\textwidth}}
+        \toprule
+        \textbf{一级目录} & \textbf{内容说明} & \textbf{关键文件数} \\
+        \midrule
+        \texttt{crates/} & 平台无关的 Device Mapper 核心库和命令行工具 & 约15个Rust源文件 \\
+        \texttt{crates/dm/} & \texttt{dm} crate：BlockDevice trait、dm-crypt、dm-verity & 约3000行Rust \\
+        \texttt{crates/dmctl/} & \texttt{dmctl} 命令行工具 & 约800行Rust \\
+        \texttt{asterinas\_port/} & Asterinas 内核移植补丁和说明 & 7个补丁 + README \\
+        \texttt{scripts/} & 构建、测试、性能和验收脚本 & 约30个脚本文件 \\
+        \texttt{docs/} & 全部文档、证据和设计材料 & 约50个文件 \\
+        \texttt{docs/evidence/} & 正式测试证据 & 约100+个日志/JSON/CSV文件 \\
+        \texttt{docs/document/} & 技术文档 LaTeX 源码 & 9章 + 附录 + PDF \\
+        \texttt{docs/design\_doc/} & 设计赛道文档 LaTeX 源码 & 10章 + PDF \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\section{文件统计概览}
+
+\begin{table}[H]
+    \centering
+    \caption{关键文件统计}
+    \begin{tabular}{p{0.25\textwidth}p{0.25\textwidth}p{0.40\textwidth}}
+        \toprule
+        \textbf{类型} & \textbf{数量/规模} & \textbf{说明} \\
+        \midrule
+        Rust 源代码（用户态） & 约3000行 & \texttt{crates/dm/} 核心库 \\
+        Rust 源代码（内核态） & 约4000行 & 补丁 0001--0007 新增内核代码 \\
+        命令行工具 & 约800行 & \texttt{crates/dmctl/src/main.rs} \\
+        Shell/Python 脚本 & 约30个文件，约2000行 & \texttt{scripts/} 目录 \\
+        LaTeX 文档 & 约200页 & 技术文档 + 设计赛道文档 \\
+        证据文件 & 约100+个 & 日志、JSON、CSV、图片 \\
+        Git 提交 & 28次 & 涵盖完整开发周期 \\
+        内核补丁 & 7个 & \texttt{asterinas\_port/patches/} \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\section{仓库顶层结构}
+
+\begin{longtable}{|p{0.20\textwidth}|p{0.75\textwidth}|}
+\hline
+\textbf{目录/文件} & \textbf{描述} \\
+\hline
+\endhead
+\texttt{README.md} & 项目概览、快速验证指南、功能命令、性能结果和验收说明；含演示视频网盘链接 \\
+\texttt{LICENSE} & MIT 开源许可证 \\
+\texttt{Cargo.toml} & Rust 工作区配置，包含 \texttt{dm} 和 \texttt{dmctl} 两个 crate，resolver = "2" \\
+\texttt{\seqsplit{KVM\_CORRECTNESS\_MATRIX.md}} & KVM 正确性测试完整矩阵（R01--R03、C01--C05、V01--V07）状态表 \\
+\texttt{\seqsplit{KVM\_CORRECTNESS\_REPORT.md}} & KVM 正确性最终报告，含结论、固定基线和证据路径 \\
+\texttt{\seqsplit{PHYSICAL\_MUTATION\_MANIFEST.md}} & dm-verity 物理篡改清单（V03--V07 的块号、字节偏移和 SHA-256） \\
+\texttt{\seqsplit{PLATFORM\_EVAL\_ENVIRONMENT.md}} & 平台评测环境固定基线（Docker image、commit、工具链、验证结果） \\
+\hline
+\texttt{crates/} & 平台无关的 Device Mapper 核心库和命令行工具 \\
+\texttt{crates/dm/} & \texttt{dm} crate 源码（约15个文件，约3000行Rust） \\
+\texttt{\seqsplit{crates/dm/Cargo.toml}} & \texttt{dm} crate 的依赖配置（\texttt{aes}、\texttt{spin} 等） \\
+\texttt{\seqsplit{crates/dm/src/block\_device.rs}} & \texttt{BlockDevice} trait 及 \texttt{MemoryBlockDevice}、\texttt{FileBlockDevice} 实现（约400行） \\
+\texttt{\seqsplit{crates/dm/src/crypto.rs}} & AES-256-XTS 加密引擎及 \texttt{DemoStreamCipher}（约350行） \\
+\texttt{\seqsplit{crates/dm/src/device\_mapper.rs}} & \texttt{DmStackBuilder}、\texttt{DmStack}、\texttt{PassthroughDevice}（约180行） \\
+\texttt{\seqsplit{crates/dm/src/dm\_crypt.rs}} & \texttt{DmCryptDevice} 和 \texttt{DmCryptTable} 解析器（约350行） \\
+\texttt{\seqsplit{crates/dm/src/dm\_verity.rs}} & \texttt{DmVerityDevice} 完整性校验实现（约200行） \\
+\texttt{\seqsplit{crates/dm/src/error.rs}} & \texttt{DmError} 错误枚举（约80行） \\
+\texttt{\seqsplit{crates/dm/src/hash\_tree.rs}} & Merkle 哈希树构建与验证（约150行） \\
+\texttt{\seqsplit{crates/dm/src/lib.rs}} & 模块导出 \\
+\texttt{\seqsplit{crates/dm/src/sha256.rs}} & 纯 Rust SHA-256 实现（约120行） \\
+\texttt{\seqsplit{crates/dm/src/statistics.rs}} & I/O 统计计数器（\texttt{IoStats}、\texttt{InstrumentedDevice}，约150行） \\
+\texttt{\seqsplit{crates/dm/tests/}} & 单元测试：crypt、verity、stack、兼容性、文件设备、安全边界（约6个文件） \\
+\hline
+\texttt{crates/dmctl/} & \texttt{dmctl} 命令行工具源码 \\
+\texttt{\seqsplit{crates/dmctl/Cargo.toml}} & \texttt{dmctl} 依赖配置 \\
+\texttt{\seqsplit{crates/dmctl/src/main.rs}} & 所有子命令实现：init-image、crypt-write、crypt-read、raw-read-hex、crypt-table-fill、verity-root、verity-verify、verity-format-dm、tamper、demo-crypt、demo-verity、demo-stack、benchmark、benchmark-table（约800行） \\
+\hline
+\texttt{\seqsplit{asterinas\_port/}} & Asterinas 内核移植说明与补丁 \\
+\texttt{\seqsplit{asterinas\_port/README.md}} & 移植说明、补丁应用方式（\texttt{git am} 命令）、关键实现文件路径 \\
+\texttt{\seqsplit{asterinas\_port/patches/}} & 7 个 Git 补丁（0001--0007），按顺序应用 \\
+\texttt{\seqsplit{asterinas\_port/patches/0001-*.patch}} & 组件集成与目标定义：创建 \texttt{aster-dm} 组件骨架，实现 crypt/verity target、VirtIO 适配和 BIO 路径 \\
+\texttt{\seqsplit{asterinas\_port/patches/0002-*.patch}} & BIO 路径验证与 ext2 魔数自检：修复 DMA segment 方向访问，增加 \texttt{self\_test\_ext2\_magic} \\
+\texttt{\seqsplit{asterinas\_port/patches/0003-*.patch}} & 根文件系统 \texttt{pivot\_root} 切换：实现 \texttt{dm-root} init 模式，两级引导方案 \\
+\texttt{\seqsplit{asterinas\_port/patches/0004-*.patch}} & Runtime 控制面与 \texttt{cryptsetup} 兼容：\texttt{/dev/mapper/control} 和 \texttt{dm\_ioctl} 实现 \\
+\texttt{\seqsplit{asterinas\_port/patches/0005-*.patch}} & 热路径优化：AES-NI、scratch pool、hash cache、BIO 复用、\texttt{/proc/dm-verity-stats} \\
+\texttt{\seqsplit{asterinas\_port/patches/0006-*.patch}} & 性能阶段归因与正式合同：\texttt{/proc/dm-performance-stats}、\texttt{dm.perf\_stats=1} \\
+\texttt{\seqsplit{asterinas\_port/patches/0007-*.patch}} & \texttt{dm\_stack=crypt,verity} 组合栈：堆叠检测、启动日志、\texttt{build\_stack\_rootfs.sh} \\
+\hline
+\end{longtable}
+
+\section{脚本分类说明}
+
+\texttt{scripts/} 目录包含约30个脚本，按功能分为以下五类：
+
+\subsection*{构建类脚本（4个）}
+\begin{longtable}{|p{0.30\textwidth}|p{0.65\textwidth}|}
+\hline
+\textbf{脚本} & \textbf{用途} \\
+\hline
+\endhead
+\texttt{\seqsplit{build\_crypt\_rootfs.sh}} & 构建 dm-crypt 加密根文件系统镜像（\texttt{target/crypt-rootfs.img}） \\
+\texttt{\seqsplit{build\_verity\_rootfs.sh}} & 构建 dm-verity 校验根文件系统镜像（\texttt{target/verity-rootfs.img}） \\
+\texttt{\seqsplit{build\_stack\_rootfs.sh}} & 构建组合栈（crypt + verity）根文件系统镜像（\texttt{target/stack-rootfs.img}） \\
+\texttt{\seqsplit{build\_asterinas\_boot\_images.sh}} & 构建 plain/dm-crypt/dm-verity 三种启动 ISO（用于启动耗时矩阵） \\
+\hline
+\end{longtable}
+
+\subsection*{测试类脚本（6个）}
+\begin{longtable}{|p{0.30\textwidth}|p{0.65\textwidth}|}
+\hline
+\textbf{脚本} & \textbf{用途} \\
+\hline
+\endhead
+\texttt{\seqsplit{check\_benchmark\_package.py}} & 验证性能包完整性和诚实性（静态检查） \\
+\texttt{\seqsplit{check\_filebench.sh}} & 探测 Filebench 可用性 \\
+\texttt{\seqsplit{final\_demo.sh}} & 一键最终演示（含 \texttt{--live-kvm} 选项） \\
+\texttt{\seqsplit{review\_release\_check.py}} & 评审版本静态检查（证据、矩阵、文档） \\
+\texttt{\seqsplit{verify\_kvm\_evidence.py}} & 验证 KVM 正确性证据日志 \\
+\texttt{\seqsplit{tests/test\_release\_tools.py}} & 发布工具的单元测试 \\
+\hline
+\end{longtable}
+
+\subsection*{性能测试脚本（8个）}
+\begin{longtable}{|p{0.30\textwidth}|p{0.65\textwidth}|}
+\hline
+\textbf{脚本} & \textbf{用途} \\
+\hline
+\endhead
+\texttt{benchmark.sh} & 用户态微基准测试（plain/AES-XTS/verity CSV） \\
+\texttt{\seqsplit{benchmark\_boot\_time.py}} & 启动耗时测量脚本（Python） \\
+\texttt{\seqsplit{run\_fio\_matrix.sh}} & 正式 FIO 矩阵驱动（Linux host + Asterinas KVM） \\
+\texttt{\seqsplit{run\_filebench\_dm.sh}} & 单轮 Filebench 测试 \\
+\texttt{\seqsplit{run\_filebench\_matrix.sh}} & Filebench 5+5 轮矩阵（raw/dm-crypt） \\
+\texttt{\seqsplit{run\_sqlite\_workload.sh}} & 单轮 SQLite 固定 workload \\
+\texttt{\seqsplit{run\_sqlite\_matrix.sh}} & SQLite 5+5+5 轮矩阵 \\
+\texttt{\seqsplit{run\_boot\_matrix.sh}} & 启动耗时矩阵（plain/dm-crypt/dm-verity 各5轮） \\
+\hline
+\end{longtable}
+
+\subsection*{验证类脚本（6个）}
+\begin{longtable}{|p{0.30\textwidth}|p{0.65\textwidth}|}
+\hline
+\textbf{脚本} & \textbf{用途} \\
+\hline
+\endhead
+\texttt{\seqsplit{verify\_linux\_xts\_compat.sh}} & 实时与 Linux 内核 dm-crypt 逐字节比对 \\
+\texttt{\seqsplit{verify\_archived\_linux\_xts.sh}} & 验证归档的 Linux XTS 固定向量 \\
+\texttt{\seqsplit{linux\_cryptsetup\_baseline.sh}} & Linux cryptsetup 基准创建 \\
+\texttt{\seqsplit{run\_asterinas\_boot\_once.sh}} & 单次 Asterinas 启动（用于 boot 矩阵） \\
+\texttt{\seqsplit{run\_dm\_stack.sh}} & 运行组合栈（crypt→verity）启动 \\
+\texttt{\seqsplit{trace\_asterinas\_syscalls.gdb}} & GDB 脚本（追踪 Asterinas syscall） \\
+\hline
+\end{longtable}
+
+\subsection*{汇总类脚本（4个）}
+\begin{longtable}{|p{0.30\textwidth}|p{0.65\textwidth}|}
+\hline
+\textbf{脚本} & \textbf{用途} \\
+\hline
+\endhead
+\texttt{\seqsplit{summarize\_asterinas\_dm\_matrix.py}} & 解析 Asterinas fio 串口日志生成 CSV \\
+\texttt{\seqsplit{summarize\_filebench\_results.py}} & 从 Filebench 日志生成 CSV \\
+\texttt{\seqsplit{summarize\_fio\_matrix.py}} & 汇总 FIO 矩阵为 summary CSV \\
+\texttt{workloads/fileserver.f} & Filebench fileserver workload 配置文件 \\
+\hline
+\end{longtable}
+
+\section{文档目录说明}
+
+\texttt{docs/} 目录包含全部文档、证据和设计材料：
+
+\begin{longtable}{|p{0.25\textwidth}|p{0.70\textwidth}|}
+\hline
+\textbf{路径} & \textbf{描述} \\
+\hline
+\endhead
+\texttt{\seqsplit{ai\_tool\_disclosure.md}} & AI 工具使用声明（工具名称、模型、使用场景、验证机制） \\
+\texttt{\seqsplit{asterinas\_integration.md}} & Asterinas 接入指南（6个步骤） \\
+\texttt{\seqsplit{benchmark\_contract.md}} & 正式性能测试合同（环境、FIO参数、元数据、统计口径） \\
+\texttt{\seqsplit{cryptsetup\_compatibility.md}} & cryptsetup 兼容方案说明（三层架构） \\
+\texttt{\seqsplit{defense\_outline.md}} & 答辩提纲（15分钟建议节奏、高频问题与回答） \\
+\texttt{design.md} & 设计说明（目标、核心接口、模块组成） \\
+\texttt{\seqsplit{environment\_status.md}} & 开发环境状态（已迁移至D盘） \\
+\texttt{filebench.md} & Filebench 基准说明 \\
+\texttt{\seqsplit{final\_report.md}} & 最终实验报告（8章） \\
+\texttt{innovation.md} & 技术亮点与验证口径 \\
+\texttt{performance.md} & 性能测试入口 \\
+\texttt{\seqsplit{requirement\_mapping.md}} & 赛题技术指标对应表 \\
+\texttt{\seqsplit{rootfs\_protection.md}} & 根文件系统保护方案（5阶段） \\
+\texttt{\seqsplit{sqlite\_benchmark.md}} & SQLite 固定 workload 说明 \\
+\texttt{\seqsplit{technical\_defense\_guide.md}} & 决赛技术答辩指南 \\
+\texttt{test.md} & 测试方案 \\
+\hline
+\texttt{evidence/} & 正式证据根目录 \\
+\texttt{\seqsplit{evidence/README.md}} & 证据索引 \\
+\texttt{\seqsplit{evidence/stabilization/}} & 构建恢复和正确性证据 \\
+\texttt{\seqsplit{evidence/stabilization/build-recovery/}} & kernel build 日志 \\
+\texttt{\seqsplit{evidence/stabilization/correctness-kvm/}} & R01--R03、C01--C05、V02--V07 串口日志 \\
+\texttt{evidence/\seqsplit{final-performance-20260811/}} & 最终性能证据 \\
+\texttt{evidence/\seqsplit{final-performance-20260811/PERFORMANCE\_VALIDATION\_REPORT.md}} & 中文性能验证报告 \\
+\texttt{evidence/\seqsplit{final-performance-20260811/PERFORMANCE\_MATRIX.csv}} & 正式 FIO 矩阵（46 PASS + 6 N/A） \\
+\texttt{evidence/\seqsplit{final-performance-20260811/asterinas-fio/}} & Asterinas KVM 原始 FIO JSON 和 CSV（13+7项） \\
+\texttt{evidence/\seqsplit{final-performance-20260811/fio-matrix/linux-host/}} & Linux 原始 FIO JSON 和 CSV（13+13项） \\
+\texttt{evidence/\seqsplit{final-performance-20260811/filebench-valid/}} & Filebench 5+5 轮日志和 CSV \\
+\texttt{evidence/\seqsplit{final-performance-20260811/sqlite/}} & SQLite 5+5+5 轮记录 \\
+\texttt{evidence/\seqsplit{final-performance-20260811/boot-matrix/}} & 启动 15 轮记录 \\
+\texttt{evidence/stack/} & 组合栈启动证据 \\
+\texttt{evidence/\seqsplit{linux-xts-plain64.sha256}} & Linux XTS 固定向量 SHA-256 \\
+\hline
+\texttt{document/} & 技术文档 LaTeX 源码和 PDF \\
+\texttt{document/main.tex} & 技术文档主文件 \\
+\texttt{document/chapters/} & 9个章节（01\_introduction 至 09\_development） \\
+\texttt{document/appendices/} & 附录（术语表、命令参考） \\
+\texttt{document/figures/} & 技术文档插图（架构图、流程图、截图等） \\
+\texttt{document/main.pdf} & 编译后的技术文档 PDF（约120页） \\
+\hline
+\texttt{design\_doc/} & 设计赛道文档 LaTeX 源码 \\
+\texttt{\seqsplit{design\_doc/design\_doc.tex}} & 设计赛道文档主文件 \\
+\texttt{\seqsplit{design\_doc/chapters/}} & 10个章节（01\_goal 至 10\_harvest） \\
+\texttt{\seqsplit{design\_doc/preamble.tex}} & LaTeX 导言区配置 \\
+\texttt{\seqsplit{design\_doc/design\_doc.pdf}} & 编译后的设计赛道文档 PDF（约80页） \\
+\hline
+\end{longtable}
+
+\section{关键证据文件说明}
+
+\begin{longtable}{|p{0.25\textwidth}|p{0.70\textwidth}|}
+\hline
+\textbf{证据文件} & \textbf{内容说明} \\
+\hline
+\endhead
+\texttt{\seqsplit{R01-cryptsetup-persistent-cache.log}} & KVM 中 cryptsetup 2.7.5 open/read/close 完整流程 PASS \\
+\texttt{\seqsplit{R02-crypt-rootfs-persistent-cache.log}} & dm-crypt 加密根文件系统启动与 \texttt{pivot\_root} PASS \\
+\texttt{\seqsplit{R03-verity-rootfs-persistent-cache.log}} & dm-verity 校验根文件系统启动与 \texttt{pivot\_root} PASS \\
+\texttt{\seqsplit{C01-C05-kvm.log}} & 正确/错误密钥、4/32/256 KiB 往返测试 PASS \\
+\texttt{\seqsplit{V02-wrong-root.log}} & 错误根哈希拒绝 mapper 创建，\texttt{status=integrity-rejected} \\
+\texttt{\seqsplit{V03-targeted-probe.log}} & 首个数据块（物理块0）单字节篡改拒绝 \\
+\texttt{\seqsplit{V04-targeted-probe.log}} & 中间数据块（物理块32768）单字节篡改拒绝 \\
+\texttt{\seqsplit{V05-targeted-probe.log}} & 最后一个数据块（物理块65535）单字节篡改拒绝 \\
+\texttt{\seqsplit{V06-targeted-probe.log}} & 叶子哈希块（物理块65536）单字节篡改拒绝 \\
+\texttt{\seqsplit{V07-targeted-probe.log}} & 中间哈希块（物理块66048）单字节篡改拒绝 \\
+\texttt{\seqsplit{PERFORMANCE\_MATRIX.csv}} & 46 个 PASS 单元格 + 6 个 N/A 的完整 FIO 矩阵 \\
+\texttt{\seqsplit{PERFORMANCE\_VALIDATION\_REPORT.md}} & 最终中文性能报告（含环境、口径、结论） \\
+\hline
+\end{longtable}
+
+\section{与大赛提交要求对照}
+
+\begin{table}[H]
+    \centering
+    \caption{大赛提交要求对照表}
+    \begin{tabular}{p{0.25\textwidth}p{0.35\textwidth}p{0.30\textwidth}}
+        \toprule
+        \textbf{提交要求} & \textbf{本项目对应文件} & \textbf{位置} \\
+        \midrule
+        项目源代码 & \texttt{crates/}、\texttt{asterinas\_port/}、\texttt{scripts/} & 根目录 \\
+        技术设计文档 & \texttt{docs/document/main.pdf} & \texttt{docs/document/} \\
+        设计赛道文档 & \texttt{\seqsplit{docs/design\_doc/design\_doc.pdf}} & \texttt{docs/design\_doc/} \\
+        用户手册 & \texttt{README.md} & 根目录 \\
+        正确性证据 & 12组测试日志（R01--R03、C01--C05、V01--V07） & \texttt{\seqsplit{docs/evidence/stabilization/}} \\
+        性能证据 & FIO、Filebench、SQLite、Boot 原始数据 & \texttt{docs/evidence/\seqsplit{final-performance-20260811/}} \\
+        演示视频 & \texttt{作品演示视频.mp4} & 根目录 \\
+        答辩 PPT & \texttt{\seqsplit{presentation\_project.pptx}} & 根目录 \\
+        作品进展汇报幻灯片 & \texttt{作品进展汇报幻灯片.pptx} & 根目录 \\
+        AI 工具声明 & \texttt{docs/\seqsplit{ai\_tool\_disclosure.md}} & \texttt{docs/} \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\section{构建与测试产物（不提交）}
+
+以下文件由脚本生成，位于 \texttt{target/} 目录，不纳入代码仓库：
+
+\begin{longtable}{|p{0.30\textwidth}|p{0.65\textwidth}|}
+\hline
+\textbf{产物} & \textbf{说明} \\
+\hline
+\endhead
+\texttt{\seqsplit{target/crypt-rootfs.img}} 及 \texttt{*.env} & dm-crypt 保护根镜像（由 \texttt{\seqsplit{build\_crypt\_rootfs.sh}} 生成） \\
+\texttt{\seqsplit{target/verity-rootfs.img}} 及 \texttt{*.env} & dm-verity 保护根镜像（由 \texttt{\seqsplit{build\_verity\_rootfs.sh}} 生成） \\
+\texttt{\seqsplit{target/stack-rootfs.img}} 及 \texttt{*.env} & 组合栈根镜像（由 \texttt{\seqsplit{build\_stack\_rootfs.sh}} 生成） \\
+\texttt{\seqsplit{target/benchmark/}} & 性能测试中间文件和日志 \\
+\texttt{target/xts-compat/} & Linux XTS 兼容性验证临时文件 \\
+\texttt{target/final-demo/} & 最终演示临时输出 \\
+\texttt{target/osdk/} & Asterinas 内核构建产物（ISO） \\
+\hline
+\end{longtable}
+
+\section{小结}
+
+本章完整列出了提交仓库的目录结构和文件描述，涵盖了源代码（约3000行用户态Rust + 约4000行内核补丁）、补丁（7个）、脚本（约30个）、证据（约100+个日志/JSON/CSV文件）、文档（约200页LaTeX）和演示材料。所有关键证据文件均有明确路径说明，便于评委复核。
+
+项目文件组织遵循以下原则：
+\begin{enumerate}
+    \item 核心代码与平台适配分离（\texttt{crates/} vs \texttt{asterinas\_port/}）；
+    \item 文档集中管理（\texttt{docs/}）且分类清晰（document、design\_doc、evidence）；
+    \item 脚本可执行且自包含（\texttt{scripts/}），支持一键演示和验证；
+    \item 证据原始格式保存（不依赖手工修改数字），确保可复核性。
+\end{enumerate}

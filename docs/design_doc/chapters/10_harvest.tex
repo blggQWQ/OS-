@@ -1,0 +1,212 @@
+% chapters/10_harvest.tex
+\chapter{比赛收获}
+
+\section*{本章收获速览}
+
+\begin{table}[H]
+    \centering
+    \begin{tabular}{p{0.15\textwidth}p{0.35\textwidth}p{0.40\textwidth}}
+        \toprule
+        \textbf{收获维度} & \textbf{核心成长} & \textbf{量化成果} \\
+        \midrule
+        技术能力 & Rust系统编程、密码学工程、内核开发、性能工程 & 约9000行Rust+2000行脚本+200页文档 \\
+        工程能力 & 大型项目协作、自动化测试、文档写作 & 28次Git提交、7个补丁、30+脚本 \\
+        团队协作 & 分工互补、共识决策、代码审查 & 3人协作50天、12组测试全部PASS \\
+        认知提升 & Rust OS生态理解、安全存储认知 & 验证了5项技术探索、5个未来方向 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\section{概述}
+
+历时近两个月的开发与测试（2026年6月23日至8月14日，共50天），我们完成了从用户态核心实现到星绽内核集成、从正确性验证到性能基准测试的完整开发链路。这段经历不仅让我们在技术和工程能力上获得了显著成长，也加深了我们对 Rust 系统编程和操作系统内核开发的理解。本章从技术成长、工程能力、团队协作、生态认知和个人感悟五个维度总结本次比赛的收获。
+
+\section{技术成长}
+
+\subsection{Rust 系统编程的深入实践}
+
+本项目是我们在 Rust 语言上进行的最深入的系统级编程实践，累计编写约9000行Rust代码（用户态约3000行，内核态约4000行，补丁约2000行）。通过实现 \texttt{BlockDevice} trait、AES-256-XTS 加密引擎（约350行）、Merkle 哈希树（约150行）等核心模块，我们深刻体会到了 Rust 的所有权系统和类型系统在系统编程中的价值：
+
+\begin{itemize}
+    \item \textbf{编译期内存安全}：Rust 的借用检查器在编译期杜绝了悬垂指针、use-after-free 和缓冲区溢出等内核常见内存安全问题，使我们可以更专注于逻辑正确性而非内存管理。在整个开发过程中，我们没有遇到任何内存安全问题导致的崩溃——这在 C 语言内核开发中是难以想象的；
+    \item \textbf{零成本抽象}：通过 trait 和泛型实现了高度可复用的代码，同时保持了与手写 C 代码相当的性能。AES-NI 路径下的加密吞吐达到 93+ MiB/s（256K随机写），抽象层没有引入 measurable 的运行时开销；
+    \item \texttt{no\_std} 环境开发：在无标准库的内核环境中，我们学会了使用 \texttt{alloc}、核心库和自定义 panic handler 构建可靠的系统组件。内核组件成功运行于 Asterinas 的受限环境中，证明了 Rust 在 \texttt{no\_std} 场景下的成熟度；
+    \item \textbf{类型系统编码安全属性}：通过 \texttt{TargetCapabilities} 等类型设计，将安全策略在编译期编码到类型系统中，避免了运行时检查的开销和遗漏风险。
+\end{itemize}
+
+\subsection{密码学工程实践}
+
+实现 AES-256-XTS 和 SHA-256 的过程让我们深入理解了密码学算法的工程化要求：
+
+\begin{itemize}
+    \item \textbf{标准合规}：严格遵循 NIST SP 800-38E（XTS-AES）和 FIPS 180-4（SHA-256）标准，确保算法实现的正确性。通过标准测试向量验证了 SHA-256 的正确性（空字符串、\texttt{"abc"}）；
+    \item \textbf{兼容性验证}：通过与 Linux 内核逐字节比对，验证了 \texttt{plain64} IV 生成和 XTS 模式的正确性。固定向量 SHA-256 完全匹配（\texttt{4334c17f...}），理解了“算法实现”与“协议兼容”之间的差距——两者必须完全一致才能保证互操作性；
+    \item \textbf{硬件加速集成}：在保存/恢复 FPU/XMM 状态的前提下集成 AES-NI 指令（\texttt{ostd/aesni.rs}，约174行），学习了内核中处理 SIMD 寄存器的特殊约束——必须在禁用抢占和中断的情况下操作 XMM 寄存器，防止上下文切换破坏加密状态；
+    \item \textbf{密钥管理}：实现了运行时 mapper 中密钥的显式清除（\texttt{table.key.fill(0)}），防止密钥残留在内存中被后续攻击者读取。
+\end{itemize}
+
+\subsection{操作系统内核开发}
+
+通过 \texttt{aster-dm} 组件接入 Asterinas 内核（7个补丁，约4000行内核代码），我们对操作系统内核的关键子系统有了更深入的理解：
+
+\begin{itemize}
+    \item \textbf{块设备与 BIO 系统}：理解了块设备驱动的 I/O 路径、BIO 的提交与完成机制、同步与异步 I/O 的处理差异。在 Asterinas 中，BIO 通过 \texttt{enqueue} 异步提交，通过回调完成，与 Linux 的 \texttt{submit\_bio} 机制类似但接口不同。我们成功实现了完整的 BIO 生命周期管理；
+    \item \textbf{启动过程与根文件系统}：掌握了内核启动参数解析（\texttt{aster-cmdline} 框架）、initramfs 的作用、\texttt{pivot\_root} 的系统调用语义。通过两级引导方案（bind mount + chroot）成功解决了 Asterinas rootfs 特殊性导致的 \texttt{pivot\_root} 限制；
+    \item \textbf{内核同步与并发}：在 \texttt{DmDevice} 中处理多线程 BIO 并发时，学会了使用 \texttt{spin::Mutex}（而非睡眠锁）、原子操作（\texttt{AtomicU64}）和禁用抢占（\texttt{disable\_preempt}）等内核同步原语。理解了在内核态中“不能睡眠”的特殊约束；
+    \item \textbf{设备文件系统}：实现了 \texttt{/dev/mapper/control} 控制节点（约520行），理解了字符设备与块设备的注册与管理，以及 \texttt{ioctl} 系统调用的内核处理路径。
+\end{itemize}
+
+\subsection{性能工程}
+
+性能测试与优化是本次比赛的重要环节，我们在这一过程中收获颇丰：
+
+\begin{itemize}
+    \item \textbf{基准测试方法论}：学会了设计可重复的性能测试，包括固定环境、交替轮次（每轮顺序交替消除缓存效应）、保留原始数据（JSON/CSV）和报告中位数/标准差（而非选择最好一轮）。这套方法论确保了性能数据的可信度和可复现性；
+    \item \textbf{性能归因}：通过在内核热路径中嵌入原子计数器和阶段计时（11个阶段计数器），学会了精确量化每个子系统的开销。正式性能数据显示 dm-crypt 中下层等待占 97.84\%，AES-XTS 加密仅占 1.82\%；dm-verity 中下层等待占 93.01\%，数据 SHA-256 占 5.74\%——这些数据指明了后续优化的真正瓶颈；
+    \item \textbf{优化验证}：通过 A/B 对照（scratch pool on/off、hash cache on/off）验证了优化措施的实际收益，避免了“拍脑袋优化”。stats=0/1 的对照实验还量化了性能归因本身的观察者开销（<0.5\%），证明计时不会显著影响 I/O 性能。
+\end{itemize}
+
+\section{工程能力提升}
+
+\subsection{大型项目开发与协作}
+
+项目代码量超过11000行（约9000行Rust + 约2000行Shell/Python），涉及 Rust 工作区、内核补丁、Shell/Python 脚本和 LaTeX 文档等多个技术栈。我们在以下方面获得了显著提升：
+
+\begin{itemize}
+    \item \textbf{版本管理}：使用 Git 进行 28+ 次提交，通过补丁序列（0001--0007）管理内核集成的演进，养成了“原子化提交”的习惯——每次提交只做一件事，提交信息清晰描述“做了什么、为什么做”；
+    \item \textbf{代码审查}：核心模块的变更经过团队成员交叉审查，学会了从正确性、安全性和可维护性多个维度审视代码。特别是安全敏感模块（加密、校验、缓存）的审查尤为严格；
+    \item \textbf{测试驱动开发}：先编写用户态单元测试验证算法，再接入内核；先通过正确性测试，再进行性能优化。这种渐进式开发模式使我们可以快速迭代，用户态作为“安全网”捕获了大量早期问题；
+    \item \textbf{技术决策记录}：重要决策（如补丁组织方式、性能优化优先级）形成书面记录，确保决策可追溯、可回溯。
+\end{itemize}
+
+\subsection{自动化与可复现性}
+
+我们构建了一套完整的自动化测试与验证体系：
+
+\begin{itemize}
+    \item 一键演示脚本（\texttt{final\_demo.sh}，约200行）覆盖用户态测试、Linux 兼容性验证和 KVM 证据检查，最终输出 \texttt{FINAL: PASS}；
+    \item 性能测试脚本支持自动发现和恢复（断点续跑），五轮矩阵可一键启动，运行时间约2-3小时；
+    \item 静态检查脚本（\texttt{check\_benchmark\_package.py}、\texttt{review\_release\_check.py}）确保提交材料的完整性和一致性，防止遗漏关键证据；
+    \item 所有测试保留原始证据（串口日志、JSON、CSV），不依赖手工修改数字，确保可复核性。
+\end{itemize}
+
+这些经验使我们认识到：在系统软件项目中，自动化工具链和可复现性不仅是效率工具，更是保证质量的关键基础设施——它们让“评审”变成了“复核”，让评委可以验证而非仅凭信任接受我们的结论。
+
+\subsection{文档写作与学术表达}
+
+本次比赛要求提交技术文档、设计赛道文档、答辩 PPT 和演示视频，这对我们的文档写作和学术表达能力是一次极好的锻炼：
+
+\begin{itemize}
+    \item 使用 LaTeX 编写结构化的技术文档（约200页），学会了图表（\texttt{figure}、\texttt{table}）、代码清单、交叉引用和文献管理（\texttt{BibTeX}）的规范使用；
+    \item 将技术细节转化为清晰的口头表达（答辩提纲、FAQ），学会了面向不同受众（评委、同行）的表述方式——技术文档追求精确和完整，答辩 PPT 追求清晰和有力；
+    \item 制作演示视频时，学会了在有限时间（5分钟）内呈现核心亮点的叙事技巧——从“为什么”到“怎么做”再到“做到了什么”；
+    \item 文档与代码的同步迭代：每个功能模块完成后及时更新文档，避免了“代码改完、文档滞后”的常见问题。
+\end{itemize}
+
+\section{团队协作收获}
+
+\subsection{分工与互补}
+
+团队成员的技术背景各有侧重，形成了良好的互补：
+
+\begin{itemize}
+    \item 加密与内核实现、性能优化、文档与测试三个方向均有专人负责，同时交叉支援。核心开发者专注算法和内核，测试工程师保证数据质量，文档工程师确保成果可呈现；
+    \item 通过每周线上会议和即时通讯，避免了“各自为政”导致的信息孤岛。平均每天3-5条技术消息交流，信息同步及时；
+    \item 遇到难题时（如 \texttt{pivot\_root} 限制、性能测试真实性问题），团队集体讨论、共同解决。没有人“自己扛”，也没有人“事不关己”。
+\end{itemize}
+
+\subsection{共识决策与代码审查}
+
+\begin{itemize}
+    \item 重要技术决策（BIO 生命周期设计、缓存安全策略、性能优化优先级）在会议中集体讨论后实施，形成共识文档。决策质量更高，风险更可控；
+    \item 核心模块的代码变更须至少一名其他成员审查后方可合并。补丁提交前在本地进行完整的 \texttt{cargo test} 和 KVM 正确性验证；
+    \item “代码改、文档跟”的习惯使文档与代码始终保持一致，也帮助我们在撰写文档的过程中发现了设计中不清晰或需要改进的地方。
+\end{itemize}
+
+\subsection{团队成员感想}
+
+\begin{itemize}
+    \item \textbf{潘利源}：“从用户态 \texttt{demo-crypt} 到内核中 \texttt{pivot\_root} 切换成功，每一步都充满挑战。最难忘的是调试 BIO 生命周期问题的夜晚——当串口终于输出 \texttt{PASS system root switched to protected mapper} 时，那种成就感难以言表。这次比赛让我真正理解了‘内存安全’在操作系统层面的含义，也让我对 Rust 的未来充满信心。特别是当意识到同样的 bug 在 C 语言中可能是一个难以复现的 UAF（use-after-free）漏洞，而在 Rust 中它只是一个生命周期编译错误时，我对 Rust 的价值有了更深的认识。”
+    
+    \item \textbf{陈韵}：“性能测试的真实性问题给我上了重要一课：数据漂亮不等于数据正确。早期假 mapper 测试产生的高吞吐量曾让我们兴奋，但冷静分析后才发现是测试环境的问题。重新设计验证流程、修复 runner 的过程让我明白：在工程中，‘诚实’比‘好看’更重要。这次经历也让我学会了如何设计可审计的测试框架——每个数据点都能追溯到原始证据，而不是只看最终数字。”
+    
+    \item \textbf{张乐桁}：“作为负责文档和 PPT 的成员，我最初担心自己‘离代码太远’。但当我把散落在各处的技术细节整理成结构化的文档、把复杂的性能数据转化为清晰的图表时，我意识到文档不是代码的附属品，而是项目的重要组成部分。好的文档能让代码的价值被更多人看到。此外，使用 LaTeX 排版 200 页技术文档的经历也极大提升了我的工具链能力——从‘会用 Word’到‘能驾驭 LaTeX’是一个质的飞跃。”
+\end{itemize}
+
+\section{对 Rust OS 生态的认识}
+
+通过本次比赛，我们对 Rust 操作系统生态的现状和发展方向有了更深入的认识：
+
+\begin{enumerate}
+    \item \textbf{优势已得到验证}：Rust 的所有权和类型系统在系统编程中提供了无与伦比的内存安全保证——整个项目中未出现任何内存安全漏洞导致的崩溃，这在 C 语言内核开发中是几乎不可能做到的。Asterinas 的 Framekernel 架构将大部分内核组件运行在用户态，进一步缩小了 TCB，为可信计算提供了良好的基础。本项目验证了在 Rust OS 中实现与 Linux 兼容的可信存储是完全可行的；
+    
+    \item \textbf{挑战依然存在}：Rust 内核生态仍处于早期阶段。调试工具（如 GDB 对 Rust 调试符号的支持）与 C 内核相比仍有差距；性能分析工具（如 perf 对 Rust 符号的解析）需要额外配置；\texttt{no\_std} 环境下的开发需要额外注意依赖选择（避免使用标准库功能）和内存分配策略（谨慎使用 \texttt{alloc}）；
+    
+    \item \textbf{未来探索方向明确}：Rust 在可信存储、机密计算和形式化验证方面具有天然优势。本项目验证了认证后缓存、BIO 复用和硬件加速等技术在 Rust OS 中的可行性，为后续的可信启动、远程证明和密钥管理奠定了基础。随着 Rust 内核生态的成熟，我们可以期待更多 Rust 原生的安全特性被引入操作系统开发。
+\end{enumerate}
+
+\section{关键技术指标达成总结}
+
+\begin{table}[H]
+    \centering
+    \caption{项目成果与赛题指标对照}
+    \begin{tabular}{p{0.25\textwidth}p{0.25\textwidth}p{0.40\textwidth}}
+        \toprule
+        \textbf{赛题指标} & \textbf{达成状态} & \textbf{关键证据} \\
+        \midrule
+        dm-verity 基础功能 & 完全达成 & R03/V01 PASS，V03--V07 篡改拒绝 \\
+        dm-crypt 基础功能 & 完全达成 & R01/C01--C05 PASS，XTS逐字节兼容 \\
+        根文件系统加密 & 完全达成 & R02 PASS，\texttt{pivot\_root} 成功 \\
+        性能与启动要求 & 完全达成 & 46 PASS单元格，启动开销<3\% \\
+        技术探索创新 & 完全达成 & AES-NI、hash cache、scratch pool、BIO复用 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\section{未来展望详细路线图}
+
+\begin{table}[H]
+    \centering
+    \begin{tabular}{p{0.15\textwidth}p{0.35\textwidth}p{0.40\textwidth}}
+        \toprule
+        \textbf{方向} & \textbf{具体目标} & \textbf{预期收益} \\
+        \midrule
+        完整LUKS2支持 & PBKDF、密钥槽、header管理 & 与标准 cryptsetup 完全兼容 \\
+        异步BIO优化 & 解密/校验移至专用worker & 减少IRQ路径延迟，提升吞吐 \\
+        可信启动集成 & 与TEE/远程证明结合 & 建立完整信任链 \\
+        更多cipher支持 & AES-CBC-ESSIV等 & 扩大Linux兼容性 \\
+        上游贡献 & 代码回馈Asterinas社区 & 推动Rust OS生态发展 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\section{个人感悟}
+
+\subsection{潘利源}
+“从用户态 \texttt{demo-crypt} 到内核中 \texttt{pivot\_root} 切换成功，每一步都充满挑战。最难忘的是调试 BIO 生命周期问题的夜晚——当串口终于输出 \texttt{PASS system root switched to protected mapper} 时，那种成就感难以言表。这次比赛让我真正理解了‘内存安全’在操作系统层面的含义，也让我对 Rust 的未来充满信心。特别是当意识到同样的 bug 在 C 语言中可能是一个难以复现的 UAF 漏洞，而在 Rust 中它只是一个生命周期编译错误时，我对 Rust 的价值有了更深的认识。”
+
+\subsection{陈韵}
+“性能测试的真实性问题给我上了重要一课：数据漂亮不等于数据正确。早期假 mapper 测试产生的高吞吐量曾让我们兴奋，但冷静分析后才发现是测试环境的问题。重新设计验证流程、修复 runner 的过程让我明白：在工程中，‘诚实’比‘好看’更重要。这次经历也让我学会了如何设计可审计的测试框架——每个数据点都能追溯到原始证据，而不是只看最终数字。”
+
+\subsection{张乐桁}
+“作为负责文档和 PPT 的成员，我最初担心自己‘离代码太远’。但当我把散落在各处的技术细节整理成结构化的文档、把复杂的性能数据转化为清晰的图表时，我意识到文档不是代码的附属品，而是项目的重要组成部分。好的文档能让代码的价值被更多人看到。此外，使用 LaTeX 排版 200 页技术文档的经历也极大提升了我的工具链能力——从‘会用 Word’到‘能驾驭 LaTeX’是一个质的飞跃。”
+
+\section{感谢}
+
+感谢全国大学生计算机系统能力大赛组委会提供这一宝贵的实践平台，让我们有机会将课堂所学应用到真实的操作系统开发中。感谢星绽操作系统开源社区提供的优秀框架和开发文档——特别是 OSTD 框架和 \texttt{aster-block} 组件，为我们的内核集成提供了清晰的接口。感谢指导老师在关键节点的点拨和支持。
+
+最重要的是，感谢团队每一位成员的付出与信任。从最初的架构讨论到最终的文档交付，我们共同经历了代码 panic 的焦虑、性能调优的煎熬和终版提交的喜悦。这段经历将成为我们大学生活中最珍贵的回忆之一。
+
+\section{小结}
+
+本次比赛是一次难得的全方位成长机会。我们在以下五个维度都获得了显著提升：
+
+\begin{enumerate}
+    \item \textbf{技术能力}：Rust 系统编程（约9000行）、密码学工程（AES-XTS + SHA-256）、内核开发（7个补丁，4000行）、性能工程（五轮基准，46个单元格）；
+    \item \textbf{工程能力}：大型项目协作（28次Git提交）、自动化测试（30+脚本）、文档写作（200页LaTeX）；
+    \item \textbf{团队协作}：3人协作50天、分工互补、共识决策、代码审查；
+    \item \textbf{认知提升}：对 Rust OS 生态有了系统认识，理解了 Rust 在系统编程中的价值与局限；
+    \item \textbf{个人成长}：每位成员都在技术自信和工程视野上有了质的提升。
+\end{enumerate}
+
+更重要的是，我们验证了 Rust 在操作系统安全存储领域的潜力——用内存安全的语言构建与 Linux 兼容的可信存储是完全可行的。这段经历将激励我们在系统软件的道路上继续前行。

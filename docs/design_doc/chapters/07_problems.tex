@@ -1,0 +1,377 @@
+% chapters/07_problems.tex
+\chapter{遇到的主要问题和解决方法}
+
+\section*{本章问题解决速览}
+
+\begin{table}[H]
+    \centering
+    \begin{tabular}{p{0.08\textwidth}p{0.25\textwidth}p{0.22\textwidth}p{0.35\textwidth}}
+        \toprule
+        \textbf{序号} & \textbf{问题领域} & \textbf{严重程度} & \textbf{解决方案核心} \\
+        \midrule
+        1 & 块大小与扇区语义 & \textcolor{red}{高} & 扇区级变换 + checked\_add 防溢出 \\
+        2 & BIO生命周期与错误传播 & \textcolor{red}{高} & 状态机重构 + 错误传播链 \\
+        3 & verity信任边界与缓存 & \textcolor{red}{高} & “先认证后插入”原则 \\
+        4 & 性能测试真实性 & \textcolor{orange}{中} & 设备存在性检查 + 数据分类 \\
+        5 & 环境下载与缓存 & \textcolor{orange}{中} & 持久化 Docker volumes \\
+        6 & pivot\_root限制 & \textcolor{orange}{中} & 两级引导方案 \\
+        7 & 组合栈设备发现 & \textcolor{orange}{中} & 堆叠检测逻辑 \\
+        8 & 同步原语差异 & \textcolor{orange}{中} & spin::Mutex + 禁用抢占 \\
+        9 & AES-NI FPU状态保存 & \textcolor{orange}{中} & FpuContext + disable\_preempt \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\section{概述}
+
+在项目开发过程中，我们遇到了若干涉及操作系统内核语义、密码学兼容性、并发控制和测试可靠性的关键工程问题。这些问题大多源于 Rust 与 C 内核接口的差异、虚拟化环境的特殊性以及安全存储系统的严格性要求。本章按问题领域分类，详细描述每个问题的现象、分析过程和最终解决方案。
+
+\section{问题解决方法论}
+
+在解决上述问题的过程中，我们形成了以下方法论，贯穿整个开发周期：
+
+\begin{enumerate}
+    \item \textbf{现象复现优先}：在尝试修复之前，先确保问题可以在受控环境中稳定复现。对于偶发性问题（如BIO竞态），通过增加日志和断言将其变为确定性触发；
+    \item \textbf{根因分析驱动}：不满足于“表面修复”，而是追溯到问题的根本原因。例如，BIO错误传播问题的根因是上层BIO的生命周期与下层BIO未正确绑定，而非简单的错误码传递；
+    \item \textbf{最小化验证}：每次修复后，只运行与该问题直接相关的最小测试集验证修复效果，避免在整个测试套件中浪费迭代时间；
+    \item \textbf{证据留存}：每个问题的分析过程、中间调试日志和最终修复方案均记录在案，形成可追溯的问题解决链；
+    \item \textbf{回归测试固化}：每个修复都伴随一个新的或增强的测试用例，确保同一问题不会再次出现。
+\end{enumerate}
+
+\section{块大小与扇区语义问题}
+
+\subsection{问题描述}
+
+上层文件系统（如 ext2）通常以 4 KiB 块发起 I/O 请求，而 \texttt{dm-crypt} 的 \texttt{plain64} IV 生成以 512 字节扇区号为单位。Linux 内核的 \texttt{dm-crypt} 在处理 4 KiB BIO 时，会将该 BIO 拆分为 8 个 512 字节扇区分别加密，每个扇区使用独立的扇区号作为 IV 的一部分。
+
+在早期实现中，我们将整个 4 KiB 块视为一个整体，使用块号（而非扇区号）作为 IV 输入，导致与 Linux 生成的密文不兼容。此外，\texttt{iv\_offset} 和 \texttt{data\_offset} 参数的算术运算存在整数溢出风险。
+
+\subsection{分析过程}
+
+通过 \texttt{verify\_linux\_xts\_compat.sh} 脚本对比 Linux 内核和 Rust 实现生成的密文，发现两者不一致。调试发现：
+\begin{enumerate}
+    \item Linux 对每个 4 KiB 块内的 8 个扇区使用连续扇区号（$\text{block\_id} \times 8$ 到 $\text{block\_id} \times 8 + 7$）；
+    \item \texttt{iv\_offset} 会累加到每个扇区号上；
+    \item \texttt{data\_offset} 以扇区为单位，需要转换为块偏移；
+    \item 在极端大容量设备场景下，块号与扇区号的乘积可能溢出 64 位整数。
+\end{enumerate}
+
+\subsection{解决方案}
+
+在 \texttt{DmCryptDevice} 中实现精确的扇区级变换：
+
+\begin{verbatim}
+let sectors_per_block = data.len() / SECTOR_SIZE;
+let sector_delta = block_id * sectors_per_block;
+let first_sector = iv_offset + sector_delta;
+for (index, sector_data) in data.chunks_exact_mut(SECTOR_SIZE).enumerate() {
+    let sector = first_sector + index as u64;
+    cipher.encrypt_sector(sector, sector_data)?;
+}
+\end{verbatim}
+
+所有算术运算均使用 \texttt{checked\_add} 和 \texttt{checked\_mul} 防止溢出，若溢出则返回 \texttt{DmError::OutOfRange}。同时增加了基于 ext2 超级块魔数的启动自检机制（\texttt{\seqsplit{self\_test\_ext2\_magic}}），在启动时验证加解密路径的正确性。
+
+\subsection{验证结果}
+
+修复后，Rust 实现与 Linux 内核输出逐字节一致，固定向量 SHA-256 匹配（\texttt{4334c17f...}）。该问题在补丁 0002 中固化。\texttt{checked\_*} 算术运算在后续所有 I/O 路径中均被采用，防止了类似问题的出现。
+
+\section{BIO 生命周期与错误传播问题}
+
+\subsection{问题描述}
+
+在 Asterinas 内核中，BIO 是异步提交的，上层 mapper 的 BIO 与下层设备的 BIO 之间存在生命周期依赖关系。早期实现中，上层 BIO 在下层 BIO 完成前就被标记为完成，或者在出现错误时未正确恢复上层数据。
+
+具体表现为：
+\begin{itemize}
+    \item 下层读失败时，上层仍然返回成功（错误丢失）；
+    \item 下层写成功后，上层 scratch buffer 未正确释放；
+    \item \texttt{flush} 操作未同步等待下层完成。
+\end{itemize}
+
+\subsection{分析过程}
+
+通过追踪 \texttt{device.rs} 中 \texttt{process\_crypt} 和 \texttt{process\_verity} 的执行流程，发现以下问题：
+\begin{enumerate}
+    \item 读路径中，下层 BIO 完成后才进行解密，但在错误情况下仍然尝试解密已损坏的数据；
+    \item 写路径中，加密后的密文保存在 \texttt{plaintext\_segments} 中，但在提交下层后未正确恢复原始 segment；
+    \item \texttt{flush} 操作直接返回成功，未调用下层设备的 \texttt{sync}；
+    \item 上层 BIO 在下层 BIO 完成回调之前就被 drop，导致 use-after-free 风险。
+\end{enumerate}
+
+\subsection{解决方案}
+
+重构 BIO 处理逻辑，严格遵循以下模式：
+
+\begin{enumerate}
+    \item \textbf{读路径}：提交下层读 BIO，等待完成后检查状态；若失败则直接完成上层 BIO 并传播错误；若成功则解密数据并写回上层 segment；
+    \item \textbf{写路径}：从 scratch pool 获取缓冲区，加密后通过 \texttt{BioSegment::alloc\_bytes} 创建新的 bounce segment 提交下层；下层完成后释放 scratch 缓冲区；
+    \item \textbf{Flush}：调用下层设备的 \texttt{sync} 并等待完成；
+    \item \textbf{错误传播}：任何下层错误或密码运算错误均导致上层 BIO 以 \texttt{BioStatus::IoError} 完成；
+    \item \textbf{生命周期绑定}：使用 \texttt{Arc<Mutex<Option<SubmittedBio>>>} 确保上层 BIO 在下层完成回调期间始终存活。
+\end{enumerate}
+
+此外，在 \texttt{process\_crypt} 中增加了逻辑扇区范围验证，确保所有 I/O 不超出 mapper 的逻辑大小。
+
+\subsection{验证结果}
+
+修复后，所有正确性测试（C01--C05、R02）通过，串口日志显示无错误丢失。该问题在补丁 0002 和补丁 0004 中逐步完善，后续所有 BIO 处理代码均遵循相同的生命周期管理模式。
+
+\section{dm-verity 信任边界与缓存安全}
+
+\subsection{问题描述}
+
+dm-verity 的安全性依赖于根哈希作为信任锚，任何数据块或哈希块的篡改都应被检测。然而，引入哈希块缓存后，如果不加限制地缓存哈希块，可能引入以下风险：
+\begin{enumerate}
+    \item 未经验证的哈希块被缓存，后续验证使用该缓存绕过实际校验；
+    \item 缓存的哈希块与数据块之间的信任链断裂；
+    \item 缓存大小无限制，导致内存耗尽。
+\end{enumerate}
+
+\subsection{分析过程}
+
+在设计哈希缓存时，我们面临一个核心矛盾：缓存可以提高性能，但缓存的内容必须可信。如果简单地缓存所有读取过的哈希块，攻击者可能先提交一个伪造的哈希块使其进入缓存，后续所有依赖该哈希块的验证都会错误地通过。
+
+分析 Linux 内核的 \texttt{dm-verity} 缓存实现发现，它采用类似的“验证后缓存”策略，但基于 C 语言实现，缺少类型系统层面的安全保证。
+
+\subsection{解决方案}
+
+采用“先认证后插入”策略，并用 Rust 类型系统强制执行：
+
+\begin{enumerate}
+    \item \textbf{认证顺序}：验证一个数据块时，从叶子哈希逐级向上验证；每读取一个哈希块，暂时不插入缓存；
+    \item \textbf{完整路径验证}：只有当整个路径（从数据块到根哈希）全部验证通过后，才将本次路径中涉及的所有哈希块插入缓存；
+    \item \textbf{缓存命中捷径}：当某个哈希块已存在于缓存中时，说明该块已经被完整认证过，可以直接使用，无需重新验证其上层哈希（由计数器 \texttt{auth\_shortcuts} 记录）；
+    \item \textbf{有界缓存}：使用 FIFO 队列，容量由启动参数 \texttt{rootfs\_verity.cache\_blocks} 控制（默认 256），防止内存耗尽。
+\end{enumerate}
+
+代码实现位于 \texttt{verity.rs} 的 \texttt{VerifiedHashBlockCache} 结构体中，Rust 的所有权系统保证了缓存块在被插入前必须经过完整的验证路径，类型系统杜绝了“未验证即插入”的编码错误。
+
+\subsection{验证结果}
+
+V03--V07 的单字节篡改测试均被拒绝，验证了缓存未破坏信任边界。同时，\texttt{auth\_shortcuts} 计数器在第二轮顺序读中显著增加（从第一轮的 0 增加到第二轮的 200+），证明缓存命中路径确实跳过了上层哈希计算。\texttt{/proc/dm-verity-stats} 提供了缓存命中的精确量化数据。
+
+\section{性能测试真实性问题}
+
+\subsection{问题描述}
+
+早期 Asterinas dm-crypt FIO 测试中，mapper 设备未正确创建（因启动参数错误或自检失败），但测试脚本继续执行。fio 将不存在的设备路径（如 \texttt{\seqsplit{/dev/mapper/dm-crypt-bench}}）当作普通文件创建并测试，产生了数量级异常的性能数据（高达数千 MiB/s）。
+
+这些异常数据与真实 mapper 测试结果混在同一证据目录中，构成严重的数据污染。
+
+\subsection{分析过程}
+
+排查测试日志发现：
+\begin{enumerate}
+    \item 测试脚本未检查 mapper 设备是否存在；
+    \item 即使 mapper 创建失败，fio 仍然执行，并自动创建普通文件；
+    \item 这些“假 mapper”测试的吞吐量远高于真实块设备（真实设备约 10-100 MiB/s，假测试高达 3000+ MiB/s），明显异常；
+    \item 旧批次中 raw 与 dm-crypt 结果混在一起，无法直接复用。
+\end{enumerate}
+
+\subsection{解决方案}
+
+\begin{enumerate}
+    \item \textbf{修复 runner}：在 \texttt{run\_dm\_crypt\_bench.sh} 和 \texttt{run\_dm\_verity\_bench.sh} 中增加设备存在性检查，若 mapper 不存在则立即失败；
+    \item \textbf{数据分类}：将旧批次中无法确认 mapper 真实性的数据标记为 \texttt{HARNESS\_BUG}，不纳入正式矩阵；
+    \item \textbf{重新执行}：使用修复后的 runner 重新执行所有 Asterinas dm-crypt 和 dm-verity 测试；
+    \item \textbf{证据隔离}：正式证据目录只包含重新执行后的原始 JSON 和日志，旧数据及失败重试不进入最终目录。
+\end{enumerate}
+
+\subsection{验证结果}
+
+重新执行后的 Asterinas dm-crypt 和 dm-verity 数据均来自真实 mapper 设备，五轮带宽稳定（4K 顺序读 8.908 / 7.505 MiB/s），正式矩阵仅包含这些已验证的数据。该问题在 \texttt{PERFORMANCE\_VALIDATION\_REPORT.md} 中有明确记录，体现了对数据真实性的零容忍态度。
+
+\section{环境下载与持久化缓存问题}
+
+\subsection{问题描述}
+
+在 Docker 容器中构建 Asterinas 内核时，每次启动新容器都需要重新下载 Cargo 依赖和 rustup 目标，导致构建时间过长（约 15--20 分钟），且网络不稳定时构建失败。
+
+在 R01 测试中，\texttt{cryptsetup} 工具需要从 Nix 缓存下载，若网络受限则测试被阻塞。
+
+\subsection{分析过程}
+
+观察发现：
+\begin{enumerate}
+    \item Cargo 依赖（\texttt{static.crates.io}）偶尔 DNS 解析失败；
+    \item rustup 目标（如 \texttt{x86\_64-unknown-none}）每次容器启动都需要重新安装；
+    \item Nix 构建 \texttt{cryptsetup} 时访问 binary cache，在完全离线环境中失败。
+\end{enumerate}
+
+\subsection{解决方案}
+
+\begin{enumerate}
+    \item \textbf{持久化 Cargo volume}：使用 Docker volume \texttt{asterinas-cargo} 保存 \texttt{/root/.cargo}，避免重复下载；
+    \item \textbf{持久化 rustup volume}：使用 \texttt{asterinas-rustup} 保存 \texttt{/root/.rustup}，避免重复安装目标；
+    \item \textbf{固定镜像}：使用固定 digest 的官方开发镜像（\texttt{sha256:7510071cb1...}），确保工具链版本一致；
+    \item \textbf{预置 cryptsetup}：在 initramfs 构建阶段包含 \texttt{cryptsetup} 二进制，避免运行时下载。
+\end{enumerate}
+
+\subsection{验证结果}
+
+修复后，内核构建时间从 15+ 分钟降至 2 分钟，R01 测试不再依赖网络。完整环境验证记录在 \texttt{PLATFORM\_EVAL\_ENVIRONMENT.md} 中。
+
+\section{pivot\_root 限制与引导问题}
+
+\subsection{问题描述}
+
+Asterinas 内核的 \texttt{pivot\_root} 实现要求当前根文件系统（initramfs）不是特殊的“rootfs”挂载，否则会拒绝切换。在早期实现中，initramfs 的根是内核自动挂载的 rootfs，没有父挂载点，导致 \texttt{pivot\_root} 返回错误。
+
+\subsection{分析过程}
+
+查阅 Asterinas 内核源码发现，\texttt{pivot\_root} 要求 old\_root 和 new\_root 都有有效的父挂载点。直接在内核自动挂载的 rootfs 上调用 \texttt{pivot\_root} 会失败，因为 rootfs 本身没有父挂载点。这是 Asterinas 与 Linux 在根文件系统挂载语义上的一个重要差异。
+
+\subsection{解决方案}
+
+采用两级引导方案：
+\begin{enumerate}
+    \item \textbf{第一阶段}：initramfs 脚本通过 \texttt{mount --bind / /bootstrap-root} 创建一个 bind mount，将当前根绑定到 \texttt{/bootstrap-root}；
+    \item \textbf{第二阶段}：通过 \texttt{chroot /bootstrap-root} 重新执行 init 脚本，此时 \texttt{pivot\_root} 的 old\_root 和 new\_root 都有有效父挂载点；
+    \item \texttt{pivot\_root} 成功将新根（mapper）切换到 \texttt{/}，旧根保留在 \texttt{/.initramfs} 下供后续使用。
+\end{enumerate}
+
+该方案在补丁 0003（\texttt{rootfs-switch.patch}）中实现，并通过 \texttt{dm-root-stage2} 参数区分两个阶段。
+
+\subsection{验证结果}
+
+R02（dm-crypt）和 R03/V01（dm-verity）均成功执行 \texttt{pivot\_root}，串口输出 \texttt{PASS system root switched to protected mapper}，且 initramfs 运行时通过 \texttt{/.initramfs} 路径仍然可访问。
+
+\section{组合栈的命名与设备发现问题}
+
+\subsection{问题描述}
+
+在实现 \texttt{dm\_stack=crypt,verity} 组合栈时，verity 的 \texttt{rootfs\_verity.device} 参数需要指向 crypt mapper 的名称（如 \texttt{dm-crypt0}）。但早期实现中，verity 组件只接受物理设备名，无法识别已注册的 mapper。
+
+\subsection{分析过程}
+
+在补丁 0007 实现前，\texttt{aster-dm} 的 verity 初始化逻辑直接调用 \texttt{find\_device(device\_name)}，该函数只查找物理块设备（如 \texttt{vdc}），不会查找已注册的 mapper 设备。这是因为物理设备和 mapper 设备注册在不同的命名空间中。
+
+\subsection{解决方案}
+
+在 \texttt{lib.rs} 的 \texttt{init} 函数中增加堆叠检测逻辑：
+
+\begin{verbatim}
+let stack_crypt_verity = is_crypt_verity_stack(&crypt_mapper_name);
+// ...
+if stack_crypt_verity && CRYPT_MAPPER.get().is_some() {
+    let device_name = crypt_mapper_name.as_str(); // 指向 crypt mapper
+} else {
+    let device_name = configured_device.as_str();
+}
+\end{verbatim}
+
+同时，当检测到堆叠时，打印清晰的启动日志：
+\begin{verbatim}
+[dm] stacked mapper: vdc -> dm-crypt0 -> dm-verity0
+\end{verbatim}
+
+\subsection{验证结果}
+
+组合栈启动脚本 \texttt{scripts/run\_dm\_stack.sh} 成功执行，串口日志包含堆叠链和最终的根切换 PASS。证据已归档于 \texttt{docs/evidence/stack/}。
+
+\section{内核态与用户态同步原语差异}
+
+\subsection{问题描述}
+
+用户态代码使用 \texttt{std::sync::Mutex} 进行同步，这是基于操作系统调度器的睡眠锁。但在内核态中，不能在持有锁时睡眠（可能导致死锁或调度延迟），也不能在中断上下文中使用睡眠锁。
+
+早期移植时，部分代码直接使用了与用户态相同的锁策略，导致在 BIO 完成回调中产生死锁或自旋等待过长。
+
+\subsection{分析过程}
+
+通过在内核中添加锁检测断言，发现以下问题：
+\begin{enumerate}
+    \item \texttt{CryptScratchPool} 在 BIO 完成回调中被访问，但使用 \texttt{std::sync::Mutex} 会在锁竞争时睡眠；
+    \item \texttt{VerifiedHashBlockCache} 在 verity 验证路径中被频繁访问，锁持有时间过长；
+    \item 在中断禁用区域中尝试获取睡眠锁，导致内核 panic。
+\end{enumerate}
+
+\subsection{解决方案}
+
+\begin{enumerate}
+    \item 将所有内核态共享状态（\texttt{CryptScratchPool}、\texttt{VerifiedHashBlockCache}）的锁替换为 \texttt{spin::Mutex}（自旋锁）；
+    \item 在 AES-NI 变换期间通过 \texttt{disable\_preempt} 和 \texttt{irq::disable\_local} 确保不被中断上下文破坏；
+    \item 使用 \texttt{core::sync::atomic::AtomicU64} 替代锁保护的热路径计数器（如 \texttt{stats.hash\_hits}），避免在统计路径上加锁；
+    \item 将缓存插入操作移到路径验证完成后执行，减少锁持有时间。
+\end{enumerate}
+
+\subsection{验证结果}
+
+修复后，所有 KVM 正确性测试通过，无死锁或 panic 发生。正式性能测试中，锁竞争开销被降至可接受范围。
+
+\section{AES-NI 的 FPU/XMM 状态保存问题}
+
+\subsection{问题描述}
+
+AES-NI 指令使用 XMM 寄存器进行 SIMD 加密操作。在内核中，XMM 寄存器是 FPU（浮点单元）上下文的一部分，其状态在进程切换时会被保存和恢复。然而，如果在中断处理或内核线程中直接使用 AES-NI 指令而未保存 FPU 状态，可能破坏用户态的 FPU 上下文，导致难以追踪的数据损坏。
+
+\subsection{分析过程}
+
+通过在内核 AES-NI 路径前后添加 FPU 状态检查，发现早期实现未保存 FPU 上下文：
+\begin{enumerate}
+    \item 加密操作在 BIO 处理路径中执行，该路径可能在任意进程上下文中被调用；
+    \item 未保存 FPU 状态意味着当前进程的 XMM 寄存器值可能被 AES 操作覆盖；
+    \item 这种损坏在用户态程序使用 SIMD 指令时才会显现，难以定位。
+\end{enumerate}
+
+\subsection{解决方案}
+
+在 \texttt{ostd/arch/x86/cpu/aesni.rs} 中实现 FPU 状态保护机制：
+
+\begin{verbatim}
+// AES-NI 变换前
+let mut fpu_context = FpuContext::new();
+let _preempt_guard = disable_preempt();
+let _irq_guard = irq::disable_local();
+fpu_context.save();
+
+// 执行 AES-NI 加密/解密...
+encrypt_block_256(block, round_keys);
+
+// AES-NI 变换后
+fpu_context.load();
+\end{verbatim}
+
+\texttt{FpuContext::save()} 保存当前 XMM 寄存器状态，\texttt{FpuContext::load()} 在操作完成后恢复。\texttt{disable\_preempt} 和 \texttt{irq::disable\_local} 确保在 FPU 状态保存和恢复期间不会被调度出去或中断。
+
+\subsection{验证结果}
+
+修复后，AES-NI 启动日志显示 \texttt{backend=AES-NI}，所有 KVM 正确性测试通过，未再出现 FPU 状态损坏相关的问题。正式五轮性能测试确认 AES-NI 加速效果稳定可测。
+
+\section{问题解决效果统计}
+
+\begin{table}[H]
+    \centering
+    \caption{各问题修复效果统计}
+    \begin{tabular}{p{0.20\textwidth}p{0.15\textwidth}p{0.20\textwidth}p{0.35\textwidth}}
+        \toprule
+        \textbf{问题领域} & \textbf{修复补丁} & \textbf{影响范围} & \textbf{修复效果} \\
+        \midrule
+        块大小与扇区语义 & 0002 & 全部 dm-crypt I/O & Linux XTS 兼容性 PASS \\
+        BIO生命周期 & 0002, 0004 & 全部 BIO 处理 & 12组正确性测试 PASS \\
+        verity信任边界 & 0005 & dm-verity 读路径 & 缓存命中不削弱安全性 \\
+        性能测试真实性 & N/A & 全部性能证据 & 正式矩阵仅含真实数据 \\
+        环境下载 & N/A & 构建与 R01 & 构建时间 15min $\to$ 2min \\
+        pivot\_root限制 & 0003 & rootfs 切换 & R02, R03 PASS \\
+        组合栈设备发现 & 0007 & 组合栈启动 & 堆叠链打印 + root 切换 PASS \\
+        同步原语差异 & 0005 & 全部内核并发路径 & 无死锁/panic \\
+        AES-NI FPU状态 & 0005 & AES-NI 加速路径 & 启动日志显示 AES-NI \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\section{小结}
+
+本章详细记录了项目开发过程中遇到的九个关键工程问题，包括块大小与扇区语义、BIO 生命周期、verity 信任边界、性能测试真实性、环境下载、\texttt{pivot\_root} 限制、组合栈设备发现、同步原语差异和 AES-NI FPU 状态保护。
+
+每个问题都通过细致的分析、针对性的代码修改和充分的测试验证得到了解决。这些问题及其解决方案不仅确保了项目的正确性，也为后续的 Rust OS 存储安全开发提供了宝贵的经验。关键统计数据：
+
+\begin{itemize}
+    \item 共解决 9 个关键工程问题；
+    \item 涉及补丁 0001--0007 中的 6 个补丁；
+    \item 影响 12 组 KVM 正确性测试和 46 个性能单元格；
+    \item 修复后全部测试 PASS，无已知严重问题遗留。
+\end{itemize}
+
+这些问题的解决过程充分展示了 Rust 在系统编程中“安全与性能兼得”的潜力，以及类型系统和所有权机制在构建可信存储系统时的独特价值。

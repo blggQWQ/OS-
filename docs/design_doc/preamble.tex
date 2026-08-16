@@ -1,0 +1,189 @@
+% preamble.tex
+% 导言区：宏包、页面设置、代码高亮、超链接等
+% 适用于设计赛道文档（docs/design_doc/）
+
+% ==================== 页面设置 ====================
+\usepackage{geometry}
+\geometry{a4paper, top=2.5cm, bottom=2.5cm, left=3cm, right=2.5cm}
+
+% ==================== 中文支持 ====================
+\usepackage[UTF8]{ctex}
+% 如果在 Linux 上编译，可能需要指定 fontset:
+% \usepackage[UTF8, fontset=ubuntu]{ctex}   % Ubuntu
+% \usepackage[UTF8, fontset=founder]{ctex}  % 方正字体
+
+% ==================== 图表和浮动体 ====================
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{bm}          % 粗体数学符号
+\usepackage{textcomp}    % 特殊符号（如 \textdegree）
+\usepackage{upgreek}     % 直立希腊字母
+
+% ==================== 表格增强 ====================
+\usepackage{booktabs}    % 三线表
+\usepackage{longtable}   % 跨页长表格
+\usepackage{array}       % 增强列类型
+\usepackage{seqsplit}    % 长序列换行
+\usepackage{multirow}    % 合并行
+\usepackage{makecell}    % 表头换行
+\usepackage{colortbl}    % 表格颜色
+
+% ==================== 数学公式 ====================
+\usepackage{amsmath, amssymb, amsfonts}
+\usepackage{mathtools}   % amsmath 扩展
+\usepackage{amsthm}      % 定理环境
+
+% ==================== 代码高亮 ====================
+\usepackage{listings}
+\usepackage{xcolor}
+
+% 自定义 listings 样式（移除复杂字符定义）
+\lstdefinestyle{codestyle}{
+    basicstyle=\ttfamily\small,
+    keywordstyle=\color{blue}\bfseries,
+    commentstyle=\color{green!40!black},
+    stringstyle=\color{red},
+    numberstyle=\tiny\color{darkgray},
+    numbers=left,
+    stepnumber=1,
+    breaklines=true,
+    breakindent=0pt,
+    breakatwhitespace=true,
+    showspaces=false,
+    showtabs=false,
+    tabsize=4,
+    frame=single,
+    framerule=0.5pt,
+    backgroundcolor=\color{white},
+    captionpos=b,
+    xleftmargin=2mm,
+    xrightmargin=2mm,
+    belowskip=1.2\baselineskip,
+    aboveskip=1.2\baselineskip,
+}
+\lstset{style=codestyle}
+
+% 为 listings 添加 Rust 语言支持（简化版，移除易出错的 morestring 和 literate）
+\lstdefinelanguage{Rust}{
+  keywords={
+    abstract, as, async, await, break, const, continue, crate, do, dyn, else,
+    enum, extern, false, fn, for, if, impl, in, let, loop, match, mod, move,
+    mut, pub, ref, return, self, static, struct, super, trait, true, type,
+    unsafe, use, where, while, yield,
+  },
+  keywordstyle=\color{blue}\bfseries,
+  ndkeywords={
+    Box, Option, Result, String, Vec, u8, u16, u32, u64, u128, usize,
+    i8, i16, i32, i64, i128, isize, f32, f64, char, bool,
+    &, mut, self, Self, Sync, Send, Arc, Mutex, RwLock,
+    Pin, Future, Into, From, TryFrom, TryInto, Default, Clone, Copy, Debug,
+    Eq, PartialEq, Ord, PartialOrd, Hash, Deref, DerefMut, Drop,
+  },
+  ndkeywordstyle=\color{purple}\bfseries,
+  identifierstyle=\color{black},
+  sensitive=true,
+  comment=[l]{//},
+  morecomment=[s]{/*}{*/},
+  commentstyle=\color{green!40!black}\itshape,
+  stringstyle=\color{red},
+  morestring=[b]",
+  morestring=[b]',
+  morestring=[b]",
+}
+
+% 对 Rust 代码的额外设置（移除 literate 以避免参数错误）
+\lstset{language=Rust}
+
+% ==================== 超链接 ====================
+\usepackage{hyperref}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    citecolor=blue,
+    urlcolor=blue,
+    pdfstartview=FitH,
+    pdftitle={设计赛道文档},
+    pdfauthor={Go\_Go\_Go 参赛队},
+    pdfsubject={全国大学生计算机系统能力大赛},
+    pdfkeywords={dm-crypt, dm-verity, Rust, Asterinas, 操作系统设计赛}
+}
+
+% ==================== 页眉页脚 ====================
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\leftmark}
+\fancyhead[R]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\setlength{\headheight}{15pt}
+
+% 章节页使用 plain 样式（无页眉，有页码）
+\fancypagestyle{plain}{
+    \fancyhf{}
+    \fancyhead[R]{\thepage}
+    \renewcommand{\headrulewidth}{0pt}
+}
+
+% ==================== 目录格式 ====================
+\usepackage{tocloft}
+\renewcommand{\cftchapfont}{\bfseries\large}
+\renewcommand{\cftchapleader}{\cftdotfill{\cftdotsep}}
+\renewcommand{\cftsecfont}{\normalsize}
+\renewcommand{\cftsecpagefont}{\normalsize}
+\setlength{\cftbeforechapskip}{0.5em}
+
+% ==================== 列表样式 ====================
+\usepackage{enumitem}
+\setlist{nosep, leftmargin=*}
+
+% ==================== 其他有用宏包 ====================
+\usepackage{etoolbox}       % 补丁命令
+\usepackage{calc}           % 长度计算
+\usepackage{afterpage}      % 在页面后执行命令
+
+% ==================== 图表路径 ====================
+% 指向技术文档的 figures 目录，实现图片复用
+\graphicspath{{../document/figures/}}
+
+% ==================== 参考文献（可选） ====================
+% 如需引用参考文献，取消注释以下行并创建 references.bib
+% \usepackage{natbib}
+% \bibliographystyle{plain}
+
+% ==================== 章节标题格式 ====================
+\usepackage{titlesec}
+\titleformat{\chapter}{\Huge\bfseries\centering}{第\thechapter 章}{1em}{}
+\titleformat{\section}{\Large\bfseries}{\thesection}{1em}{}
+\titleformat{\subsection}{\large\bfseries}{\thesubsection}{1em}{}
+
+% ==================== 附录格式 ====================
+% 附录章节编号使用字母
+\usepackage{appendix}
+\renewcommand{\appendixname}{附录}
+\renewcommand{\appendixtocname}{附录}
+\renewcommand{\appendixpagename}{附录}
+
+% ==================== 脚注格式 ====================
+\renewcommand{\footnotesize}{\small}
+\setlength{\footnotesep}{0.5\baselineskip}
+
+% ==================== 段落缩进 ====================
+\usepackage{indentfirst}
+\setlength{\parindent}{2em}
+
+% ==================== 颜色定义 ====================
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+
+% ==================== 兼容性设置 ====================
+% 防止 listings 与 babel 冲突
+\makeatletter
+\def\lst@DefSaveDef{%
+  \edef\lst@temp{\global\let\csname\@lst @\lst@var\endcsname\@lst@arg}%
+  \expandafter\lst@temp
+}
+\makeatother
