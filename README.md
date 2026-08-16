@@ -166,6 +166,29 @@ DM_HASH_START=<哈希树起始块> PROBE_BLOCK=<逻辑块号> \
 
 所有数值均为 5 轮中位数。Linux 与 Asterinas 的硬件/runner 不同，分表展示，不计算跨平台倍率。完整环境、统计量和证据路径见 [中文性能报告](docs/evidence/final-performance-20260811/PERFORMANCE_VALIDATION_REPORT.md)。
 
+### 256 MiB 正式合同：Asterinas raw / dm-crypt / dm-verity
+
+KVM、1 vCPU、8 GiB、virtio-blk、4 KiB 同步读、QD1、10 秒 runtime、交替顺序五轮。raw 行合并两组共十次测量；target 的相对值使用同一镜像、同一轮次合同的配对 raw 中位数。
+
+| 设备 | 五轮中位吞吐（MiB/s） | 中位 p50（us） | 中位 p95（us） | 相对配对 raw |
+|---|---:|---:|---:|---:|
+| raw（两组共十轮） | 4.249 | 892.928 | 1277.952 | 100.0% |
+| dm-crypt | 4.059 | 921.600 | 1318.912 | 95.6% |
+| dm-verity | 3.815 | 954.368 | 1433.600 | 87.3% |
+
+阶段差值：dm-crypt 下层等待中位占 97.84%、AES-XTS 占 1.82%；dm-verity 下层等待中位占 93.01%、数据 SHA-256 占 5.74%。
+
+### Linux guest 与 Asterinas 同条件对照
+
+同一宿主机、KVM、CPU=host、1 vCPU、8 GiB、同一 virtio-blk 数据盘前 256 MiB、4 KiB、sync、direct=1、QD1、ramp 2 秒、runtime 10 秒：
+
+| 系统 | raw 中位吞吐（MiB/s） | dm-crypt 中位吞吐（MiB/s） | dm-crypt 保留率 | dm-crypt p95（us） |
+|---|---:|---:|---:|---:|
+| Linux guest | 5.150 | 4.746 | 92.158% | 1384.448 |
+| Asterinas | 4.245 | 4.059 | 95.621% | 1318.912 |
+
+Asterinas 的 raw、dm-crypt 绝对吞吐分别为 Linux guest 的 **82.4%**、**85.5%**。95.621% 是 Asterinas 相对自身 raw 的 dm-crypt 保留率，不代表绝对吞吐超过 Linux。
+
 ### Linux FIO：真实 raw block device 与 dm-crypt mapper
 
 单位：MiB/s；参数为 `libaio`、`direct=1`、`numjobs=1`，除设备外保持一致。
