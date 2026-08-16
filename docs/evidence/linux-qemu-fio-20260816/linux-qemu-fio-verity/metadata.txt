@@ -1,0 +1,15 @@
+platform=linux-qemu-kvm
+target=dm-verity
+raw_device=/dev/vdb
+verity_device=/dev/mapper/cscc-linux-fio-verity
+size_mib=256
+runs=5
+runtime_seconds=10
+ramp_seconds=2
+vcpus=1
+memory=8G
+accelerator=kvm
+cpu_model=host
+device_model=virtio-blk
+fio_version=fio-3.36
+verity_root_hash=9451035393042866bec6193ca22046a1a22e4e372b671887fbe232e5977f1ef4

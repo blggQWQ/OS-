@@ -106,6 +106,7 @@ Rust 的所有权、借用检查和类型系统能减少悬垂指针、越界访
 ### Q: 性能开销如何控制？
 
 dm-crypt 可使用硬件加速 AES；dm-verity 可缓存 hash block，减少重复读取和计算。
-最终结果分平台回答：Linux raw/dm-crypt 完成 13+13 个五轮单元格；Asterinas
-dm-crypt 完成 13 个、dm-verity 完成 7 个五轮单元格。4 KiB 顺序读中位数分别为
-Linux 16.296/15.010 MiB/s，Asterinas 保护 mapper 8.908/7.505 MiB/s。不同平台不计算倍率。
+最终结果分平台回答：Linux QEMU virtio raw/dm-crypt 完成 13+13 个五轮单元格，
+dm-verity 读 7 项；Asterinas dm-crypt 完成 13 个、dm-verity 完成 7 个五轮单元格。
+4 KiB 顺序读中位数分别为 Linux QEMU virtio 11.391/10.942/10.704 MiB/s，
+Asterinas 保护 mapper 8.908/7.505 MiB/s。不同平台不计算倍率。

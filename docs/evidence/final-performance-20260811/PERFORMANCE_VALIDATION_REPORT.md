@@ -15,10 +15,11 @@
 |---|---|---:|---|
 | Asterinas KVM | dm-crypt | 13 | PASS |
 | Asterinas KVM | dm-verity | 7 | PASS；另有 6 个只读 N/A |
-| Linux host | raw block device | 13 | PASS |
-| Linux host | dm-crypt mapper | 13 | PASS |
+| Linux QEMU virtio | raw block device | 13 | PASS |
+| Linux QEMU virtio | dm-crypt mapper | 13 | PASS |
+| Linux QEMU virtio | dm-verity 读 | 7 | PASS；另有 6 个只读 N/A |
 
-正式单元格与证据路径见 [`PERFORMANCE_MATRIX.csv`](PERFORMANCE_MATRIX.csv)。Linux raw 与 dm-crypt 使用同一套 `libaio/direct=1/numjobs=1` 参数；Asterinas 保护目标使用 guest 内实际 mapper。Asterinas raw 的旧批次与不存在 mapper 的假 dm-crypt 记录混在同一证据族中，未纳入本报告，也未由生成器读取。
+Linux QEMU virtio FIO 证据见 [`linux-qemu-fio-20260816`](../linux-qemu-fio-20260816/)。Asterinas 正式单元格见 [`PERFORMANCE_MATRIX.csv`](PERFORMANCE_MATRIX.csv)。Linux raw、dm-crypt 与 dm-verity 读使用同一套 `libaio/direct=1/numjobs=1` 参数；Asterinas 保护目标使用 guest 内实际 mapper。Asterinas raw 的旧批次与不存在 mapper 的假 dm-crypt 记录混在同一证据族中，未纳入本报告，也未由生成器读取。
 
 ## Filebench fileserver（Linux host）
 
@@ -51,7 +52,7 @@
 
 - `asterinas-fio/asterinas-kvm/dm-crypt-recovery/`：真实性审计后重新执行的 dm-crypt
 - `asterinas-fio/asterinas-kvm/dm-verity/`：修正 runner 后重新执行的 dm-verity
-- `fio-matrix/linux-host/`：Linux raw/dm-crypt 成对 FIO JSON 与汇总
+- `docs/evidence/linux-qemu-fio-20260816/`：Linux QEMU virtio raw/dm-crypt/dm-verity FIO JSON 与汇总
 - `filebench-valid/`：Filebench 5+5 轮原始日志和 CSV
 - `sqlite/`：SQLite 5+5+5 轮记录
 - `boot-matrix/`：Asterinas 启动 15 轮记录

@@ -1,0 +1,7 @@
+platform,target,operation,block_size,iodepth,status,reason
+linux-qemu-kvm,dm-verity,write,4k,1,N/A_READ_ONLY,dm-verity_read_only
+linux-qemu-kvm,dm-verity,write,32k,1,N/A_READ_ONLY,dm-verity_read_only
+linux-qemu-kvm,dm-verity,write,256k,1,N/A_READ_ONLY,dm-verity_read_only
+linux-qemu-kvm,dm-verity,randwrite,4k,1,N/A_READ_ONLY,dm-verity_read_only
+linux-qemu-kvm,dm-verity,randwrite,32k,1,N/A_READ_ONLY,dm-verity_read_only
+linux-qemu-kvm,dm-verity,randwrite,256k,1,N/A_READ_ONLY,dm-verity_read_only

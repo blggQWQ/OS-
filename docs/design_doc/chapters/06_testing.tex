@@ -59,7 +59,7 @@
     \end{tabular}
 \end{table}
 
-性能测试分 Linux host 和 Asterinas KVM 两个平台分别执行，详细环境见 \texttt{PLATFORM\_EVAL\_ENVIRONMENT.md}。
+性能测试分 Linux QEMU virtio 和 Asterinas KVM 两个平台分别执行，详细环境见 \texttt{PLATFORM\_EVAL\_ENVIRONMENT.md}。
 
 \section{单元测试}
 
@@ -223,8 +223,9 @@ FIO 矩阵覆盖 4 KiB、32 KiB、256 KiB 三种块大小，顺序/随机读/写
         \midrule
         Asterinas KVM dm-crypt & 13 项 $\times$ 5 轮 & \texttt{PASS} \\
         Asterinas KVM dm-verity & 7 项 $\times$ 5 轮 & \texttt{PASS}（6 项 N/A） \\
-        Linux host raw & 13 项 $\times$ 5 轮 & \texttt{PASS} \\
-        Linux host dm-crypt & 13 项 $\times$ 5 轮 & \texttt{PASS} \\
+        Linux QEMU virtio raw & 13 项 $\times$ 5 轮 & \texttt{PASS} \\
+        Linux QEMU virtio dm-crypt & 13 项 $\times$ 5 轮 & \texttt{PASS} \\
+        Linux QEMU virtio dm-verity 读 & 7 项 $\times$ 5 轮 & \texttt{PASS}（6 项 N/A） \\
         \bottomrule
     \end{tabular}
 \end{table}
@@ -237,10 +238,10 @@ FIO 矩阵覆盖 4 KiB、32 KiB、256 KiB 三种块大小，顺序/随机读/写
         \toprule
         \textbf{负载} & \textbf{块大小} & \textbf{QD} & \textbf{Linux raw} & \textbf{Linux dm-crypt} \\
         \midrule
-        read & 4 KiB & 1 & 16.296 & 15.010 \\
-        read & 256 KiB & 1 & 129.599 & 128.337 \\
-        randread & 4 KiB & 16 & 16.163 & 15.558 \\
-        randwrite & 256 KiB & 1 & 127.062 & 117.576 \\
+        read & 4 KiB & 1 & 11.391 & 10.942 \\
+        read & 256 KiB & 1 & 134.623 & 129.474 \\
+        randread & 4 KiB & 16 & 58.931 & 58.947 \\
+        randwrite & 256 KiB & 1 & 130.124 & 109.453 \\
         \bottomrule
     \end{tabular}
 \end{table}
@@ -259,7 +260,7 @@ FIO 矩阵覆盖 4 KiB、32 KiB、256 KiB 三种块大小，顺序/随机读/写
     \end{tabular}
 \end{table}
 
-\textbf{证据路径}：\texttt{docs/evidence/final-performance-20260811/PERFORMANCE\_MATRIX.csv}
+\textbf{证据路径}：Linux QEMU virtio FIO 见 \texttt{docs/evidence/linux-qemu-fio-20260816/}；Asterinas FIO 见 \texttt{docs/evidence/final-performance-20260811/PERFORMANCE\_MATRIX.csv}。
 
 \subsection{补充性能测试}
 
@@ -339,7 +340,7 @@ python3 scripts/review_release_check.py
         \texttt{\seqsplit{stabilization/correctness-kvm/corruption/}} & V02--V07 串口日志 \\
         \texttt{\seqsplit{final-performance-20260811/}} & 最终性能矩阵、报告、原始数据 \\
         \texttt{\seqsplit{final-performance-20260811/asterinas-fio/}} & Asterinas KVM FIO 原始 JSON \\
-        \texttt{\seqsplit{final-performance-20260811/fio-matrix/linux-host/}} & Linux host FIO 原始 JSON \\
+        \texttt{\seqsplit{linux-qemu-fio-20260816/}} & Linux QEMU virtio FIO 原始 JSON \\
         \texttt{\seqsplit{final-performance-20260811/filebench-valid/}} & Filebench 5+5 轮日志 \\
         \texttt{\seqsplit{final-performance-20260811/sqlite/}} & SQLite 5+5+5 轮记录 \\
         \texttt{\seqsplit{final-performance-20260811/boot-matrix/}} & 启动 15 轮记录 \\

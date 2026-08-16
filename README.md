@@ -189,25 +189,25 @@ KVM、1 vCPU、8 GiB、virtio-blk、4 KiB 同步读、QD1、10 秒 runtime、交
 
 Asterinas 的 raw、dm-crypt 绝对吞吐分别为 Linux guest 的 **82.4%**、**85.5%**。95.621% 是 Asterinas 相对自身 raw 的 dm-crypt 保留率，不代表绝对吞吐超过 Linux。
 
-### Linux FIO：真实 raw block device 与 dm-crypt mapper
+### Linux FIO：QEMU/KVM virtio-blk（raw / dm-crypt / dm-verity）
 
-单位：MiB/s；参数为 `libaio`、`direct=1`、`numjobs=1`，除设备外保持一致。
+QEMU/KVM、`-cpu host`、1 vCPU、8 GiB、virtio-blk、受测区 256 MiB、fio 3.36、`libaio`、`direct=1`、`numjobs=1`、5 轮中位。证据：`docs/evidence/linux-qemu-fio-20260816/`。
 
-| workload | bs | qd | raw | dm-crypt |
-|---|---:|---:|---:|---:|
-| read | 4K | 1 | 16.296 | 15.010 |
-| read | 32K | 1 | 95.450 | 80.133 |
-| read | 256K | 1 | 129.599 | 128.337 |
-| randread | 4K | 1 | 11.648 | 13.727 |
-| randread | 4K | 16 | 16.163 | 15.558 |
-| randread | 32K | 1 | 86.876 | 82.026 |
-| randread | 256K | 1 | 127.962 | 124.750 |
-| write | 4K | 1 | 13.818 | 14.928 |
-| write | 32K | 1 | 81.429 | 84.973 |
-| write | 256K | 1 | 131.499 | 115.788 |
-| randwrite | 4K | 1 | 14.276 | 14.092 |
-| randwrite | 32K | 1 | 90.672 | 81.667 |
-| randwrite | 256K | 1 | 127.062 | 117.576 |
+| workload | bs | qd | raw | dm-crypt | dm-verity |
+|---|---:|---:|---:|---:|---:|
+| read | 4K | 1 | 11.391 | 10.942 | 10.704 |
+| read | 32K | 1 | 73.074 | 68.706 | 67.859 |
+| read | 256K | 1 | 134.623 | 129.474 | 122.088 |
+| randread | 4K | 1 | 10.673 | 10.703 | 10.245 |
+| randread | 4K | 16 | 58.931 | 58.947 | 57.986 |
+| randread | 32K | 1 | 69.902 | 67.168 | 65.493 |
+| randread | 256K | 1 | 136.823 | 128.612 | 123.775 |
+| write | 4K | 1 | 11.490 | 10.992 | N/A（只读） |
+| write | 32K | 1 | 73.705 | 69.765 | N/A（只读） |
+| write | 256K | 1 | 129.087 | 119.888 | N/A（只读） |
+| randwrite | 4K | 1 | 10.811 | 10.479 | N/A（只读） |
+| randwrite | 32K | 1 | 71.927 | 68.253 | N/A（只读） |
+| randwrite | 256K | 1 | 130.124 | 109.453 | N/A（只读） |
 
 ### Asterinas KVM FIO：真实保护 mapper
 
@@ -243,9 +243,8 @@ Asterinas 的 raw、dm-crypt 绝对吞吐分别为 Linux guest 的 **82.4%**、*
 ## 性能测试命令
 
 ```bash
-# Linux FIO：raw + dm-crypt，13 个 workload，每项 5 轮
-sudo OUT_ROOT="$PWD/docs/evidence/fio-matrix" \
-  bash scripts/run_fio_matrix.sh --platform linux-host --runs 5
+# Linux QEMU virtio FIO：raw + dm-crypt + dm-verity 读
+# 正式数字见 docs/evidence/linux-qemu-fio-20260816/
 
 # Asterinas KVM FIO
 OUT_ROOT="$PWD/docs/evidence/asterinas-fio" \

@@ -108,10 +108,10 @@ plain64 扇区号解密、写回上层 segment、归还 scratch，最后传播�
 
 ### 性能结果应该怎么表述？
 
-最终回答必须分平台。Linux host 使用真实 raw block device 与 dm-crypt mapper，完成
-13+13 个五轮单元格；4 KiB 顺序读中位数为 16.296 和 15.010 MiB/s。Asterinas KVM
-只展示真实保护 mapper，dm-crypt 与 dm-verity 的 4 KiB 顺序读中位数为 8.908 和
-7.505 MiB/s。两套环境不同，不计算跨平台倍率。
+最终回答必须分平台。Linux QEMU virtio 使用 virtio-blk raw、dm-crypt 与 dm-verity
+读，完成 13+13+7 个五轮单元格；4 KiB 顺序读中位数为 11.391、10.942 和 10.704 MiB/s。
+Asterinas KVM 只展示真实保护 mapper，dm-crypt 与 dm-verity 的 4 KiB 顺序读中位数为
+8.908 和 7.505 MiB/s。两套环境不同，不计算跨平台倍率。
 
 plain、dm-crypt、dm-verity 启动中位数分别为 51.331303、51.629820、52.743415 秒，
 相对 plain 开销为 0.582% 和 2.751%。完整 46 个 PASS 单元格和原始路径以最终中文

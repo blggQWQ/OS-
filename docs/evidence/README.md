@@ -7,7 +7,7 @@
 | `final-performance-20260811/PERFORMANCE_VALIDATION_REPORT.md` | 中文性能结论、环境与口径 | 正式 |
 | `final-performance-20260811/PERFORMANCE_MATRIX.csv` | Linux/Asterinas FIO 全部正式单元格 | 正式 |
 | `final-performance-20260811/asterinas-fio/` | 恢复后的 dm-crypt 与修正后的 dm-verity 原始证据 | 正式 |
-| `final-performance-20260811/fio-matrix/linux-host/` | raw block device 与真实 dm-crypt mapper JSON | 正式 |
+| `linux-qemu-fio-20260816/` | Linux QEMU virtio raw / dm-crypt / dm-verity FIO JSON | 正式 |
 | `final-performance-20260811/filebench-valid/` | Filebench raw/dm-crypt 各 5 轮 | 正式 |
 | `final-performance-20260811/sqlite/` | SQLite 三目标各 5 轮 | 正式 |
 | `final-performance-20260811/boot-matrix/` | Asterinas 三场景共 15 轮 | 正式 |

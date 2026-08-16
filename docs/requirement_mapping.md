@@ -93,9 +93,10 @@ LUKS metadata、PBKDF 与 keyslot 仍按 Linux 分层留在用户态。
 - `scripts/benchmark_boot_time.py` 提供带宿主机时间戳的五轮启动对照；
 - `scripts/summarize_fio_matrix.py` 输出均值、中位数、标准差和原始证据路径。
 
-当前已经完成 Asterinas KVM dm-crypt 13 项、dm-verity 7 项，Linux host raw/dm-crypt
-各 13 项以及 plain/dm-crypt/dm-verity 各五轮启动对照。跨平台结果分开列示，不使用
-不同环境数据计算倍率；最终数字见 `docs/evidence/final-performance-20260811/`。
+当前已经完成 Asterinas KVM dm-crypt 13 项、dm-verity 7 项，Linux QEMU virtio
+raw/dm-crypt 各 13 项、dm-verity 读 7 项以及 plain/dm-crypt/dm-verity 各五轮启动对照。
+跨平台结果分开列示，不使用不同环境数据计算倍率；Linux FIO 见
+`docs/evidence/linux-qemu-fio-20260816/`。
 
 ## 指标 5：技术探索
 

@@ -45,8 +45,8 @@ hash 后才能进入缓存。缓存命中不会降低完整性边界。
 
 ## 3. Linux 对照不是装饰性跑分
 
-`scripts/run_fio_matrix.sh --platform linux-host` 在同一 backing image 上创建真实 raw
-block device 与 dm-crypt mapper，按统一参数执行 13 个 workload。每个场景运行五次，
+Linux QEMU virtio FIO 在 virtio-blk 上对 raw、dm-crypt 与 dm-verity 读按统一参数执行
+workload（raw/crypt 各 13 项，verity 读 7 项）。每个场景运行五次，
 保留每轮 fio JSON、CSV 和设备元数据，并记录：
 
 - MiB/s 与 IOPS；

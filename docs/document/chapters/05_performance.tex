@@ -3,7 +3,7 @@
 
 \section{评测原则}
 
-性能评测同时覆盖 Linux host 上的真实块设备对照和 Asterinas KVM 中的保护 mapper。
+性能评测同时覆盖 Linux QEMU virtio 上的 virtio-blk 对照和 Asterinas KVM 中的保护 mapper。
 两类环境分别报告，不使用跨平台结果计算倍率。每个有效工况固定运行五轮，保留原始
 JSON、CSV、串口日志和环境元数据，并报告均值、中位数和标准差。
 
@@ -29,20 +29,20 @@ mapper runner。
 
 \section{FIO 结果}
 
-Linux host 对照在同一 backing image 上创建 raw loop block device 和 dm-crypt mapper，
+Linux QEMU virtio 对照在 virtio-blk 上测试 raw、dm-crypt 与 dm-verity 读，
 统一使用 \texttt{libaio}、\texttt{direct=1}、\texttt{numjobs=1}。代表性五轮中位数如下：
 
 \begin{table}[H]
     \centering
-    \caption{Linux host FIO 五轮中位带宽（MiB/s）}
+    \caption{Linux QEMU virtio FIO 五轮中位带宽（MiB/s）}
     \begin{tabular}{p{0.25\textwidth}p{0.15\textwidth}p{0.15\textwidth}p{0.18\textwidth}p{0.18\textwidth}}
         \toprule
         \textbf{负载} & \textbf{块大小} & \textbf{QD} & \textbf{raw} & \textbf{dm-crypt} \\
         \midrule
-        read & 4 KiB & 1 & 16.296 & 15.010 \\
-        read & 256 KiB & 1 & 129.599 & 128.337 \\
-        randread & 4 KiB & 16 & 16.163 & 15.558 \\
-        randwrite & 256 KiB & 1 & 127.062 & 117.576 \\
+        read & 4 KiB & 1 & 11.391 & 10.942 \\
+        read & 256 KiB & 1 & 134.623 & 129.474 \\
+        randread & 4 KiB & 16 & 58.931 & 58.947 \\
+        randwrite & 256 KiB & 1 & 130.124 & 109.453 \\
         \bottomrule
     \end{tabular}
 \end{table}

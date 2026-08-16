@@ -1,6 +1,6 @@
 # 性能测试与 Benchmark
 
-最终性能数据只来自带原始 JSON/CSV/日志、环境元数据和五轮统计的正式证据。Linux host 与 Asterinas KVM 分平台展示，不进行跨平台倍率比较。
+最终性能数据只来自带原始 JSON/CSV/日志、环境元数据和五轮统计的正式证据。Linux QEMU virtio 与 Asterinas KVM 分平台展示，不进行跨平台倍率比较。
 
 - 测试合同：[benchmark_contract.md](benchmark_contract.md)
 - 最终中文报告：[PERFORMANCE_VALIDATION_REPORT.md](evidence/final-performance-20260811/PERFORMANCE_VALIDATION_REPORT.md)
@@ -13,7 +13,7 @@
 |---|---|
 | Asterinas FIO dm-crypt | 13 个单元格 × 5 轮，PASS |
 | Asterinas FIO dm-verity | 7 个单元格 × 5 轮，PASS；6 个写单元格 N/A |
-| Linux FIO raw/dm-crypt | 13 + 13 个单元格 × 5 轮，PASS |
+| Linux QEMU virtio FIO raw/dm-crypt/dm-verity 读 | 13 + 13 + 7 个单元格 × 5 轮，PASS |
 | Filebench fileserver | raw 5 轮、dm-crypt 5 轮，PASS |
 | SQLite | raw、dm-crypt、dm-verity 各 5 轮，PASS |
 | Asterinas boot | plain、dm-crypt、dm-verity 各 5 轮，PASS |
@@ -23,8 +23,8 @@
 ## 正式入口
 
 ```bash
-# Linux raw/dm-crypt FIO
-sudo bash scripts/run_fio_matrix.sh --platform linux-host --runs 5
+# Linux QEMU virtio FIO：raw + dm-crypt + dm-verity 读
+# 正式数字见 docs/evidence/linux-qemu-fio-20260816/
 
 # Asterinas KVM FIO
 bash scripts/run_fio_matrix.sh --platform asterinas-kvm \

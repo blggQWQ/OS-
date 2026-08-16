@@ -157,14 +157,14 @@
 \begin{itemize}
     \item 发现早期 Asterinas dm-crypt FIO 因 mapper 初始化失败将不存在的路径当作普通文件测试，产生数量级异常数据（高达数千MiB/s），判定为 \texttt{HARNESS\_BUG}；
     \item 修复 runner（增加设备存在性检查），重新执行 Asterinas dm-crypt 和 dm-verity FIO，确保使用 guest 内真实 mapper 设备；
-    \item 正式执行 Linux host raw/dm-crypt 13+13 项 FIO。
+    \item 正式执行 Linux QEMU virtio raw/dm-crypt 13+13 项 FIO，以及 dm-verity 读 7 项。
 \end{itemize}
 
 \textbf{结果}：
 \begin{itemize}
     \item Asterinas dm-crypt：13 项 × 5 轮完成，4K顺序读中位带宽 8.908 MiB/s；
     \item Asterinas dm-verity：7 项 × 5 轮完成，6 项写入 N/A，4K顺序读中位带宽 7.505 MiB/s；
-    \item Linux host raw/dm-crypt：各 13 项 × 5 轮完成，4K顺序读中位带宽分别为 16.296 和 15.010 MiB/s。
+    \item Linux QEMU virtio raw/dm-crypt：各 13 项 × 5 轮完成，dm-verity 读 7 项；4K顺序读中位带宽分别为 11.391、10.942、10.704 MiB/s。
 \end{itemize}
 
 \textbf{阶段意义}：此阶段体现了项目对性能数据的诚实态度——宁可重新执行全部测试，也不使用无法确认真实性的“好看数据”。这对维护项目在评审中的可信度至关重要。
