@@ -12,6 +12,16 @@
 | 进展汇报 | [作品进展汇报幻灯片.pptx](作品进展汇报幻灯片.pptx) |
 | 技术文档 | [PDF](docs/design_doc/design_doc.pdf) · [LaTeX 源码](docs/design_doc/) · [答辩 PPT](presentation_project.pptx) |
 
+机密计算 Guest 里内存可受 TEE 保护，rootfs 仍落在宿主机不可信介质上。Linux 用 Device Mapper 的 `dm-crypt` / `dm-verity` 补机密性与完整性；官方星绽没有等价能力。本项目用 Rust 补这一层，算法与 Linux `aes-xts-plain64`、SHA-256 Merkle 布局对齐。题目分析、开发计划、问题与分工见 [技术文档](docs/design_doc/design_doc.pdf)。
+
+| 指标 | 状态 | 证据 |
+|---|---|---|
+| dm-crypt（AES-256-XTS、cryptsetup 控制面） | 完成 | R01、C01–C05 PASS |
+| dm-verity（SHA-256 哈希树、启动参数、只读） | 完成 | R03 / V01–V07 PASS |
+| 根文件系统加密与受保护根 | 完成 | R02 PASS；`virtio-blk → dm-crypt → dm-verity → ext2` + `pivot_root` |
+| 正确性门禁 | 完成 | R01–R03、C01–C05、V01–V07 全部 PASS |
+| 256 MiB 正式合同，4 KiB 同步读相对配对 raw | 完成 | dm-crypt **95.6%**（4.059 / 4.249）、dm-verity **87.3%**（3.815 / 4.249） |
+
 ## 完成内容
 
 - `dm-crypt`：AES-256-XTS、`aes-xts-plain64`、64 字节密钥、可配置 IV/数据偏移、真实 VirtIO BIO 读写。
@@ -23,21 +33,59 @@
 
 详细需求对应见 [需求映射](docs/requirement_mapping.md)，正确性结论见 [KVM 正确性报告](KVM_CORRECTNESS_REPORT.md)，性能原始表见 [PERFORMANCE_MATRIX.csv](docs/evidence/final-performance-20260811/PERFORMANCE_MATRIX.csv)。
 
+## 用户态与内核态
+
+同一套 `BlockDevice` 映射逻辑，两处落地：先在用户态把 AES-XTS、Merkle 和叠栈跑通，再打进 Asterinas 走真实 VirtIO BIO。不是两套互不相干的实现。用户态约 3000 行（`crates/dm`）+ `dmctl` 约 800 行；内核补丁 0001–0007 约 4000 行。
+
+```mermaid
+flowchart LR
+  subgraph userspace [用户态]
+    FileBD[FileBlockDevice]
+    CryptU[DmCryptDevice]
+    VerityU[DmVerityDevice]
+    Dmctl[dmctl]
+    FileBD --> CryptU --> VerityU --> Dmctl
+  end
+  subgraph kernel [内核态 aster-dm]
+    Virtio[VirtioBlkAdapter]
+    CryptK[DmTarget Crypt]
+    VerityK[DmTarget Verity]
+    Root[dm-root pivot_root]
+    Virtio --> CryptK --> VerityK --> Root
+  end
+  Trait[BlockDevice]
+  Trait -.-> FileBD
+  Trait -.-> Virtio
+```
+
+| | 用户态 | 内核态 |
+|---|---|---|
+| 代码 | [`crates/dm/`](crates/dm/)、[`crates/dmctl/`](crates/dmctl/) | `asterinas/kernel/comps/dm/`，补丁 [`asterinas_port/patches/`](asterinas_port/patches/) 0001–0007 |
+| 后端 | `FileBlockDevice` / `MemoryBlockDevice` | `VirtioBlkAdapter`（virtio-blk BIO） |
+| 加密 | `DmCryptDevice` | `DmTarget::Crypt` |
+| 完整性 | `DmVerityDevice` | `DmTarget::Verity` |
+| 叠栈 | `DmStackBuilder` / `demo-stack` | `dm_stack=crypt,verity`（补丁 0007） |
+| 控制面 | `dmctl` 子命令、`crypt-table-fill` | `/dev/mapper/control`（`dm_ioctl`，供 cryptsetup） |
+| 同步 | `std::sync::Mutex` | `spin::Mutex` + `disable_preempt`（AES-NI XMM） |
+| 怎么验证 | 下面「用户态功能命令」 | 下面「Asterinas 构建与启动」和「正确性测试命令」 |
+
 ## 仓库结构
 
 ```text
-crates/dm/                 平台无关的 BlockDevice、dm-crypt、dm-verity
+crates/dm/                 用户态核心：BlockDevice、dm-crypt、dm-verity
 crates/dmctl/              用户态命令行工具
-asterinas/                 Asterinas gitlink
-asterinas_port/            Asterinas 补丁和移植说明
+asterinas/                 已打补丁的 Asterinas 树（gitlink）
+asterinas_port/            内核补丁 0001–0007 和移植说明
 scripts/                   构建、演示、正确性与性能 runner
 docs/evidence/             最终验证证据
 docs/design_doc/           技术文档源码及 PDF
 ```
 
+内核补丁用法与串口 PASS 行见 [asterinas_port/README.md](asterinas_port/README.md)。
+
 ## 快速验证
 
-要求：Linux x86_64、Rust/Cargo、Python 3、QEMU；内核测试推荐 Docker 与 `/dev/kvm`。
+要求：Linux x86_64、Rust/Cargo、Python 3、QEMU；内核测试推荐 Docker 与 `/dev/kvm`。前几条是用户态，`--live-kvm` 才进内核。
 
 ```bash
 git submodule update --init --recursive
@@ -124,7 +172,7 @@ DM_IMAGE="$PWD/target/stack-rootfs.img" ENABLE_KVM=1 \
 
 ## 正确性测试命令
 
-以下命令在 Asterinas 官方容器的 `/root/asterinas` 中执行；镜像路径按实际挂载点调整。
+以下命令在 Asterinas 官方容器的 `/root/asterinas` 中执行；镜像路径按实际挂载点调整。这是内核态 KVM 门禁，不是用户态 `cargo test`。
 
 ```bash
 # R01：cryptsetup open/read/close
@@ -164,7 +212,7 @@ DM_HASH_START=<哈希树起始块> PROBE_BLOCK=<逻辑块号> \
 
 ## 性能结果
 
-所有数值均为 5 轮中位数。Linux 与 Asterinas 的硬件/runner 不同，分表展示，不计算跨平台倍率。完整环境、统计量和证据路径见 [中文性能报告](docs/evidence/final-performance-20260811/PERFORMANCE_VALIDATION_REPORT.md)。
+下列数字来自 **内核态 KVM 真 mapper**，不要和用户态 `dmctl benchmark` 混读。所有数值均为 5 轮中位数。Linux 与 Asterinas 的硬件/runner 不同，分表展示，不计算跨平台倍率。完整环境、统计量和证据路径见 [中文性能报告](docs/evidence/final-performance-20260811/PERFORMANCE_VALIDATION_REPORT.md)。
 
 ### 256 MiB 正式合同：Asterinas raw / dm-crypt / dm-verity
 
