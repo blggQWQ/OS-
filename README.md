@@ -10,7 +10,7 @@
 | 讲解视频 | [百度网盘：星绽守卫讲解视频](https://pan.baidu.com/s/1ol7pTZAZyqmYsqUcwRPung?pwd=oscp)，提取码 `oscp` |
 | 演示视频 | [作品演示视频.mp4](作品演示视频.mp4) |
 | 进展汇报 | [作品进展汇报幻灯片.pptx](作品进展汇报幻灯片.pptx) |
-| 技术文档 | [PDF](docs/document/main.pdf) · [LaTeX 源码](docs/document/) · [答辩 PPT](presentation_project.pptx) |
+| 技术文档 | [PDF](docs/design_doc/design_doc.pdf) · [LaTeX 源码](docs/design_doc/) · [答辩 PPT](presentation_project.pptx) |
 
 ## 完成内容
 
@@ -32,7 +32,7 @@ asterinas/                 Asterinas gitlink
 asterinas_port/            Asterinas 补丁和移植说明
 scripts/                   构建、演示、正确性与性能 runner
 docs/evidence/             最终验证证据
-docs/document/             技术文档源码及 PDF
+docs/design_doc/           技术文档源码及 PDF
 ```
 
 ## 快速验证
@@ -290,4 +290,4 @@ git status --short
 
 ## 许可证与来源
 
-用户态 `dm`/`dmctl` 代码采用 MIT 许可证，Asterinas 子模块遵循其上游许可证。第三方工具、参考资料、AI 辅助范围和提交合规说明见 [技术文档](docs/document/main.pdf) 与 [最终报告](docs/final_report.md)。
+用户态 `dm`/`dmctl` 代码采用 MIT 许可证，Asterinas 子模块遵循其上游许可证。第三方工具、参考资料、AI 辅助范围和提交合规说明见 [技术文档](docs/design_doc/design_doc.pdf) 与 [最终报告](docs/final_report.md)。

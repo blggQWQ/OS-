@@ -16,8 +16,7 @@
         \texttt{scripts/} & 构建、测试、性能和验收脚本 & 约30个脚本文件 \\
         \texttt{docs/} & 全部文档、证据和设计材料 & 约50个文件 \\
         \texttt{docs/evidence/} & 正式测试证据 & 约100+个日志/JSON/CSV文件 \\
-        \texttt{docs/document/} & 技术文档 LaTeX 源码 & 9章 + 附录 + PDF \\
-        \texttt{docs/design\_doc/} & 设计赛道文档 LaTeX 源码 & 10章 + PDF \\
+        \texttt{docs/design\_doc/} & 正式技术文档 LaTeX 源码 & 10章 + PDF \\
         \bottomrule
     \end{tabular}
 \end{table}
@@ -35,7 +34,7 @@
         Rust 源代码（内核态） & 约4000行 & 补丁 0001--0007 新增内核代码 \\
         命令行工具 & 约800行 & \texttt{crates/dmctl/src/main.rs} \\
         Shell/Python 脚本 & 约30个文件，约2000行 & \texttt{scripts/} 目录 \\
-        LaTeX 文档 & 约200页 & 技术文档 + 设计赛道文档 \\
+        LaTeX 文档 & 约100页 & 正式技术文档（\texttt{docs/design\_doc/}） \\
         证据文件 & 约100+个 & 日志、JSON、CSV、图片 \\
         Git 提交 & 28次 & 涵盖完整开发周期 \\
         内核补丁 & 7个 & \texttt{asterinas\_port/patches/} \\
@@ -209,18 +208,12 @@
 \texttt{evidence/stack/} & 组合栈启动证据 \\
 \texttt{evidence/\seqsplit{linux-xts-plain64.sha256}} & Linux XTS 固定向量 SHA-256 \\
 \hline
-\texttt{document/} & 技术文档 LaTeX 源码和 PDF \\
-\texttt{document/main.tex} & 技术文档主文件 \\
-\texttt{document/chapters/} & 9个章节（01\_introduction 至 09\_development） \\
-\texttt{document/appendices/} & 附录（术语表、命令参考） \\
-\texttt{document/figures/} & 技术文档插图（架构图、流程图、截图等） \\
-\texttt{document/main.pdf} & 编译后的技术文档 PDF（约120页） \\
-\hline
-\texttt{design\_doc/} & 设计赛道文档 LaTeX 源码 \\
-\texttt{\seqsplit{design\_doc/design\_doc.tex}} & 设计赛道文档主文件 \\
+\texttt{design\_doc/} & 正式技术文档 LaTeX 源码和 PDF \\
+\texttt{\seqsplit{design\_doc/design\_doc.tex}} & 技术文档主文件 \\
 \texttt{\seqsplit{design\_doc/chapters/}} & 10个章节（01\_goal 至 10\_harvest） \\
 \texttt{\seqsplit{design\_doc/preamble.tex}} & LaTeX 导言区配置 \\
-\texttt{\seqsplit{design\_doc/design\_doc.pdf}} & 编译后的设计赛道文档 PDF（约80页） \\
+\texttt{\seqsplit{design\_doc/figures/}} & 插图（甘特图、时间线、测试金字塔） \\
+\texttt{\seqsplit{design\_doc/design\_doc.pdf}} & 编译后的技术文档 PDF \\
 \hline
 \end{longtable}
 
@@ -256,8 +249,7 @@
         \textbf{提交要求} & \textbf{本项目对应文件} & \textbf{位置} \\
         \midrule
         项目源代码 & \texttt{crates/}、\texttt{asterinas\_port/}、\texttt{scripts/} & 根目录 \\
-        技术设计文档 & \texttt{docs/document/main.pdf} & \texttt{docs/document/} \\
-        设计赛道文档 & \texttt{\seqsplit{docs/design\_doc/design\_doc.pdf}} & \texttt{docs/design\_doc/} \\
+        技术设计文档 & \texttt{\seqsplit{docs/design\_doc/design\_doc.pdf}} & \texttt{docs/design\_doc/} \\
         用户手册 & \texttt{README.md} & 根目录 \\
         正确性证据 & 12组测试日志（R01--R03、C01--C05、V01--V07） & \texttt{\seqsplit{docs/evidence/stabilization/}} \\
         性能证据 & FIO、Filebench、SQLite、Boot 原始数据 & \texttt{docs/evidence/\seqsplit{final-performance-20260811/}} \\
@@ -295,7 +287,7 @@
 项目文件组织遵循以下原则：
 \begin{enumerate}
     \item 核心代码与平台适配分离（\texttt{crates/} vs \texttt{asterinas\_port/}）；
-    \item 文档集中管理（\texttt{docs/}）且分类清晰（document、design\_doc、evidence）；
+    \item 文档集中管理（\texttt{docs/}）且分类清晰（design\_doc、evidence）；
     \item 脚本可执行且自包含（\texttt{scripts/}），支持一键演示和验证；
     \item 证据原始格式保存（不依赖手工修改数字），确保可复核性。
 \end{enumerate}
