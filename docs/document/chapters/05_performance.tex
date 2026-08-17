@@ -88,10 +88,19 @@ Asterinas KVM 真实保护 mapper 五轮中位：
         \toprule
         \textbf{负载} & \textbf{块大小} & \textbf{QD} & \textbf{raw} & \textbf{dm-crypt} & \textbf{dm-verity} \\
         \midrule
-        read & 4 KiB & 1 & 25.080 & 8.908 & 7.505 \\
-        read & 256 KiB & 1 & 1230.577 & 97.456 & 53.363 \\
-        randread & 4 KiB & 16 & 25.315 & 8.614 & 4.618 \\
-        randwrite & 256 KiB & 1 & 1091.016 & 93.541 & N/A（只读） \\
+        read & 4 KiB & 1 & 10.080 & 8.908 & 7.505 \\
+        read & 32 KiB & 1 & 58.485 & 52.810 & 33.893 \\
+        read & 256 KiB & 1 & 123.577 & 97.456 & 53.363 \\
+        randread & 4 KiB & 1 & 11.545 & 8.514 & 4.970 \\
+        randread & 4 KiB & 16 & 11.315 & 8.614 & 4.618 \\
+        randread & 32 KiB & 1 & 57.110 & 52.176 & 26.110 \\
+        randread & 256 KiB & 1 & 107.298 & 96.890 & 50.050 \\
+        write & 4 KiB & 1 & 20.600 & 8.926 & N/A（只读） \\
+        write & 32 KiB & 1 & 64.690 & 54.782 & N/A（只读） \\
+        write & 256 KiB & 1 & 109.916 & 94.097 & N/A（只读） \\
+        randwrite & 4 KiB & 1 & 9.822 & 8.482 & N/A（只读） \\
+        randwrite & 32 KiB & 1 & 59.518 & 53.551 & N/A（只读） \\
+        randwrite & 256 KiB & 1 & 109.016 & 93.541 & N/A（只读） \\
         \bottomrule
     \end{tabular}
 \end{table}
