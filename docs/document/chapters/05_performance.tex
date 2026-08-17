@@ -62,19 +62,28 @@ Asterinas 在 256 MiB 正式合同下给出 raw / dm-crypt / dm-verity 配对保
 \end{table}
 
 Linux QEMU virtio 对照在 virtio-blk 上测试 raw、dm-crypt 与 dm-verity 读，
-统一使用 \texttt{libaio}、\texttt{direct=1}、\texttt{numjobs=1}。代表性五轮中位数如下：
+统一使用 \texttt{libaio}、\texttt{direct=1}、\texttt{numjobs=1}。五轮中位如下：
 
 \begin{table}[H]
     \centering
     \caption{Linux QEMU virtio FIO 五轮中位带宽（MiB/s）}
-    \begin{tabular}{p{0.25\textwidth}p{0.15\textwidth}p{0.15\textwidth}p{0.18\textwidth}p{0.18\textwidth}}
+    \begin{tabular}{p{0.18\textwidth}p{0.12\textwidth}p{0.10\textwidth}p{0.16\textwidth}p{0.16\textwidth}p{0.16\textwidth}}
         \toprule
-        \textbf{负载} & \textbf{块大小} & \textbf{QD} & \textbf{raw} & \textbf{dm-crypt} \\
+        \textbf{负载} & \textbf{块大小} & \textbf{QD} & \textbf{raw} & \textbf{dm-crypt} & \textbf{dm-verity} \\
         \midrule
-        read & 4 KiB & 1 & 11.391 & 10.942 \\
-        read & 256 KiB & 1 & 134.623 & 129.474 \\
-        randread & 4 KiB & 16 & 58.931 & 58.947 \\
-        randwrite & 256 KiB & 1 & 130.124 & 109.453 \\
+        read & 4 KiB & 1 & 11.391 & 10.942 & 10.704 \\
+        read & 32 KiB & 1 & 73.074 & 68.706 & 67.859 \\
+        read & 256 KiB & 1 & 134.623 & 129.474 & 122.088 \\
+        randread & 4 KiB & 1 & 10.673 & 10.703 & 10.245 \\
+        randread & 4 KiB & 16 & 58.931 & 58.947 & 57.986 \\
+        randread & 32 KiB & 1 & 69.902 & 67.168 & 65.493 \\
+        randread & 256 KiB & 1 & 136.823 & 128.612 & 123.775 \\
+        write & 4 KiB & 1 & 11.490 & 10.992 & N/A（只读） \\
+        write & 32 KiB & 1 & 73.705 & 69.765 & N/A（只读） \\
+        write & 256 KiB & 1 & 129.087 & 119.888 & N/A（只读） \\
+        randwrite & 4 KiB & 1 & 10.811 & 10.479 & N/A（只读） \\
+        randwrite & 32 KiB & 1 & 71.927 & 68.253 & N/A（只读） \\
+        randwrite & 256 KiB & 1 & 130.124 & 109.453 & N/A（只读） \\
         \bottomrule
     \end{tabular}
 \end{table}
