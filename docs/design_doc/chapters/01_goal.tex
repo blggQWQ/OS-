@@ -156,7 +156,7 @@ Linux 内核通过 Device Mapper 框架提供的 \texttt{dm-crypt}（透明加�
 
 \begin{itemize}
     \item \textbf{用户态（\texttt{dmctl}）}：用于演示、测试和基准测试，使用 \texttt{FileBlockDevice} 或 \texttt{MemoryBlockDevice} 作为后端，能够在宿主机上快速验证加密和完整性机制的正确性；
-    \item \textbf{内核态（\texttt{aster-dm}）}：将相同的核心逻辑移植到内核空间，包装真实的 \texttt{virtio-blk} 设备，通过 BIO 路径处理 I/O，使星绽能够挂载受保护的文件系统。内核集成代码位于 \texttt{asterinas/kernel/comps/dm/}，通过 \texttt{asterinas\_port/patches/} 中的 7 个补丁可追溯完整演进历史。
+    \item \textbf{内核态（\texttt{aster-dm}）}：将相同的核心逻辑移植到内核空间，包装真实的 \texttt{virtio-blk} 设备，通过 BIO 路径处理 I/O，使星绽能够挂载受保护的文件系统。仓库根目录 \texttt{asterinas/} 以 git submodule 软链接到 Asterinas 官方仓库 \url{https://github.com/asterinas/asterinas}，本队不把上游整树当作原创；内核增量位于 \texttt{asterinas/kernel/comps/dm/}，通过 \texttt{asterinas\_port/patches/} 中的 7 个补丁可追溯完整演进历史。
 \end{itemize}
 
 这种设计确保了用户态与内核态的逻辑一致性，使得测试和调试更加高效，同时也为后续的性能优化和功能扩展提供了统一的抽象基础。两个环境共享相同的算法实现（AES-XTS、SHA-256、Merkle 树验证），但适配层（BIO vs 同步文件 I/O、自旋锁 vs 互斥锁、on-disk tree vs in-memory tree）完全隔离，互不影响。

@@ -12,6 +12,7 @@
         \texttt{crates/} & 平台无关的 Device Mapper 核心库和命令行工具 & 约15个Rust源文件 \\
         \texttt{crates/dm/} & \texttt{dm} crate：BlockDevice trait、dm-crypt、dm-verity & 约3000行Rust \\
         \texttt{crates/dmctl/} & \texttt{dmctl} 命令行工具 & 约800行Rust \\
+        \texttt{asterinas/} & 软链接 Asterinas 官方仓库（git submodule） & \texttt{https://github.com/asterinas/asterinas} \\
         \texttt{asterinas\_port/} & Asterinas 内核移植补丁和说明 & 7个补丁 + README \\
         \texttt{scripts/} & 构建、测试、性能和验收脚本 & 约30个脚本文件 \\
         \texttt{docs/} & 全部文档、证据和设计材料 & 约50个文件 \\
@@ -77,6 +78,8 @@
 \texttt{\seqsplit{crates/dmctl/Cargo.toml}} & \texttt{dmctl} 依赖配置 \\
 \texttt{\seqsplit{crates/dmctl/src/main.rs}} & 所有子命令实现：init-image、crypt-write、crypt-read、raw-read-hex、crypt-table-fill、verity-root、verity-verify、verity-format-dm、tamper、demo-crypt、demo-verity、demo-stack、benchmark、benchmark-table（约800行） \\
 \hline
+\texttt{asterinas/} & git submodule 软链接至 Asterinas 官方仓库 \texttt{https://github.com/asterinas/asterinas}；\textbf{不是}本队原创内核树 \\
+\texttt{.gitmodules} & 记录上述官方仓库 URL 与路径 \texttt{asterinas} \\
 \texttt{\seqsplit{asterinas\_port/}} & Asterinas 内核移植说明与补丁 \\
 \texttt{\seqsplit{asterinas\_port/README.md}} & 移植说明、补丁应用方式（\texttt{git am} 命令）、关键实现文件路径 \\
 \texttt{\seqsplit{asterinas\_port/patches/}} & 7 个 Git 补丁（0001--0007），按顺序应用 \\
@@ -89,6 +92,16 @@
 \texttt{\seqsplit{asterinas\_port/patches/0007-*.patch}} & \texttt{dm\_stack=crypt,verity} 组合栈：堆叠检测、启动日志、\texttt{build\_stack\_rootfs.sh} \\
 \hline
 \end{longtable}
+
+\section{Asterinas 官方仓库软链接}
+
+仓库根目录 \texttt{asterinas/} \textbf{不是}本队原创内核树，而是以 git submodule 形式软链接到 Asterinas 官方仓库：
+
+\begin{quote}
+\url{https://github.com/asterinas/asterinas}
+\end{quote}
+
+对应配置在仓库根目录 \texttt{.gitmodules}。克隆本仓库后执行 \texttt{git submodule update --init --recursive} 即可检出该上游。本队在星绽上的内核工作以补丁序列 \texttt{asterinas\_port/patches/0001--0007} 叠加在该官方树之上，可审计、可重放。
 
 \section{引用的开源代码与依赖库}
 
@@ -103,7 +116,7 @@
         \toprule
         \textbf{名称} & \textbf{来源/URL} & \textbf{使用目的} \\
         \midrule
-        星绽操作系统（Asterinas） & \texttt{https://github.com/}\newline\texttt{asterinas/asterinas} & 基础操作系统框架和 OSTD 接口 \\
+        星绽操作系统（Asterinas） & \texttt{https://github.com/}\newline\texttt{asterinas/asterinas}（本仓库 \texttt{asterinas/} 软链接至此） & 基础操作系统框架和 OSTD 接口 \\
         \texttt{aes} crate & \texttt{https://crates.io/}\newline\texttt{crates/aes} & AES 加密算法实现（RustCrypto 项目） \\
         \texttt{xts-mode} crate & \texttt{https://crates.io/}\newline\texttt{crates/xts-mode} & XTS 加密模式实现（RustCrypto 项目） \\
         \bottomrule

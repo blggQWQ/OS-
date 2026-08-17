@@ -13,8 +13,9 @@
 
 ## 已验证的 Asterinas 集成补丁
 
-主仓库中的 `asterinas/` 是独立 Git 仓库，内部提交不会被主仓库的普通
-`git push` 自动上传。因此，当前完整内核集成以补丁形式保存在：
+主仓库中的 `asterinas/` 是指向 Asterinas 官方仓库
+<https://github.com/asterinas/asterinas> 的 git submodule（软链接），
+内部提交不会被主仓库的普通 `git push` 自动上传。因此，当前完整内核集成以补丁形式保存在：
 
 ```text
 patches/0001-feat-dm-integrate-crypt-and-verity-targets.patch

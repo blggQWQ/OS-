@@ -1,4 +1,4 @@
 [submodule "asterinas"]
 	path = asterinas
-	url = https://github.com/blggQWQ/asterinas.git
+	url = https://github.com/asterinas/asterinas.git
 	branch = master

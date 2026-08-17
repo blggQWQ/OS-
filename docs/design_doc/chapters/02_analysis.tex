@@ -113,7 +113,7 @@ Asterinas 是一个采用 Framekernel 架构的 Rust 操作系统，其核心特
     \item \textbf{启动流程}：内核解析命令行参数后，通过 initramfs 中的 \texttt{init} 脚本完成根文件系统挂载和 \texttt{pivot\_root} 切换。
 \end{itemize}
 
-本项目对 Asterinas 的接入采用补丁序列（\texttt{asterinas\_port/patches/0001--0007}）方式，每个补丁对应一个独立可验证的增量功能，确保集成过程可审计、可回溯。
+本项目仓库根目录 \texttt{asterinas/} 以 git submodule 软链接到 Asterinas 官方仓库 \url{https://github.com/asterinas/asterinas}，不把上游源码整树算作本队原创。对 Asterinas 的接入采用补丁序列（\texttt{asterinas\_port/patches/0001--0007}）叠加在该官方树之上，每个补丁对应一个独立可验证的增量功能，确保集成过程可审计、可回溯。
 
 \subsection{密码学标准与算法调研}
 
