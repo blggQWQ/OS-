@@ -279,23 +279,14 @@ Asterinas 256 MiB 正式合同（4 KiB 同步读、QD1；相对值为配对 raw�
 
 \begin{table}[H]
     \centering
-    \begin{tabular}{p{0.18\textwidth}p{0.12\textwidth}p{0.10\textwidth}p{0.16\textwidth}p{0.16\textwidth}p{0.16\textwidth}}
+    \begin{tabular}{p{0.25\textwidth}p{0.15\textwidth}p{0.15\textwidth}p{0.18\textwidth}p{0.18\textwidth}}
         \toprule
-        \textbf{负载} & \textbf{块大小} & \textbf{QD} & \textbf{raw} & \textbf{dm-crypt} & \textbf{dm-verity} \\
+        \textbf{负载} & \textbf{块大小} & \textbf{QD} & \textbf{Asterinas dm-crypt} & \textbf{Asterinas dm-verity} \\
         \midrule
-        read & 4 KiB & 1 & 10.080 & 8.908 & 7.505 \\
-        read & 32 KiB & 1 & 58.485 & 52.810 & 33.893 \\
-        read & 256 KiB & 1 & 123.577 & 97.456 & 53.363 \\
-        randread & 4 KiB & 1 & 11.545 & 8.514 & 4.970 \\
-        randread & 4 KiB & 16 & 11.315 & 8.614 & 4.618 \\
-        randread & 32 KiB & 1 & 57.110 & 52.176 & 26.110 \\
-        randread & 256 KiB & 1 & 107.298 & 96.890 & 50.050 \\
-        write & 4 KiB & 1 & 20.600 & 8.926 & N/A（只读） \\
-        write & 32 KiB & 1 & 64.690 & 54.782 & N/A（只读） \\
-        write & 256 KiB & 1 & 109.916 & 94.097 & N/A（只读） \\
-        randwrite & 4 KiB & 1 & 9.822 & 8.482 & N/A（只读） \\
-        randwrite & 32 KiB & 1 & 59.518 & 53.551 & N/A（只读） \\
-        randwrite & 256 KiB & 1 & 109.016 & 93.541 & N/A（只读） \\
+        read & 4 KiB & 1 & 8.908 & 7.505 \\
+        read & 256 KiB & 1 & 97.456 & 53.363 \\
+        randread & 4 KiB & 16 & 8.614 & 4.618 \\
+        randwrite & 256 KiB & 1 & 93.541 & N/A（只读） \\
         \bottomrule
     \end{tabular}
 \end{table}
@@ -323,7 +314,7 @@ SQLite dm-verity 只执行查询阶段，不能与完整写事务总耗时横比
 
 \textbf{证据路径}：
 \begin{itemize}
-    \item Filebench / SQLite（Linux QEMU guest）：\texttt{docs/evidence/linux-qemu-filebench-sqlite-20260817/}
+    \item Filebench / SQLite（Linux QEMU guest）：\texttt{\seqsplit{docs/evidence/linux-qemu-filebench-sqlite-20260817/}}
     \item Boot：\texttt{docs/evidence/final-performance-20260811/boot-matrix/}
 \end{itemize}
 
@@ -343,7 +334,8 @@ sudo bash scripts/verify_linux_xts_compat.sh
 
 # 第4层：正式性能测试（分平台执行，每个工况五轮）
 sudo bash scripts/run_fio_matrix.sh --platform linux-host --runs 5
-bash scripts/run_fio_matrix.sh --platform asterinas-kvm --asterinas-dir "\$PWD/asterinas" --runs 5
+bash scripts/run_fio_matrix.sh --platform asterinas-kvm \
+  --asterinas-dir "$PWD/asterinas" --runs 5
 
 # 补充性能测试
 sudo RUNS=5 bash scripts/run_filebench_matrix.sh
@@ -356,8 +348,7 @@ python3 scripts/verify_kvm_evidence.py
 python3 scripts/review_release_check.py
 \end{verbatim}
 
-所有测试命令的详细说明和参数配置见仓库根目录 \texttt{README.md} 和 \texttt{docs/benchmark\_contract.md}。
-
+所有测试命令的详细说明和参数配置见仓库根目录 \texttt{README.md} 和 \texttt{\seqsplit{docs/benchmark\_contract.md}}。
 \section{数据真实性与审计}
 
 \subsection{历史问题处理}

@@ -191,7 +191,7 @@ let verity = DmVerityDevice::open(crypt, tree, root_hash)?;
 \begin{itemize}
     \item \texttt{InstrumentedDevice}：一个装饰器，可以插入到任意两层之间，记录读/写次数、字节数、失败次数以及累计和最大延迟（以纳秒计）；
     \item \texttt{IoStatsSnapshot}：提供稳定的快照，便于在基准测试前后对比；
-    \item 在 Asterinas 内核中，通过启动参数 \texttt{dm.perf\_stats=1} 启用细粒度阶段计时（如 \texttt{lower\_wait}、\texttt{AES-XTS}、\texttt{SHA-256}、\texttt{cache\_lookup} 等），并通过 \texttt{/proc/dm-performance-stats} 导出；
+    \item 在 Asterinas 内核中，通过启动参数 \texttt{dm.perf\_stats=1} 启用细粒度阶段计时（如 \texttt{lower\_wait}、\texttt{AES-XTS}、\texttt{SHA-256}、\texttt{cache\_lookup} 等），并通过 \texttt{\seqsplit{/proc/dm-performance-stats}} 导出；
     \item \texttt{/proc/dm-verity-stats} 提供 \texttt{verified}、\texttt{bio\_blocks}、\texttt{data\_rereads}、\texttt{hash\_hits}、\texttt{hash\_misses}、\texttt{auth\_shortcuts} 等计数器，直接反映优化效果——这些计数器在正式性能测试中用于验证 BIO 复用（\texttt{data\_rereads=0}）和缓存命中（\texttt{auth\_shortcuts}）的实际收益。
 \end{itemize}
 

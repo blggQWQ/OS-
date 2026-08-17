@@ -13,8 +13,8 @@
         Linux兼容性 & 06-29--07-10 & AES-XTS逐字节兼容，\texttt{/dev/mapper/control}控制面 & 固定向量SHA-256匹配 \\
         内核集成 & 07-11--07-20 & 补丁0001--0004，BIO路径 + rootfs切换 + cryptsetup控制 & 12组KVM测试全部PASS \\
         性能优化 & 07-21--07-31 & AES-NI、scratch pool、hash cache、阶段归因 & 启动日志显示AES-NI \\
-        组合栈与验证 & 08-01--08-11 & 补丁0007，46 PASS性能矩阵，启动开销<3\% & \texttt{review\_release\_check.py} PASS \\
-        文档与答辩 & 08-09--08-14 & 技术文档PDF、答辩PPT、演示视频、设计赛道文档 & 全部提交完成 \\
+        组合栈与验证 & 08-01--08-11 & 补丁0007，46 PASS性能矩阵，启动开销<3\% & \texttt{\seqsplit{review\_release\_check.py}} PASS \\
+        文档与答辩 & 08-09--08-17 & 最终统一设计文档、答辩PPT、演示视频 & 全部提交完成 \\
         \bottomrule
     \end{tabular}
 \end{table}
@@ -30,7 +30,7 @@
 
 本章按时间顺序记录项目从开始到完成过程中的关键里程碑和技术突破。所有进展均有对应的 Git 提交记录、补丁文件或证据日志支撑，反映了项目的真实演进路径。
 
-项目开发周期为 2026 年 6 月 23 日至 8 月 14 日，共计 50 天。在此期间，项目经历了从零开始搭建核心框架、验证Linux兼容性、完整接入Asterinas内核、进行性能优化、实现组合栈保护，到最后完成文档和答辩材料的全流程。每一阶段均有可复核的代码、测试日志和性能数据作为支撑。
+项目开发周期为 2026 年 6 月 23 日至 8 月 17 日，共计 55 天。在此期间，项目经历了从零开始搭建核心框架、验证Linux兼容性、完整接入Asterinas内核、进行性能优化、实现组合栈保护，到最后完成文档和答辩材料的全流程。每一阶段均有可复核的代码、测试日志和性能数据作为支撑。
 
 \section{第一阶段：用户态核心实现（2026-06-23 至 2026-06-28）}
 
@@ -62,7 +62,7 @@
     \item 完善 \texttt{dmctl} 命令行工具（约800行），支持 \texttt{init-image}、\texttt{crypt-write}、\texttt{crypt-read}、\texttt{verity-root}、\texttt{verity-verify}、\texttt{verity-format-dm}、\texttt{tamper}、\texttt{benchmark} 等子命令（commit \texttt{c72462b2}、\texttt{2f8a6711}）；
     \item 编写《设计说明》和《Asterinas 接入指南》初版；
     \item 补充 AI 工具使用声明（commit \texttt{a0dbb0f5}）；
-    \item 添加 LaTeX 技术文档框架和答辩 PPT 初稿（commit \texttt{f5878935}、\texttt{dabfee4d}）。
+    \item 添加 LaTeX 文档框架和答辩 PPT 初稿（commit \texttt{f5878935}、\texttt{dabfee4d}）。
 \end{itemize}
 
 \textbf{阶段成果}：用户态工具支持完整的镜像操作、加密/解密、完整性校验、篡改模拟和性能基准测试，为后续内核集成的快速验证提供了可靠的“安全网”。
@@ -73,7 +73,7 @@
 
 \textbf{关键事件}：
 \begin{itemize}
-    \item 编写 \texttt{scripts/verify\_linux\_xts\_compat.sh} 交叉验证脚本；
+    \item 编写 \texttt{\seqsplit{scripts/verify\_linux\_xts\_compat.sh}} 交叉验证脚本；
     \item 完成 Rust 实现与 Linux 内核 \texttt{aes-xts-plain64} 的逐字节比对；
     \item 固定向量 SHA-256 校验和：\texttt{4334c17f...}，确认完全一致。
 \end{itemize}
@@ -104,7 +104,7 @@
     \item V02--V07：单字节篡改后全部被拒绝，输出 \texttt{status=integrity-rejected}，无根切换 PASS。
 \end{itemize}
 
-\textbf{证据}：12组测试用例的原始串口日志已归档至 \texttt{docs/evidence/stabilization/correctness-kvm/}。
+\textbf{证据}：12组测试用例的原始串口日志已归档至 \texttt{\seqsplit{docs/evidence/stabilization/correctness-kvm/}}。
 
 \textbf{阶段意义}：此阶段实现了项目的核心功能目标——dm-crypt 和 dm-verity 在真实 Asterinas 内核中运行，并通过了全部正确性测试。R02 和 R03 证明了受保护根文件系统可以成功启动，V03--V07 证明了单字节物理篡改即可被检测并拒绝。
 
@@ -116,13 +116,13 @@
 \begin{itemize}
     \item \textbf{补丁 0005（optimize dm hot path）}：
     \begin{itemize}
-        \item 实现 AES-NI 硬件加速后端（\texttt{ostd/arch/x86/cpu/aesni.rs}，约174行），在保存/恢复 FPU/XMM 状态下使用 AES-NI 指令，启动日志显示 \texttt{backend=AES-NI}；
+        \item 实现 AES-NI 硬件加速后端（\texttt{\seqsplit{ostd/arch/x86/cpu/aesni.rs}}，约174行），在保存/恢复 FPU/XMM 状态下使用 AES-NI 指令，启动日志显示 \texttt{backend=AES-NI}；
         \item 实现 \texttt{CryptScratchPool} 有界临时缓冲池（默认32），减少热路径动态分配；
         \item 实现认证后哈希块缓存：只有沿完整 Merkle 路径验证成功的哈希块才允许插入，缓存命中时跳过上层哈希计算（计数器 \texttt{auth\_shortcuts} 记录）；
         \item 对 4 KiB 对齐 BIO 直接复用已完成数据（\texttt{data\_rereads=0}）；
         \item 增加 \texttt{/proc/dm-verity-stats} 和 \texttt{/proc/dm-crypto-backend} 可观测接口。
     \end{itemize}
-    \item 编写 \texttt{tools/run\_dm\_crypt\_bench.sh} 和 \texttt{tools/run\_dm\_verity\_bench.sh} 基准运行脚本。
+    \item 编写 \texttt{\seqsplit{tools/run\_dm\_crypt\_bench.sh}} 和 \texttt{\seqsplit{tools/run\_dm\_verity\_bench.sh}} 基准运行脚本。
 \end{itemize}
 
 \textbf{验证结果}：
@@ -160,10 +160,10 @@
     \begin{itemize}
         \item 实现 \texttt{/proc/dm-performance-stats}（约60行），提供细粒度阶段计时：dm-crypt 包括 \texttt{validation\_ns}、\texttt{scratch\_ns}、\texttt{copy\_ns}、\texttt{crypto\_ns}、\texttt{lower\_wait\_ns}；dm-verity 包括 \texttt{data\_sha256\_ns}、\texttt{cache\_lookup\_ns}、\texttt{hash\_wait\_ns}、\texttt{hash\_sha256\_ns}、\texttt{digest\_compare\_ns}、\texttt{cache\_insert\_ns}；
         \item 通过启动参数 \texttt{dm.perf\_stats=1} 启用，stats=0/1 A/B 对照量化观察者开销；
-        \item 固化正式基准合同（\texttt{docs/benchmark\_contract.md}），规定五轮、交替顺序、中位数报告等标准。
+        \item 固化正式基准合同（\texttt{\seqsplit{docs/benchmark\_contract.md}}），规定五轮、交替顺序、中位数报告等标准。
     \end{itemize}
-    \item 编写 \texttt{scripts/run\_fio\_matrix.sh}（约500行）自动化矩阵运行脚本，支持 Linux host 和 Asterinas KVM 双平台；
-    \item 编写 \texttt{scripts/run\_filebench\_matrix.sh}、\texttt{scripts/run\_sqlite\_matrix.sh}、\texttt{scripts/run\_boot\_matrix.sh} 等补充测试脚本。
+    \item 编写 \texttt{\seqsplit{scripts/run\_fio\_matrix.sh}}（约500行）自动化矩阵运行脚本，支持 Linux host 和 Asterinas KVM 双平台；
+    \item 编写 \texttt{\seqsplit{scripts/run\_filebench\_matrix.sh}}、\texttt{\seqsplit{scripts/run\_sqlite\_matrix.sh}}、\texttt{\seqsplit{scripts/run\_boot\_matrix.sh}} 等补充测试脚本。
 \end{itemize}
 
 \textbf{阶段意义}：此阶段将性能优化从“经验驱动”升级为“数据驱动”。通过精确的阶段计时，可以量化每个子系统的开销（如 AES-XTS 占 1.82\%，SHA-256 占 5.74\%），指导后续优化方向。正式基准合同确保了所有性能数据的可复现性和可比性。
@@ -230,28 +230,19 @@ Linux QEMU virtio 对照在 virtio-blk 上测试 raw、dm-crypt 与 dm-verity �
     \end{tabular}
 \end{table}
 
-Asterinas KVM 真实保护 mapper 五轮中位：
+Asterinas KVM 真实保护 mapper 的独立结果（不与 Linux raw 计算倍率）：
 
 \begin{table}[H]
     \centering
     \caption{Asterinas KVM FIO 五轮中位带宽（MiB/s）}
-    \begin{tabular}{p{0.18\textwidth}p{0.12\textwidth}p{0.10\textwidth}p{0.16\textwidth}p{0.16\textwidth}p{0.16\textwidth}}
+    \begin{tabular}{p{0.25\textwidth}p{0.15\textwidth}p{0.15\textwidth}p{0.18\textwidth}p{0.18\textwidth}}
         \toprule
-        \textbf{负载} & \textbf{块大小} & \textbf{QD} & \textbf{raw} & \textbf{dm-crypt} & \textbf{dm-verity} \\
+        \textbf{负载} & \textbf{块大小} & \textbf{QD} & \textbf{dm-crypt} & \textbf{dm-verity} \\
         \midrule
-        read & 4 KiB & 1 & 10.080 & 8.908 & 7.505 \\
-        read & 32 KiB & 1 & 58.485 & 52.810 & 33.893 \\
-        read & 256 KiB & 1 & 123.577 & 97.456 & 53.363 \\
-        randread & 4 KiB & 1 & 11.545 & 8.514 & 4.970 \\
-        randread & 4 KiB & 16 & 11.315 & 8.614 & 4.618 \\
-        randread & 32 KiB & 1 & 57.110 & 52.176 & 26.110 \\
-        randread & 256 KiB & 1 & 107.298 & 96.890 & 50.050 \\
-        write & 4 KiB & 1 & 20.600 & 8.926 & N/A（只读） \\
-        write & 32 KiB & 1 & 64.690 & 54.782 & N/A（只读） \\
-        write & 256 KiB & 1 & 109.916 & 94.097 & N/A（只读） \\
-        randwrite & 4 KiB & 1 & 9.822 & 8.482 & N/A（只读） \\
-        randwrite & 32 KiB & 1 & 59.518 & 53.551 & N/A（只读） \\
-        randwrite & 256 KiB & 1 & 109.016 & 93.541 & N/A（只读） \\
+        read & 4 KiB & 1 & 8.908 & 7.505 \\
+        read & 256 KiB & 1 & 97.456 & 53.363 \\
+        randread & 4 KiB & 16 & 8.614 & 4.618 \\
+        randwrite & 256 KiB & 1 & 93.541 & N/A（只读） \\
         \bottomrule
     \end{tabular}
 \end{table}
@@ -302,8 +293,8 @@ Asterinas KVM 真实保护 mapper 五轮中位：
     \item \textbf{补丁 0007（feat: dm stack crypt-verity）}：
     \begin{itemize}
         \item 支持 \texttt{dm\_stack=crypt,verity} 启动参数，自动识别堆叠场景；
-        \item 实现 \texttt{scripts/build\_stack\_rootfs.sh}（约150行）构建组合栈镜像：先创建 plaintext ext2 + verity hash tree，再整盘 AES-XTS 加密；
-        \item 实现 \texttt{scripts/run\_dm\_stack.sh} 启动脚本，支持 Docker 和宿主机两种运行模式；
+        \item 实现 \texttt{\seqsplit{scripts/build\_stack\_rootfs.sh}}（约150行）构建组合栈镜像：先创建 plaintext ext2 + verity hash tree，再整盘 AES-XTS 加密；
+        \item 实现 \texttt{\seqsplit{scripts/run\_dm\_stack.sh}} 启动脚本，支持 Docker 和宿主机两种运行模式；
         \item 串口打印 \texttt{[dm] stacked mapper: vdc -> dm-crypt0 -> dm-verity0}，明确展示保护链。
     \end{itemize}
     \item 运行 \texttt{final\_demo.sh} 完成全部正确性和性能验收；
@@ -315,20 +306,20 @@ Asterinas KVM 真实保护 mapper 五轮中位：
     \item 组合栈串口输出包含 \texttt{stacked mapper} 标记；
     \item ext2 文件系统通过两层 mapper 成功挂载；
     \item 根切换 PASS，输出 \texttt{PASS system root switched to protected mapper}；
-    \item \texttt{review\_release\_check.py} 全部通过。
+    \item \texttt{\seqsplit{review\_release\_check.py}} 全部通过。
 \end{itemize}
 
 \textbf{阶段意义}：组合栈实现了赛题的最终形态——同时提供机密性（dm-crypt）和完整性（dm-verity）保护。这与用户态 \texttt{demo-stack} 的设计完全一致，验证了双目标架构的正确性。
 
-\section{第五阶段：文档与答辩材料完成（2026-08-11 至 2026-08-14）}
+\section{第五阶段：文档与答辩材料完成（2026-08-11 至 2026-08-17）}
 
 \textbf{关键事件}：
 \begin{itemize}
-    \item 完善技术文档（\texttt{docs/document/main.pdf}，9章+附录，约120页），包含设计说明、架构图、测试报告、合规声明和用户手册；与设计赛道文档互为补充；
-    \item 完成设计赛道文档（\texttt{\seqsplit{docs/design\_doc/design\_doc.pdf}}，10章，约80页），按大赛大纲组织题目分析、计划、进展、分工与收获；
+    \item 完成最终统一设计文档（\texttt{\seqsplit{docs/design\_doc/design\_doc.pdf}}，10章 + 附录），融合原技术文档（架构设计、模块说明、测试结果、合规声明、用户手册等）与设计赛道文档（10章节完整版）的全部内容；
     \item 制作答辩 PPT（\texttt{presentation\_project.pptx}），突出双目标架构、安全优化和性能证据；
     \item 录制演示视频（\texttt{作品演示视频.mp4}），展示运行环境介绍与受保护根文件系统启动全过程；
-    \item 更新 README、证据索引和最终报告。
+    \item 更新 README、证据索引和最终报告；
+    \item 8月16日至17日，完成最终文档整合：正式文档改为 \texttt{design\_doc}，移除旧 \texttt{main.tex/PDF}；补入 Asterinas 256 MiB 三行表；用 Linux QEMU virtio FIO 替换宿主机对照数字；使测试指标与 README 对齐；按核对后的 Asterinas KVM FIO 13 格式更新；在 Linux guest 同条件对照表中补入 dm-verity；公布 Linux guest Filebench/SQLite 与 README 完成情况表。
 \end{itemize}
 
 \section{关键里程碑时间线}
@@ -347,8 +338,8 @@ Asterinas KVM 真实保护 mapper 五轮中位：
         08-03 & 性能归因框架 & \texttt{/proc/dm-performance-stats}（11个阶段计数器）、五轮基准脚本 \\
         08-09 & 真实性审计 & 重新执行Asterinas FIO，修复runner，使用真实mapper \\
         08-10 & 性能矩阵完成 & 46 PASS单元格、Filebench 5+5、SQLite 5+5+5、启动5+5+5 \\
-        08-11 & 组合栈完成 & 补丁0007、\texttt{build\_stack\_rootfs.sh}、\texttt{run\_dm\_stack.sh} \\
-        08-14 & 文档与答辩准备 & 技术文档PDF（120页）、答辩PPT、演示视频、设计赛道文档（80页） \\
+        08-11 & 组合栈完成 & 补丁0007、\texttt{\seqsplit{build\_stack\_rootfs.sh}}、\texttt{\seqsplit{run\_dm\_stack.sh}} \\
+        08-17 & 文档与答辩准备 & 最终统一设计文档 PDF、答辩PPT、演示视频 \\
         \bottomrule
     \end{tabular}
 \end{table}
@@ -370,24 +361,42 @@ Asterinas KVM 真实保护 mapper 五轮中位：
         3 & 06-23 & \texttt{c72462b2} & fix: validate Asterinas dm BIO paths & 潘利源 \\
         4 & 06-23 & \texttt{2f8a6711} & 接入受保护根文件系统并完善项目文档 & 潘利源 \\
         5 & 06-23 & \texttt{a0dbb0f5} & 补充国产 AI 工具使用说明 & 潘利源 \\
-        6 & 06-29 & \texttt{f5878935} & 添加 LaTeX 项目文档、PDF 与答辩 PPT & 张乐桁 \\
-        7 & 06-29 & \texttt{dabfee4d} & 将答辩 PPT 放到项目根目录并更新 README 链接 & 张乐桁 \\
-        8 & 07-14 & \texttt{5f345a18} & 完成安全存储性能对照与国赛验收证据 & 潘利源 \\
-        9 & 07-25 & \texttt{e07ad006} & 修正评审材料并固化 KVM 基准证据 & 潘利源 \\
-        10 & 07-28 & \texttt{c1f9c472} & 优化 dm 热路径并补齐评审基准流程 & 潘利源 \\
-        11 & 08-03 & \texttt{40d8abba} & 增强 dmctl 性能测试框架，支持 IO 分解与可配置规模 & 陈韵 \\
-        12 & 08-03 & \texttt{ca5afe46} & 完善安全存储性能验证与交付材料 & 潘利源 \\
-        13 & 08-09 & \texttt{5717d925} & 更新 dm 完成队列性能指标与证据 & 潘利源 \\
-        14 & 08-09 & \texttt{21aa566d} & 更新性能测试数据与优化量化说明 & 陈韵 \\
-        15 & 08-09 & \texttt{7431e5de} & 统一正式性能口径并补充优化证据 & 潘利源 \\
-        16 & 08-09 & \texttt{0e7f4c77} & 修正运行时能力声明并补充 KVM 回归验证 & 潘利源 \\
-        17 & 08-09 & \texttt{09f62e59} & 补充完整测试进度 & 潘利源 \\
-        18 & 08-10 & \texttt{1ac6325c} & 整理性能测试合同、FIO/Filebench/SQLite/Boot脚本与证据目录 & 张乐桁 \\
-        19 & 08-10 & \texttt{fc548a9e} & 整合最终评测代码与测试材料 & 潘利源 \\
-        20 & 08-11 & \texttt{6385e70b} & feat: add kernel Combined crypt→verity stack path & 潘利源 \\
-        21 & 08-11 & \texttt{fda85aa4} & 整合最终评测代码与测试材料 & 潘利源 \\
-        22 & 08-11 & \texttt{84fe076e} & 合并 GitLab 最新代码并同步最终评测材料 & 潘利源 \\
-        23 & 08-11 & \texttt{8b2018e7} & 完善更新图表 & 陈韵 \\
+        6 & 06-23 & \texttt{84970aae} & 修改文档 & 潘利源 \\
+        7 & 06-29 & \texttt{f5878935} & 添加 LaTeX 项目文档、PDF 与答辩 PPT & 张乐桁 \\
+        8 & 06-29 & \texttt{dabfee4d} & 将答辩 PPT 放到项目根目录并更新 README 链接 & 张乐桁 \\
+        9 & 06-29 & \texttt{c22b8b47} & 在 README 开头添加演示视频百度网盘链接 & 张乐桁 \\
+        10 & 07-14 & \texttt{5f345a18} & 完成安全存储性能对照与国赛验收证据 & 潘利源 \\
+        11 & 07-25 & \texttt{e07ad006} & 修正评审材料并固化 KVM 基准证据 & 潘利源 \\
+        12 & 07-28 & \texttt{c1f9c472} & 优化 dm 热路径并补齐评审基准流程 & 潘利源 \\
+        13 & 08-03 & \texttt{40d8abba} & 增强 dmctl 性能测试框架，支持 IO 分解与可配置规模 & 陈韵 \\
+        14 & 08-03 & \texttt{ca5afe46} & 完善安全存储性能验证与交付材料 & 潘利源 \\
+        15 & 08-06 & \texttt{5717d925} & 更新 dm 完成队列性能指标与证据 & 潘利源 \\
+        16 & 08-09 & \texttt{21aa566d} & 更新性能测试数据与优化量化说明 & 陈韵 \\
+        17 & 08-09 & \texttt{6926b356} & change & 陈韵 \\
+        18 & 08-09 & \texttt{7431e5de} & 统一正式性能口径并补充优化证据 & 潘利源 \\
+        19 & 08-09 & \texttt{0e7f4c77} & 修正运行时能力声明并补充 KVM 回归验证 & 潘利源 \\
+        20 & 08-09 & \texttt{09f62e59} & 补充完整测试进度 & 潘利源 \\
+        21 & 08-09 & \texttt{1ac6325c} & 整理性能测试合同、FIO/Filebench/SQLite/Boot 脚本与证据目录 & 张乐桁 \\
+        22 & 08-10 & \texttt{fc548a9e} & 整合最终评测代码与测试材料 & 潘利源 \\
+        23 & 08-10 & \texttt{7350e470} & 修改完善文档 & 陈韵 \\
+        24 & 08-10 & \texttt{dde97a2f} & 更新完善技术文档内容 & 陈韵 \\
+        25 & 08-11 & \texttt{6385e70b} & feat: add kernel Combined crypt→verity stack path & 潘利源 \\
+        26 & 08-11 & \texttt{fda85aa4} & 整合最终评测代码与测试材料 & 潘利源 \\
+        27 & 08-11 & \texttt{84fe076e} & 合并 GitLab 最新代码并同步最终评测材料 & 潘利源 \\
+        28 & 08-11 & \texttt{8b2018e7} & 完善更新图表 & 陈韵 \\
+        29 & 08-11 & \texttt{5dc3cb9f} & 上传设计文档内容 & 陈韵 \\
+        30 & 08-11 & \texttt{29157f0e} & 整合更新commit记录 & 陈韵 \\
+        31 & 08-12 & \texttt{a975b887} & 更新完善技术文档内容 & 陈韵 \\
+        32 & 08-16 & \texttt{1f4d9c11} & docs: 正式文档改为 design\_doc，移除旧 main.tex/PDF & 张乐桁 \\
+        33 & 08-16 & \texttt{c64c8ce7} & docs: 在报告中补入 Asterinas 256 MiB 三行表并重编 PDF & 张乐桁 \\
+        34 & 08-16 & \texttt{d9b960f4} & docs: 用 Linux QEMU virtio FIO 替换宿主机对照数字 & 张乐桁 \\
+        35 & 08-17 & \texttt{7cd6d8f1} & docs: 重编 document/main.pdf，测试指标与 README 对齐 & 张乐桁 \\
+        36 & 08-17 & \texttt{97fcb8db} & docs: 按核对后的 Asterinas KVM FIO 13 格式更新 PDF & 张乐桁 \\
+        37 & 08-17 & \texttt{d697645b} & docs: Asterinas KVM FIO 13 格式补入 raw 列 & 张乐桁 \\
+        38 & 08-17 & \texttt{17f11f70} & docs: 写明 asterinas/软链接 Asterinas 官方仓库 & 张乐桁 \\
+        39 & 08-17 & \texttt{bf9861b9} & 汇总成完整一个技术文档 & 陈韵 \\
+        40 & 08-17 & \texttt{c8b5c9cf} & docs: 在 Linux guest 同条件对照表中补入 dm-verify & 张乐桁 \\
+        41 & 08-17 & \texttt{da5fbae4} & docs: 恢复 main.pdf 并公布 Linux guest Filebench/SQLite 与 README 完成情况表 & 张乐桁 \\
         \bottomrule
     \end{tabular}
 \end{table}
@@ -418,7 +427,7 @@ Asterinas KVM 真实保护 mapper 五轮中位：
         性能优化 & 约800行Rust & AES-NI、scratch pool、hash cache、阶段归因 \\
         组合栈 & 约150行Rust + 约300行Shell & 补丁0007、镜像构建、启动脚本 \\
         测试脚本 & 约2000行Shell/Python & FIO矩阵、Filebench、SQLite、Boot、证据验证 \\
-        文档 & 约200页LaTeX/Markdown & 技术文档、设计赛道文档、README、用户手册 \\
+        文档 & LaTeX/Markdown & 最终统一设计文档、README、用户手册 \\
         \bottomrule
     \end{tabular}
 \end{table}
@@ -432,25 +441,25 @@ Asterinas KVM 真实保护 mapper 五轮中位：
         \textbf{阶段} & \textbf{可运行成果} & \textbf{可复核证据} \\
         \midrule
         用户态核心 & \texttt{dmctl demo-crypt}、\texttt{dmctl demo-verity} & 单元测试日志、命令行输出 \\
-        Linux兼容性 & \texttt{verify\_linux\_xts\_compat.sh} & 固定向量SHA-256 \\
-        内核集成 & \texttt{tools/run\_dm\_crypt.sh}、\texttt{tools/run\_dm\_verity.sh} & 12组KVM正确性日志 \\
-        性能优化 & \texttt{scripts/run\_fio\_matrix.sh}、\texttt{/proc/dm-*-stats} & 五轮FIO原始JSON/CSV \\
-        组合栈 & \texttt{scripts/run\_dm\_stack.sh} & 组合栈串口日志 \\
-        文档答辩 & 技术文档PDF、PPT、演示视频 & 全部提交完成 \\
+        Linux兼容性 & \texttt{\seqsplit{verify\_linux\_xts\_compat.sh}} & 固定向量SHA-256 \\
+        内核集成 & \texttt{\seqsplit{tools/run\_dm\_crypt.sh}}、\texttt{\seqsplit{tools/run\_dm\_verity.sh}} & 12组KVM正确性日志 \\
+        性能优化 & \texttt{\seqsplit{scripts/run\_fio\_matrix.sh}}、\texttt{/proc/dm-*-stats} & 五轮FIO原始JSON/CSV \\
+        组合栈 & \texttt{\seqsplit{scripts/run\_dm\_stack.sh}} & 组合栈串口日志 \\
+        文档答辩 & 最终统一设计文档 PDF、PPT、演示视频 & 全部提交完成 \\
         \bottomrule
     \end{tabular}
 \end{table}
 
 \section{小结}
 
-本章按时间线记录了项目从 2026 年 6 月 23 日至 8 月 14 日的全部重要进展。项目经历了五个关键阶段：
+本章按时间线记录了项目从 2026 年 6 月 23 日至 8 月 17 日的全部重要进展。项目经历了五个关键阶段：
 
 \begin{enumerate}
     \item \textbf{用户态核心实现}（06-23至06-28）：完成了约1500行Rust核心代码和800行命令行工具，通过全部单元测试；
     \item \textbf{Linux兼容性与内核集成}（06-29至07-14）：验证了AES-XTS逐字节兼容，完成了补丁0001--0004，12组KVM正确性测试全部PASS；
     \item \textbf{性能优化与基准框架}（07-28至08-03）：实现了AES-NI、scratch pool、hash cache、BIO复用和阶段归因，建立了五轮基准框架，正式性能合同固化完成；
     \item \textbf{性能矩阵与组合栈}（08-09至08-11）：完成46 PASS性能矩阵（含 Asterinas 256MiB 正式合同、Linux guest 对照、Linux QEMU virtio 对照），实现补丁0007组合栈，启动开销<3\%；
-    \item \textbf{文档与答辩准备}（08-11至08-14）：完成技术文档（120页）、设计赛道文档（80页）、答辩PPT和演示视频。
+    \item \textbf{文档与答辩准备}（08-11至08-17）：完成最终统一设计文档、答辩PPT和演示视频，并完成最终文档整合与数据对齐。
 \end{enumerate}
 
 所有关键里程碑均有 Git 提交记录、补丁文件或证据日志支撑，完整展示了项目的开发节奏和技术演进路径。项目最终成果全面覆盖赛题五项技术指标，代码、证据、文档和演示材料均已按大赛要求提交至指定托管平台。

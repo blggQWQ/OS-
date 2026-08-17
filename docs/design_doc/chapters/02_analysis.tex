@@ -60,7 +60,7 @@
 \begin{enumerate}
     \item \textbf{平台差异的根本性}：Asterinas 采用 Framekernel 架构，其块设备 I/O 接口（BIO 系统）与 Linux 内核完全不同。Linux 的 \texttt{struct bio} 和 \texttt{request\_queue} 机制在 Asterinas 中不存在，无法直接移植代码，需要从头设计适配层。
     
-    \item \textbf{密码学工程的精确性要求}：AES-256-XTS 和 SHA-256 必须与 Linux 内核的 \texttt{aes-xts-plain64} 逐字节兼容。任何微小的差异（如 IV 生成的小端序处理、XTS 微调乘法的实现）都会导致 \texttt{cryptsetup} 无法解密 Linux 创建的加密卷，破坏互操作性。
+    \item \textbf{密码学工程的精确性要求}：AES-256-XTS 和 SHA-256 必须与 Linux 内核的 \texttt{\seqsplit{aes-xts-plain64}} 逐字节兼容。任何微小的差异（如 IV 生成的小端序处理、XTS 微调乘法的实现）都会导致 \texttt{cryptsetup} 无法解密 Linux 创建的加密卷，破坏互操作性。
     
     \item \textbf{内核集成的系统复杂度}：Device Mapper 不是一个独立模块，它需要与块设备层（BIO 提交与完成回调）、设备文件系统（\texttt{/dev/mapper/control}）、启动流程（参数解析与根切换）等多个内核子系统协同工作，集成面广、耦合度高。
     
@@ -88,7 +88,7 @@
 Linux 内核的 Device Mapper 是一个通用的块设备映射框架，通过 \texttt{dmsetup} 工具和 \texttt{libdevmapper} 库提供用户态控制接口。其核心机制包括：
 
 \begin{enumerate}
-    \item \textbf{映射表（Mapping Table）}：由一系列目标（target）组成，每个目标描述一段逻辑地址范围映射到下层设备的方式。表格式为：\texttt{<start\_sector> <length> <target\_type> <target\_args>}；
+    \item \textbf{映射表（Mapping Table）}：由一系列目标（target）组成，每个目标描述一段逻辑地址范围映射到下层设备的方式。表格式为：\texttt{<start\_sector> <length> <\seqsplit{target\_type}> <target\_args>}；
     \item \textbf{目标驱动（Target Driver）}：每个 target 类型（如 \texttt{crypt}、\texttt{verity}、\texttt{linear}）对应一个内核模块，实现 \texttt{map} 函数处理 BIO。\texttt{dm-crypt} 和 \texttt{dm-verity} 是其中应用最广泛的两种 target；
     \item \textbf{控制接口}：通过 \texttt{/dev/mapper/control} 的 ioctl 命令（\texttt{DM\_DEV\_CREATE}、\texttt{DM\_TABLE\_LOAD}、\texttt{DM\_DEV\_SUSPEND}、\texttt{DM\_DEV\_STATUS}、\texttt{DM\_DEV\_REMOVE}）完成 mapper 的生命周期管理；
     \item \textbf{用户态工具链}：\texttt{cryptsetup} 是 \texttt{dm-crypt} 的主要用户，它封装了 LUKS（Linux Unified Key Setup）格式——PBKDF 密钥派生、keyslot 管理和 LUKS header 解析均在用户态完成，内核只接收最终的 volume key 和 dm-crypt table。
@@ -113,7 +113,7 @@ Asterinas 是一个采用 Framekernel 架构的 Rust 操作系统，其核心特
     \item \textbf{启动流程}：内核解析命令行参数后，通过 initramfs 中的 \texttt{init} 脚本完成根文件系统挂载和 \texttt{pivot\_root} 切换。
 \end{itemize}
 
-本项目仓库根目录 \texttt{asterinas/} 以 git submodule 软链接到 Asterinas 官方仓库 \url{https://github.com/asterinas/asterinas}，不把上游源码整树算作本队原创。对 Asterinas 的接入采用补丁序列（\texttt{asterinas\_port/patches/0001--0007}）叠加在该官方树之上，每个补丁对应一个独立可验证的增量功能，确保集成过程可审计、可回溯。
+本项目对 Asterinas 的接入采用补丁序列（\texttt{asterinas\_port/patches/0001--0007}）方式，每个补丁对应一个独立可验证的增量功能，确保集成过程可审计、可回溯。
 
 \subsection{密码学标准与算法调研}
 

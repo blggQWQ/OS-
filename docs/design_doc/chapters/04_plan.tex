@@ -14,7 +14,7 @@
         第三阶段 & 07-11 -- 07-20 & 内核补丁与 BIO 集成 & 补丁 0001--0004、rootfs 切换 \\
         第四阶段 & 07-21 -- 07-31 & 性能优化与基准框架 & 补丁 0005--0006、FIO 矩阵脚本 \\
         第五阶段 & 08-01 -- 08-11 & 组合栈与最终验证 & 补丁 0007、五轮性能矩阵、证据归档 \\
-        第六阶段 & 08-09 -- 08-14 & 文档整理与答辩准备 & 技术文档、答辩 PPT、设计赛道文档 \\
+        第六阶段 & 08-09 -- 08-17 & 文档整理与答辩准备 & 最终统一设计文档、答辩 PPT、演示视频 \\
         \bottomrule
     \end{tabular}
 \end{table}
@@ -22,7 +22,7 @@
 \begin{figure}[H]
     \centering
     \includegraphics[width=1\textwidth]{development_gantt.png}
-    \caption{项目开发甘特图（2026-06-23 至 2026-08-14）}
+    \caption{项目开发甘特图（2026-06-23 至 2026-08-17）}
     \label{fig:gantt}
 \end{figure}
 
@@ -42,7 +42,7 @@
 
 \section{阶段划分与时间安排}
 
-本项目实际开发周期为 2026 年 6 月 23 日至 8 月 14 日，共计 50 天，分为六个阶段。以下按阶段详细描述计划内容与实际完成情况。
+本项目实际开发周期为 2026 年 6 月 23 日至 8 月 17 日，共计 55 天，分为六个阶段。以下按阶段详细描述计划内容与实际完成情况。
 
 \section{第一阶段：用户态核心实现}
 
@@ -63,7 +63,7 @@
 
 \subsection{交付物与验收标准}
 \begin{itemize}
-    \item \textbf{交付物}：\texttt{crates/dm/src/} 全部核心模块；\texttt{crates/dmctl/src/main.rs} 基础命令
+    \item \textbf{交付物}：\texttt{\seqsplit{crates/dm/src/}} 全部核心模块；\texttt{\seqsplit{crates/dmctl/src/main.rs}} 基础命令
     \item \textbf{验收标准}：
     \begin{enumerate}
         \item \texttt{demo-crypt} 输出 \texttt{ciphertext\_differs: true}；
@@ -74,7 +74,7 @@
 
 \subsection{实际完成情况}
 \begin{itemize}
-    \item 完成时间：2026-06-23（Git commit \texttt{40a52179} \texttt{feat: add Linux-compatible device mapper implementation}）；
+    \item 完成时间：2026-06-23（Git commit \texttt{40a52179} \texttt{\seqsplit{feat: add Linux-compatible device mapper implementation}}）；
     \item 通过全部 13+ 个单元测试；
     \item \texttt{demo-crypt} 和 \texttt{demo-verity} 验证通过；
     \item 代码量：约 1500 行 Rust。
@@ -97,7 +97,7 @@
 
 \subsection{交付物与验收标准}
 \begin{itemize}
-    \item \textbf{交付物}：\texttt{DmCryptTable} 和 \texttt{DmCryptDevice::from\_table}；\texttt{kernel/src/device/misc/dm\_control.rs}；\texttt{kernel/comps/dm/src/runtime.rs}
+    \item \textbf{交付物}：\texttt{DmCryptTable} 和 \texttt{\seqsplit{DmCryptDevice::from\_table}}；\texttt{\seqsplit{kernel/src/device/misc/dm\_control.rs}}；\texttt{\seqsplit{kernel/comps/dm/src/runtime.rs}}
     \item \textbf{验收标准}：
     \begin{enumerate}
         \item \texttt{verify\_linux\_xts\_compat.sh} 输出 \texttt{PASS}，SHA-256 匹配；
@@ -109,7 +109,7 @@
 \begin{itemize}
     \item 完成时间：2026-07-14（补丁 0004）；
     \item Linux XTS 固定向量 SHA-256：\texttt{4334c17f...}；
-    \item R01 cryptsetup smoke PASS（证据：\texttt{R01-cryptsetup-persistent-cache.log}）；
+    \item R01 cryptsetup smoke PASS（证据：\texttt{\seqsplit{R01-cryptsetup-persistent-cache.log}}）；
     \item 代码量：新增约 1000 行内核代码。
 \end{itemize}
 
@@ -131,7 +131,7 @@
 
 \subsection{交付物与验收标准}
 \begin{itemize}
-    \item \textbf{交付物}：\texttt{asterinas\_port/patches/0001--0004.patch}；\texttt{tools/run\_dm\_crypt.sh} 和 \texttt{tools/run\_dm\_verity.sh}
+    \item \textbf{交付物}：\texttt{\seqsplit{asterinas\_port/patches/0001--0004.patch}}；\texttt{\seqsplit{tools/run\_dm\_crypt.sh}} 和 \texttt{\seqsplit{tools/run\_dm\_verity.sh}}
     \item \textbf{验收标准}：
     \begin{enumerate}
         \item R02 串口输出 \texttt{PASS system root switched to protected mapper}；
@@ -144,7 +144,7 @@
 \begin{itemize}
     \item 完成时间：2026-07-14（补丁 0001--0004）；
     \item R01--R03、C01--C05、V01--V07 全部 PASS；
-    \item 证据日志位于 \texttt{docs/evidence/stabilization/correctness-kvm/}；
+    \item 证据日志位于 \texttt{\seqsplit{docs/evidence/stabilization/correctness-kvm/}}；
     \item 补丁代码量：约 2500 行。
 \end{itemize}
 
@@ -164,7 +164,7 @@
 
 \subsection{交付物与验收标准}
 \begin{itemize}
-    \item \textbf{交付物}：补丁 0005--0006；\texttt{scripts/run\_fio\_matrix.sh}、\texttt{scripts/run\_filebench\_matrix.sh}、\texttt{scripts/run\_sqlite\_matrix.sh}、\texttt{scripts/run\_boot\_matrix.sh}
+    \item \textbf{交付物}：补丁 0005--0006；\texttt{\seqsplit{scripts/run\_fio\_matrix.sh}}、\texttt{\seqsplit{scripts/run\_filebench\_matrix.sh}}、\texttt{\seqsplit{scripts/run\_sqlite\_matrix.sh}}、\texttt{\seqsplit{scripts/run\_boot\_matrix.sh}}
     \item \textbf{验收标准}：
     \begin{enumerate}
         \item 五轮 FIO 矩阵可自动执行并生成 CSV；
@@ -198,7 +198,7 @@
 
 \subsection{交付物与验收标准}
 \begin{itemize}
-    \item \textbf{交付物}：补丁 0007；\texttt{scripts/build\_stack\_rootfs.sh} 和 \texttt{scripts/run\_dm\_stack.sh}
+    \item \textbf{交付物}：补丁 0007；\texttt{\seqsplit{scripts/build\_stack\_rootfs.sh}} 和 \texttt{\seqsplit{scripts/run\_dm\_stack.sh}}
     \item \textbf{验收标准}：
     \begin{enumerate}
         \item 组合栈串口输出 \texttt{stacked mapper: vdc -> dm-crypt0 -> dm-verity0}；
@@ -218,12 +218,11 @@
 \section{第六阶段：文档整理与答辩准备}
 
 \subsection{目标}
-完成全部技术文档、答辩材料、演示视频和设计赛道文档的整理与提交。
+完成最终统一设计文档、答辩材料、演示视频和设计赛道文档的整理与提交。
 
 \subsection{任务分解}
 \begin{enumerate}
-    \item 技术文档（LaTeX）：架构设计、模块说明、测试结果（9 章 + 附录）；
-    \item 设计赛道文档（LaTeX）：10 章节完整版；
+    \item 最终统一设计文档（LaTeX）：融合原技术文档（架构设计、模块说明、测试结果）与设计赛道文档（10 章节完整版）；
     \item 答辩 PPT（\texttt{presentation\_project.pptx}）；
     \item 演示视频（含运行环境介绍与受保护 rootfs 启动）；
     \item 作品进展汇报幻灯片；
@@ -232,7 +231,7 @@
 
 \subsection{交付物与验收标准}
 \begin{itemize}
-    \item \textbf{交付物}：\texttt{docs/document/main.pdf}；\texttt{\seqsplit{docs/design\_doc/design\_doc.pdf}}；\texttt{\seqsplit{presentation\_project.pptx}}；\texttt{作品演示视频.mp4}；\texttt{作品进展汇报幻灯片.pptx}
+    \item \textbf{交付物}：\texttt{\seqsplit{docs/design\_doc/design\_doc.pdf}}（最终统一设计文档）；\texttt{\seqsplit{presentation\_project.pptx}}；\texttt{作品演示视频.mp4}；\texttt{作品进展汇报幻灯片.pptx}
     \item \textbf{验收标准}：
     \begin{enumerate}
         \item 所有文档可编译生成 PDF；
@@ -243,9 +242,9 @@
 
 \subsection{实际完成情况}
 \begin{itemize}
-    \item 完成时间：2026-08-14；
+    \item 完成时间：2026-08-17；
     \item 全部文档、PPT 和视频已提交至指定平台；
-    \item 文档总页数：技术文档约 120 页，设计赛道文档约 80 页。
+    \item 所有文档内容完整，涵盖技术实现与设计赛道全部要求。
 \end{itemize}
 
 \section{里程碑与关键交付物汇总}
@@ -262,7 +261,7 @@
         M3：内核 rootfs 切换 & 07-14 & R01--R03、C01--C05、V01--V07 全部 PASS（补丁 0001--0004） \\
         M4：性能优化与框架 & 08-03 & AES-NI、scratch pool、hash cache、五轮 FIO 脚本（补丁 0005--0006） \\
         M5：组合栈与最终验证 & 08-11 & 补丁 0007、46 PASS 性能矩阵（\texttt{6385e70b}） \\
-        M6：文档与答辩准备 & 08-14 & 技术文档 PDF、答辩 PPT、演示视频、设计赛道文档 \\
+        M6：文档与答辩准备 & 08-17 & 最终统一设计文档 PDF、答辩 PPT、演示视频 \\
         \bottomrule
     \end{tabular}
 \end{table}
@@ -280,7 +279,7 @@
         Asterinas 工具链 & \texttt{nightly-2026-04-03} & 星绽内核编译 \\
         QEMU & 8.2.2+ & 硬件虚拟化（KVM 加速，\texttt{-cpu host}） \\
         Docker & 29.4.3+ & 容器化构建环境（用于内核构建） \\
-        星绽镜像 & \texttt{asterinas/asterinas:0.18.0-20260618} & 官方工具链和构建环境 \\
+        星绽镜像 & \texttt{\seqsplit{asterinas/asterinas:0.18.0-20260618}} & 官方工具链和构建环境 \\
         Clang / LLVM & 18.0.0+ & 内核编译 \\
         fio & 3.36+ & I/O 性能基准测试 \\
         Filebench & 1.5-alpha3+ & 文件系统基准测试 \\
@@ -328,11 +327,11 @@ rustup default stable
 \begin{itemize}
     \item \textbf{第三阶段提前完成}：原计划 07-11 至 07-20，实际 07-14 完成，得益于用户态阶段的充分验证使内核集成更加顺利；
     \item \textbf{第四、五阶段合并执行}：性能优化与组合栈验证存在重叠，实际在 07-21 至 08-11 期间并行推进；
-    \item \textbf{文档阶段与开发阶段重叠}：技术文档的编写从第一阶段即开始，第六阶段主要完成最后的整合与润色。
+    \item \textbf{文档阶段与开发阶段重叠}：技术文档的编写从第一阶段即开始，第六阶段主要完成最后的整合与润色，最终于 08-17 完成全部文档统一。
 \end{itemize}
 
 \section{小结}
 
-本章详细阐述了项目的开发计划，包括六个阶段的划分、任务分解、交付物、验收标准、实际完成情况、开发环境与工具链、风险应对和计划执行偏差分析。项目实际开发周期为 2026 年 6 月 23 日至 8 月 14 日，共 50 天，完成了从用户态核心实现到内核集成、性能优化、组合栈验证和文档整理的全部工作。所有阶段均按计划完成，关键里程碑均有可复核的证据支撑。
+本章详细阐述了项目的开发计划，包括六个阶段的划分、任务分解、交付物、验收标准、实际完成情况、开发环境与工具链、风险应对和计划执行偏差分析。项目实际开发周期为 2026 年 6 月 23 日至 8 月 17 日，共 55 天，完成了从用户态核心实现到内核集成、性能优化、组合栈验证和最终文档统一的全流程。所有阶段均按计划完成，关键里程碑均有可复核的证据支撑。
 
 计划制定遵循“先验证、后集成、渐进式增量、测试驱动、文档同步”的方法论，并贯穿“先保证安全语义，再接入真实块路径，最后固化复现入口”的研发原则，确保了开发过程的可控性和可追溯性。项目最终成果全面覆盖赛题五项技术指标，代码、证据、文档和演示材料均按大赛要求提交至指定托管平台。

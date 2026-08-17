@@ -384,7 +384,7 @@ fpu_context.load();
     \item \textbf{Combined} 验证了组合安全能力——同时提供机密性和完整性保护，串口输出 \texttt{stacked mapper} 标记。
 \end{itemize}
 
-Combined 的镜像构建与启动入口为 \texttt{scripts/build\_stack\_rootfs.sh} 和 \texttt{scripts/run\_dm\_stack.sh}。用户态 \texttt{dmctl demo-stack} 使用相同的装饰器顺序，验证了双目标架构的一致性。
+Combined 的镜像构建与启动入口为 \texttt{\seqsplit{scripts/build\_stack\_rootfs.sh}} 和 \texttt{\seqsplit{scripts/run\_dm\_stack.sh}}。用户态 \texttt{dmctl demo-stack} 使用相同的装饰器顺序，验证了双目标架构的一致性。
 
 这一收敛路径证明了：每个工程问题的修复不仅解决了表面故障，更在安全能力传播层面得到了系统性验证。
 

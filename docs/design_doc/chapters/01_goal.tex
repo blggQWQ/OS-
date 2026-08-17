@@ -94,8 +94,8 @@ Linux 内核通过 Device Mapper 框架提供的 \texttt{dm-crypt}（透明加�
 \subsection{功能目标三：受保护根文件系统}
 
 \begin{itemize}
-    \item 支持通过内核启动参数配置 \texttt{dm-crypt} 加密根文件系统（\texttt{dm\_crypt.device}、\texttt{dm\_crypt.key}）；
-    \item 支持通过启动参数配置 \texttt{dm-verity} 校验根文件系统（\texttt{rootfs\_verity.scheme}、\texttt{rootfs\_verity.hash}）；
+    \item 支持通过内核启动参数配置 \texttt{dm-crypt} 加密根文件系统（\texttt{dm\_crypt.device}、\texttt{\seqsplit{dm\_crypt.key}}）；
+    \item 支持通过启动参数配置 \texttt{dm-verity} 校验根文件系统（\texttt{rootfs\_verity.scheme}、\texttt{\seqsplit{rootfs\_verity.hash}}）；
     \item 支持组合栈（\texttt{dm\_stack=crypt,verity}），同时提供机密性和完整性保护；
     \item 在 initramfs 中完成 mapper 挂载，并通过 \texttt{pivot\_root} 切换到受保护根，启动日志输出 \texttt{PASS system root switched to protected mapper}。
 \end{itemize}
@@ -155,8 +155,8 @@ Linux 内核通过 Device Mapper 框架提供的 \texttt{dm-crypt}（透明加�
 本项目的一个核心创新是\textbf{双目标架构设计}：核心逻辑被实现为一个与平台无关的 Rust 库（\texttt{dm} crate），该库同时服务于两个目标环境：
 
 \begin{itemize}
-    \item \textbf{用户态（\texttt{dmctl}）}：用于演示、测试和基准测试，使用 \texttt{FileBlockDevice} 或 \texttt{MemoryBlockDevice} 作为后端，能够在宿主机上快速验证加密和完整性机制的正确性；
-    \item \textbf{内核态（\texttt{aster-dm}）}：将相同的核心逻辑移植到内核空间，包装真实的 \texttt{virtio-blk} 设备，通过 BIO 路径处理 I/O，使星绽能够挂载受保护的文件系统。仓库根目录 \texttt{asterinas/} 以 git submodule 软链接到 Asterinas 官方仓库 \url{https://github.com/asterinas/asterinas}，本队不把上游整树当作原创；内核增量位于 \texttt{asterinas/kernel/comps/dm/}，通过 \texttt{asterinas\_port/patches/} 中的 7 个补丁可追溯完整演进历史。
+    \item \textbf{用户态（\texttt{dmctl}）}：用于演示、测试和基准测试，使用 \texttt{FileBlockDevice} 或 \texttt{\seqsplit{MemoryBlockDevice}} 作为后端，能够在宿主机上快速验证加密和完整性机制的正确性；
+    \item \textbf{内核态（\texttt{aster-dm}）}：将相同的核心逻辑移植到内核空间，包装真实的 \texttt{virtio-blk} 设备，通过 BIO 路径处理 I/O，使星绽能够挂载受保护的文件系统。内核集成代码位于 \texttt{asterinas/kernel/comps/dm/}，通过 \texttt{asterinas\_port/patches/} 中的 7 个补丁可追溯完整演进历史。
 \end{itemize}
 
 这种设计确保了用户态与内核态的逻辑一致性，使得测试和调试更加高效，同时也为后续的性能优化和功能扩展提供了统一的抽象基础。两个环境共享相同的算法实现（AES-XTS、SHA-256、Merkle 树验证），但适配层（BIO vs 同步文件 I/O、自旋锁 vs 互斥锁、on-disk tree vs in-memory tree）完全隔离，互不影响。
@@ -190,7 +190,7 @@ Linux 内核通过 Device Mapper 框架提供的 \texttt{dm-crypt}（透明加�
 赛题要求“基于 QEMU 虚拟机搭建标准化测试环境，存储设备统一通过 virtio-blk 标准化虚拟化接口实现管理与数据交互”。本项目严格遵循：
 
 \begin{itemize}
-    \item \textbf{测试环境}：Asterinas 官方开发镜像 \texttt{asterinas/asterinas:0.18.0-20260618}，QEMU/KVM，\texttt{-cpu host}，1 vCPU，8 GiB 内存；
+    \item \textbf{测试环境}：Asterinas 官方开发镜像 \texttt{\seqsplit{asterinas/asterinas:0.18.0-20260618}}，QEMU/KVM，\texttt{-cpu host}，1 vCPU，8 GiB 内存；
     \item \textbf{存储设备}：\texttt{virtio-blk} 设备（\texttt{vdc}），通过 \texttt{qemu\_args.sh} 脚本挂载；
     \item \textbf{正确性验证}：通过 R01–R03、C01–C05、V01–V07 共 12 组测试用例，覆盖回归、加密、篡改三大类；
     \item \textbf{性能验证}：通过 FIO、Filebench、SQLite 和启动耗时四类测试，每个场景固定五轮，交替运行，保留原始数据。
