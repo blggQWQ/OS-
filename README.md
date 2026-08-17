@@ -254,12 +254,12 @@ KVM、1 vCPU、8 GiB、virtio-blk、4 KiB 同步读、QD1、10 秒 runtime、交
 
 同一宿主机、KVM、CPU=host、1 vCPU、8 GiB、同一 virtio-blk 数据盘前 256 MiB、4 KiB、sync、direct=1、QD1、ramp 2 秒、runtime 10 秒：
 
-| 系统 | raw 中位吞吐（MiB/s） | dm-crypt 中位吞吐（MiB/s） | dm-crypt 保留率 | dm-crypt p95（us） |
-|---|---:|---:|---:|---:|
-| Linux guest | 5.150 | 4.746 | 92.158% | 1384.448 |
-| Asterinas | 4.245 | 4.059 | 95.621% | 1318.912 |
+| 系统 | raw 中位吞吐（MiB/s） | dm-crypt 中位吞吐（MiB/s） | dm-crypt 保留率 | dm-crypt p95（us） | dm-verity 中位吞吐（MiB/s） | dm-verity 保留率 |
+|---|---:|---:|---:|---:|---:|---:|
+| Linux guest | 5.150 | 4.746 | 92.158% | 1384.448 | 4.369 | 94.1% |
+| Asterinas | 4.245 | 4.059 | 95.621% | 1318.912 | 3.815 | 87.3% |
 
-Asterinas 的 raw、dm-crypt 绝对吞吐分别为 Linux guest 的 **82.4%**、**85.5%**。95.621% 是 Asterinas 相对自身 raw 的 dm-crypt 保留率，不代表绝对吞吐超过 Linux。
+Asterinas 的 raw、dm-crypt、dm-verity 绝对吞吐分别为 Linux guest 的 **82.4%**、**85.5%**、**87.3%**（verity 为 3.815 / 4.369）。95.621% 与 87.3% 分别是 Asterinas 相对自身 raw / 配对 raw 的 dm-crypt 与 dm-verity 保留率，不代表绝对吞吐超过 Linux。dm-crypt 保留率相对表中 raw 列；dm-verity 保留率相对配对 raw（Linux 4.641、Asterinas 4.368）。
 
 ### Linux FIO：QEMU/KVM virtio-blk（raw / dm-crypt / dm-verity）
 

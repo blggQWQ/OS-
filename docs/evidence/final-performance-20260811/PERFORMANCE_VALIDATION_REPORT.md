@@ -33,7 +33,7 @@ KVM、1 vCPU、8 GiB、virtio-blk、4 KiB 同步读、QD1、10 秒 runtime、交
 
 阶段差值：dm-crypt 下层等待中位占 97.84%、AES-XTS 占 1.82%；dm-verity 下层等待中位占 93.01%、数据 SHA-256 占 5.74%。
 
-同一宿主机、同一 virtio-blk 数据盘前 256 MiB 的 Linux guest 对照：Linux raw/dm-crypt 为 5.150 / 4.746（保留率 92.158%），Asterinas 为 4.245 / 4.059（保留率 95.621%）。Asterinas 相对自身 raw 的 crypt 保留率高于 Linux，不代表绝对吞吐超过 Linux。
+同一宿主机、同一 virtio-blk 数据盘前 256 MiB 的 Linux guest 对照（4 KiB sync QD1）：Linux raw / dm-crypt / dm-verity 为 5.150 / 4.746 / 4.369，Asterinas 为 4.245 / 4.059 / 3.815。crypt 保留率相对表中 raw 为 92.158% vs 95.621%；verity 保留率相对配对 raw（Linux 4.641、Asterinas 4.368）为 94.1% vs 87.3%。Asterinas 相对 Linux guest 的绝对吞吐为 raw 82.4%、dm-crypt 85.5%、dm-verity 87.3%（3.815 / 4.369）。自身保留率高于或不等于 Linux，不代表绝对吞吐超过 Linux。
 
 ## Filebench fileserver（Linux QEMU/KVM guest）
 

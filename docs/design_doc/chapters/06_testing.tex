@@ -247,6 +247,22 @@ Asterinas 256 MiB 正式合同（4 KiB 同步读、QD1；相对值为配对 raw�
     \end{tabular}
 \end{table}
 
+同一宿主机、KVM、CPU=\texttt{host}、1 vCPU、8\,GiB、同一 virtio-blk 数据盘前 256\,MiB、4\,KiB、\texttt{sync}、\texttt{direct=1}、QD1 的 Linux guest 对照如下。dm-crypt 保留率相对表中 raw 列；dm-verity 保留率相对配对 raw（Linux 4.641、Asterinas 4.368）。Asterinas 相对 Linux guest 的绝对吞吐为 raw 82.4\%、dm-crypt 85.5\%、dm-verity 87.3\%（$3.815/4.369$）。自身保留率不代表绝对吞吐超过 Linux。
+
+\begin{table}[H]
+    \centering
+    \small
+    \caption{Linux guest 与 Asterinas 同条件对照（MiB/s）}
+    \begin{tabular}{lrrrrr}
+        \toprule
+        \textbf{系统} & \textbf{raw} & \textbf{dm-crypt} & \textbf{crypt 保留率} & \textbf{dm-verity} & \textbf{verity 保留率} \\
+        \midrule
+        Linux guest & 5.150 & 4.746 & 92.158\% & 4.369 & 94.1\% \\
+        Asterinas & 4.245 & 4.059 & 95.621\% & 3.815 & 87.3\% \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
 \begin{table}[H]
     \centering
     \begin{tabular}{p{0.25\textwidth}p{0.15\textwidth}p{0.15\textwidth}p{0.18\textwidth}p{0.18\textwidth}}
