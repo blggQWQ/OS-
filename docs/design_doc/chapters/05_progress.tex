@@ -230,19 +230,19 @@ Linux QEMU virtio 对照在 virtio-blk 上测试 raw、dm-crypt 与 dm-verity �
     \end{tabular}
 \end{table}
 
-Asterinas KVM 真实保护 mapper 的独立结果（不与 Linux raw 计算倍率）：
+Asterinas KVM 真实保护 mapper 五轮中位：
 
 \begin{table}[H]
     \centering
     \caption{Asterinas KVM FIO 五轮中位带宽（MiB/s）}
-    \begin{tabular}{p{0.25\textwidth}p{0.15\textwidth}p{0.15\textwidth}p{0.18\textwidth}p{0.18\textwidth}}
+    \begin{tabular}{p{0.18\textwidth}p{0.12\textwidth}p{0.10\textwidth}p{0.16\textwidth}p{0.16\textwidth}p{0.16\textwidth}}
         \toprule
-        \textbf{负载} & \textbf{块大小} & \textbf{QD} & \textbf{dm-crypt} & \textbf{dm-verity} \\
+        \textbf{负载} & \textbf{块大小} & \textbf{QD} & \textbf{raw} & \textbf{dm-crypt} & \textbf{dm-verity} \\
         \midrule
-        read & 4 KiB & 1 & 8.908 & 7.505 \\
-        read & 256 KiB & 1 & 97.456 & 53.363 \\
-        randread & 4 KiB & 16 & 8.614 & 4.618 \\
-        randwrite & 256 KiB & 1 & 93.541 & N/A（只读） \\
+        read & 4 KiB & 1 & 25.080 & 8.908 & 7.505 \\
+        read & 256 KiB & 1 & 1230.577 & 97.456 & 53.363 \\
+        randread & 4 KiB & 16 & 25.315 & 8.614 & 4.618 \\
+        randwrite & 256 KiB & 1 & 1091.016 & 93.541 & N/A（只读） \\
         \bottomrule
     \end{tabular}
 \end{table}

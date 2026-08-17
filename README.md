@@ -263,25 +263,23 @@ QEMU/KVM、`-cpu host`、1 vCPU、8 GiB、virtio-blk、受测区 256 MiB、fio 3
 
 ### Asterinas KVM FIO：真实保护 mapper
 
-Asterinas raw（256 MiB 正式合同，KVM、1 vCPU、8 GiB、virtio-blk、4 KiB 同步读、QD1、两组共十轮中位）：**4.249** MiB/s。该 raw 与上一节三行表为同一口径；恢复后的 dm-crypt / dm-verity 矩阵未带同一次启动的配对 raw，因此不把 4.249 填进下表，也不对 8.908 / 7.505 计算相对 raw 的保留率。
+单位：MiB/s。KVM、1 vCPU、8 GiB、virtio-blk、五轮中位。
 
-单位：MiB/s。这里展示恢复后 dm-crypt 与修正后 dm-verity 的独立实测值；不与 Linux raw、也不与上面的 4.249 横向计算倍率。
-
-| workload | bs | qd | dm-crypt | dm-verity |
-|---|---:|---:|---:|---:|
-| read | 4K | 1 | 8.908 | 7.505 |
-| read | 32K | 1 | 52.810 | 33.893 |
-| read | 256K | 1 | 97.456 | 53.363 |
-| randread | 4K | 1 | 8.514 | 4.970 |
-| randread | 4K | 16 | 8.614 | 4.618 |
-| randread | 32K | 1 | 52.176 | 26.110 |
-| randread | 256K | 1 | 96.890 | 50.050 |
-| write | 4K | 1 | 8.926 | N/A（只读） |
-| write | 32K | 1 | 54.782 | N/A（只读） |
-| write | 256K | 1 | 94.097 | N/A（只读） |
-| randwrite | 4K | 1 | 8.482 | N/A（只读） |
-| randwrite | 32K | 1 | 53.551 | N/A（只读） |
-| randwrite | 256K | 1 | 93.541 | N/A（只读） |
+| workload | bs | qd | raw | dm-crypt | dm-verity |
+|---|---:|---:|---:|---:|---:|
+| read | 4K | 1 | 25.080 | 8.908 | 7.505 |
+| read | 32K | 1 | 184.485 | 52.810 | 33.893 |
+| read | 256K | 1 | 1230.577 | 97.456 | 53.363 |
+| randread | 4K | 1 | 25.545 | 8.514 | 4.970 |
+| randread | 4K | 16 | 25.315 | 8.614 | 4.618 |
+| randread | 32K | 1 | 186.110 | 52.176 | 26.110 |
+| randread | 256K | 1 | 1270.298 | 96.890 | 50.050 |
+| write | 4K | 1 | 20.600 | 8.926 | N/A（只读） |
+| write | 32K | 1 | 164.690 | 54.782 | N/A（只读） |
+| write | 256K | 1 | 1093.916 | 94.097 | N/A（只读） |
+| randwrite | 4K | 1 | 19.822 | 8.482 | N/A（只读） |
+| randwrite | 32K | 1 | 159.518 | 53.551 | N/A（只读） |
+| randwrite | 256K | 1 | 1091.016 | 93.541 | N/A（只读） |
 
 ### Filebench fileserver（Linux QEMU/KVM guest）
 
