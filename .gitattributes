@@ -17,3 +17,6 @@
 *.pdf binary
 *.pptx binary
 *.img binary
+
+# Split defense zip parts (GitLab rejects ~90MiB packs/LFS)
+docs/defense-pack/*.bin binary
