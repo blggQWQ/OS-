@@ -29,10 +29,10 @@
 项目采用四层门禁测试体系，自底向上逐层验证，确保功能正确性、Linux 兼容性和性能可复现性：
 
 \begin{enumerate}
-    \item \textbf{用户态单元测试（第1层）}：验证加密算法、哈希树、映射器逻辑和错误处理。在用户态快速迭代，不依赖内核环境，作为整个项目的“安全网”；
-    \item \textbf{Linux 兼容性测试（第2层）}：与 Linux 内核 \texttt{aes-xts-plain64} 逐字节比对，确保密文生成与 Linux 完全一致，这是与 cryptsetup 互操作的前提；
-    \item \textbf{Asterinas KVM 正确性测试（第3层）}：在真实 VirtIO BIO 路径下验证 mapper 功能、rootfs 切换和物理损坏检测，覆盖回归、加密、完整性三大类共 12 组用例；
-    \item \textbf{正式性能测试（第4层）}：FIO、Filebench、SQLite 和启动耗时的五轮基准，每个有效单元格固定五轮，报告中位数和标准差。
+    \item \textbf{用户态单元测试（第1层）}：验证加密算法、哈希树、映射器逻辑和错误处理。在用户态快速迭代，不依赖内核环境，作为整个项目的“安全网”。入口命令：\texttt{cargo test --workspace}；
+    \item \textbf{Linux 兼容性测试（第2层）}：与 Linux 内核 \texttt{aes-xts-plain64} 逐字节比对，确保密文生成与 Linux 完全一致，这是与 cryptsetup 互操作的前提。入口命令：\texttt{scripts/verify\_linux\_xts\_compat.sh}；
+    \item \textbf{Asterinas KVM 正确性测试（第3层）}：在真实 VirtIO BIO 路径下验证 mapper 功能、rootfs 切换和物理损坏检测，覆盖回归、加密、完整性三大类共 12 组用例。入口命令：\texttt{tools/run\_dm\_crypt.sh}、\texttt{tools/run\_dm\_verity.sh}；
+    \item \textbf{正式性能测试（第4层）}：FIO、Filebench、SQLite 和启动耗时的五轮基准，每个有效单元格固定五轮，报告中位数和标准差。入口命令：\texttt{scripts/run\_*\_matrix.sh}。
 \end{enumerate}
 
 所有测试均要求真实执行并保留原始证据（串口日志、JSON、CSV），只有满足此条件的项才标记为 \texttt{PASS}。历史无效数据（如早期假 mapper 测试）已被明确分类并隔离。
@@ -204,7 +204,7 @@ Rust workspace 单元测试覆盖以下核心场景（13+ 个测试用例）：
     \end{tabular}
 \end{table}
 
-所有篡改均只翻转一个字节，且**继续使用原始正确根哈希**（\texttt{b1a6dcd4...}），验证了 dm-verity 的篡改检测能力不依赖于重新计算根哈希。
+所有篡改均只翻转一个字节，且\textbf{继续使用原始正确根哈希}（\texttt{b1a6dcd4...}），验证了 dm-verity 的篡改检测能力不依赖于重新计算根哈希。
 
 \section{性能测试}
 
@@ -318,6 +318,37 @@ SQLite dm-verity 只执行查询阶段，不能与完整写事务总耗时横比
     \item Boot：\texttt{docs/evidence/final-performance-20260811/boot-matrix/}
 \end{itemize}
 
+\section{复现命令}
+
+以下命令提供了从单元测试到性能验证的完整复现路径，确保所有测试结果均可独立验证：
+
+\begin{verbatim}
+# 第1层：用户态单元测试
+cargo test --workspace
+
+# 第2层：Linux 兼容性测试
+sudo bash scripts/verify_linux_xts_compat.sh
+
+# 第3层：Asterinas KVM 正确性测试
+# R01--R03、C01--C05、V01--V07 的完整环境变量与命令见仓库根目录 README
+
+# 第4层：正式性能测试（分平台执行，每个工况五轮）
+sudo bash scripts/run_fio_matrix.sh --platform linux-host --runs 5
+bash scripts/run_fio_matrix.sh --platform asterinas-kvm --asterinas-dir "\$PWD/asterinas" --runs 5
+
+# 补充性能测试
+sudo RUNS=5 bash scripts/run_filebench_matrix.sh
+sudo RUNS=5 ROWS=10000 bash scripts/run_sqlite_matrix.sh
+RUNS=5 ENABLE_KVM=1 bash scripts/run_boot_matrix.sh
+
+# 静态检查与证据验证
+python3 scripts/check_benchmark_package.py
+python3 scripts/verify_kvm_evidence.py
+python3 scripts/review_release_check.py
+\end{verbatim}
+
+所有测试命令的详细说明和参数配置见仓库根目录 \texttt{README.md} 和 \texttt{docs/benchmark\_contract.md}。
+
 \section{数据真实性与审计}
 
 \subsection{历史问题处理}
@@ -411,4 +442,4 @@ python3 scripts/review_release_check.py
 
 历史无效数据（如早期假 mapper 测试、失败重试）已被明确分类为 \texttt{HARNESS\_BUG} 并隔离，不进入最终结论。尚未定义 runner 的扩展 P1 项保持 \texttt{UNTESTED}，不解释为 PASS，也不解释为产品失败。
 
-完整测试证据已全部归档至 \texttt{docs/evidence/} 目录，所有原始日志、JSON、CSV 均可复核。测试结果全面覆盖赛题五项技术指标，为项目的正确性和性能提供了可验证的支撑。
+完整测试证据已全部归档至 \texttt{docs/evidence/} 目录，所有原始日志、JSON、CSV 均可复核。本章列出的全部复现命令（\texttt{cargo test}、\texttt{verify\_linux\_xts\_compat.sh}、\texttt{run\_fio\_matrix.sh}、\texttt{run\_filebench\_matrix.sh}、\texttt{run\_sqlite\_matrix.sh}、\texttt{run\_boot\_matrix.sh}、\texttt{check\_benchmark\_package.py}、\texttt{verify\_kvm\_evidence.py}、\texttt{review\_release\_check.py}）为所有测试结果提供了完整的可复现入口。测试结果全面覆盖赛题五项技术指标，为项目的正确性和性能提供了可验证的支撑。

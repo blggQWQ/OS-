@@ -133,6 +133,25 @@
     \item \texttt{/proc/dm-verity-stats} 输出所有关键计数器。
 \end{itemize}
 
+\textbf{根保护初始化流程}：补丁 0005 在优化热路径的同时，进一步完善了从 QEMU 加载到根切换的完整启动流程，如下图所示：
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\textwidth]{root_protection_init.png}
+    \caption{根保护初始化序列图（QEMU 加载 → 内核解析 → mapper 初始化 → 自检 → pivot\_root → 用户态启动）}
+    \label{fig:root_protection_init}
+\end{figure}
+
+该流程的关键阶段包括：
+\begin{enumerate}
+    \item QEMU 加载星绽内核和 initramfs；
+    \item 内核解析命令行参数（\texttt{dm\_crypt.*}、\texttt{rootfs\_verity.*}、\texttt{dm\_stack}），构建配置；
+    \item \texttt{aster-dm} 组件初始化映射器链（\texttt{VirtioBlkAdapter} $\to$ \texttt{DmCryptDevice} / \texttt{DmVerityDevice}）；
+    \item 执行 \texttt{self\_test\_ext2\_magic} 自检（检查 EXT2 魔数 \texttt{0x53EF}），失败则 panic；
+    \item initramfs 使用 \texttt{dm-root} 模式执行 \texttt{pivot\_root} 切换到受保护根文件系统；
+    \item 系统进入用户态，串口输出 \texttt{PASS system root switched to protected mapper}。
+\end{enumerate}
+
 \subsection{8月3日：补丁 0006 -- 性能归因与正式基准合同}
 
 \textbf{关键事件}：
@@ -160,12 +179,75 @@
     \item 正式执行 Linux QEMU virtio raw/dm-crypt 13+13 项 FIO，以及 dm-verity 读 7 项。
 \end{itemize}
 
-\textbf{结果}：
-\begin{itemize}
-    \item Asterinas dm-crypt：13 项 × 5 轮完成，4K顺序读中位带宽 8.908 MiB/s；
-    \item Asterinas dm-verity：7 项 × 5 轮完成，6 项写入 N/A，4K顺序读中位带宽 7.505 MiB/s；
-    \item Linux QEMU virtio raw/dm-crypt：各 13 项 × 5 轮完成，dm-verity 读 7 项；4K顺序读中位带宽分别为 11.391、10.942、10.704 MiB/s。
-\end{itemize}
+\textbf{正式 FIO 矩阵结果}：
+
+Asterinas 在 256 MiB 正式合同下的 raw / dm-crypt / dm-verity 配对保留率（4 KiB 同步读、QD1、五轮中位）如下：
+
+\begin{table}[H]
+    \centering
+    \caption{Asterinas 256 MiB 正式合同（MiB/s）}
+    \begin{tabular}{p{0.28\textwidth}p{0.22\textwidth}p{0.22\textwidth}}
+        \toprule
+        \textbf{设备} & \textbf{中位吞吐} & \textbf{相对配对 raw} \\
+        \midrule
+        raw（两组共十轮） & 4.249 & 100.0\% \\
+        dm-crypt & 4.059 & 95.6\% \\
+        dm-verity & 3.815 & 87.3\% \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+同一宿主机、KVM、CPU=\texttt{host}、1 vCPU、8\,GiB、同一 virtio-blk 数据盘前 256\,MiB、4\,KiB、\texttt{sync}、\texttt{direct=1}、QD1 的 Linux guest 对照如下：
+
+\begin{table}[H]
+    \centering
+    \small
+    \caption{Linux guest 与 Asterinas 同条件对照（MiB/s）}
+    \begin{tabular}{lrrrrr}
+        \toprule
+        \textbf{系统} & \textbf{raw} & \textbf{dm-crypt} & \textbf{crypt 保留率} & \textbf{dm-verity} & \textbf{verity 保留率} \\
+        \midrule
+        Linux guest & 5.150 & 4.746 & 92.158\% & 4.369 & 94.1\% \\
+        Asterinas & 4.245 & 4.059 & 95.621\% & 3.815 & 87.3\% \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+Linux QEMU virtio 对照在 virtio-blk 上测试 raw、dm-crypt 与 dm-verity 读，统一使用 \texttt{libaio}、\texttt{direct=1}、\texttt{numjobs=1}，代表性五轮中位数如下：
+
+\begin{table}[H]
+    \centering
+    \caption{Linux QEMU virtio FIO 五轮中位带宽（MiB/s）}
+    \begin{tabular}{p{0.25\textwidth}p{0.15\textwidth}p{0.15\textwidth}p{0.18\textwidth}p{0.18\textwidth}}
+        \toprule
+        \textbf{负载} & \textbf{块大小} & \textbf{QD} & \textbf{raw} & \textbf{dm-crypt} \\
+        \midrule
+        read & 4 KiB & 1 & 11.391 & 10.942 \\
+        read & 256 KiB & 1 & 134.623 & 129.474 \\
+        randread & 4 KiB & 16 & 58.931 & 58.947 \\
+        randwrite & 256 KiB & 1 & 130.124 & 109.453 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+Asterinas KVM 真实保护 mapper 的独立结果（不与 Linux raw 计算倍率）：
+
+\begin{table}[H]
+    \centering
+    \caption{Asterinas KVM FIO 五轮中位带宽（MiB/s）}
+    \begin{tabular}{p{0.25\textwidth}p{0.15\textwidth}p{0.15\textwidth}p{0.18\textwidth}p{0.18\textwidth}}
+        \toprule
+        \textbf{负载} & \textbf{块大小} & \textbf{QD} & \textbf{dm-crypt} & \textbf{dm-verity} \\
+        \midrule
+        read & 4 KiB & 1 & 8.908 & 7.505 \\
+        read & 256 KiB & 1 & 97.456 & 53.363 \\
+        randread & 4 KiB & 16 & 8.614 & 4.618 \\
+        randwrite & 256 KiB & 1 & 93.541 & N/A（只读） \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+正式矩阵共有 Asterinas dm-crypt 13 项、dm-verity 7 项、Linux raw 13 项和 Linux dm-crypt 13 项，每项五轮；另有 6 个 dm-verity 写入 N/A。
 
 \textbf{阶段意义}：此阶段体现了项目对性能数据的诚实态度——宁可重新执行全部测试，也不使用无法确认真实性的“好看数据”。这对维护项目在评审中的可信度至关重要。
 
@@ -178,11 +260,28 @@
     \item Asterinas 三场景（plain、dm-crypt、dm-verity）各 5 轮启动耗时测试 PASS。
 \end{itemize}
 
-\textbf{关键数据}：
+\textbf{补充性能测试结果（五轮中位数）}：
+
+\begin{table}[H]
+    \centering
+    \caption{补充性能测试五轮中位数}
+    \begin{tabular}{p{0.35\textwidth}p{0.18\textwidth}p{0.18\textwidth}p{0.18\textwidth}}
+        \toprule
+        \textbf{测试} & \textbf{raw/plain} & \textbf{dm-crypt} & \textbf{dm-verity} \\
+        \midrule
+        Filebench fileserver（ops/s） & 147672.049 & 156507.741 & N/A \\
+        Filebench fileserver（MB/s） & 3542.7 & 3752.1 & N/A \\
+        SQLite 10000 行总耗时（s） & 0.060128 & 0.066395 & 0.003865（只读查询） \\
+        Asterinas 启动耗时（s） & 51.331303 & 51.629820 & 52.743415 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\textbf{关键数据解读}：
 \begin{itemize}
     \item 启动中位耗时：plain 51.331303 s，dm-crypt 51.629820 s（+0.582\%），dm-verity 52.743415 s（+2.751\%），验证了“dm-verity不显著增加boot时间”；
-    \item Filebench fileserver中位ops/s（Linux QEMU/KVM guest）：raw 27855.155，dm-crypt 25666.016；
-    \item SQLite 10000行总耗时（Linux QEMU/KVM guest）：raw 0.138095s，dm-crypt 0.143336s，dm-verity 0.001151s（只读查询）。
+    \item SQLite dm-verity 只执行查询阶段，不能与完整写事务总耗时横比；
+    \item 启动时间从 QEMU 进程启动计至串口出现受保护根文件系统 PASS 标记。
 \end{itemize}
 
 \subsection{8月11日：组合栈（补丁 0007）与最终整合}
@@ -340,8 +439,8 @@
 \begin{enumerate}
     \item \textbf{用户态核心实现}（06-23至06-28）：完成了约1500行Rust核心代码和800行命令行工具，通过全部单元测试；
     \item \textbf{Linux兼容性与内核集成}（06-29至07-14）：验证了AES-XTS逐字节兼容，完成了补丁0001--0004，12组KVM正确性测试全部PASS；
-    \item \textbf{性能优化与基准框架}（07-28至08-03）：实现了AES-NI、scratch pool、hash cache、BIO复用和阶段归因，建立了五轮基准框架；
-    \item \textbf{性能矩阵与组合栈}（08-09至08-11）：完成46 PASS性能矩阵，实现补丁0007组合栈，启动开销<3\%；
+    \item \textbf{性能优化与基准框架}（07-28至08-03）：实现了AES-NI、scratch pool、hash cache、BIO复用和阶段归因，建立了五轮基准框架，正式性能合同固化完成；
+    \item \textbf{性能矩阵与组合栈}（08-09至08-11）：完成46 PASS性能矩阵（含 Asterinas 256MiB 正式合同、Linux guest 对照、Linux QEMU virtio 对照），实现补丁0007组合栈，启动开销<3\%；
     \item \textbf{文档与答辩准备}（08-11至08-14）：完成技术文档（120页）、设计赛道文档（80页）、答辩PPT和演示视频。
 \end{enumerate}
 

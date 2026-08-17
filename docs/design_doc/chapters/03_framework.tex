@@ -10,7 +10,7 @@
         \textbf{设计维度} & \textbf{核心决策} & \textbf{技术收益} \\
         \midrule
         核心抽象 & \texttt{BlockDevice} trait（约 150 行接口定义） & 统一所有存储后端和映射器，实现可互换、可堆叠 \\
-        架构模式 & 装饰器模式 + 组合模式 & 支持任意层级的映射器链（Passthrough → Crypt → Verity） \\
+        架构模式 & 装饰器模式 + 组合模式 & 支持任意层级的映射器链（Passthrough $\to$ Crypt $\to$ Verity） \\
         双目标复用 & 核心逻辑与平台无关 & 用户态验证算法正确性，内核态保证真实性能，共享同一套核心实现 \\
         线程安全 & Rust \texttt{Send} + \texttt{Sync} + 自旋锁 & 编译期保证线程安全，避免竞态条件 \\
         安全能力传播 & \texttt{TargetCapabilities} 类型编码 & 组合栈的安全属性在编译期静态检查 \\
@@ -34,7 +34,9 @@
 
 \section{核心抽象：BlockDevice Trait}
 
-\texttt{BlockDevice} trait 是库中所有存储操作的基础接口，定义了用于读写固定大小数据块的同步接口。为了支持跨线程的并发访问并安全地集成到星绽内核或用户态工具中，该 trait 要求实现 \texttt{Send} 和 \texttt{Sync} 标记。
+\texttt{BlockDevice} trait 是库中所有存储操作的基础接口，定义了用于读写固定大小数据块的同步接口。为了支持跨线程的并发访问并安全地集成到星绽内核或用户态工具中，该 trait 要求实现 \texttt{Send} 和 \texttt{Sync} 标记。Rust 通过这两个标记 trait 在编译期自动推导类型是否可安全地跨线程共享，无需开发者手动判断。
+
+该 trait 定义如下：
 
 \begin{lstlisting}[language=Rust, basicstyle=\ttfamily\small, breaklines=true]
 pub trait BlockDevice: Send + Sync {
@@ -45,7 +47,7 @@ pub trait BlockDevice: Send + Sync {
 }
 \end{lstlisting}
 
-所有 I/O 方法均返回 \texttt{Result<()>}，其中错误被封装在 \texttt{DmError} 枚举中，涵盖无效块大小、无效块号、密钥错误、完整性违规等场景。这个 trait 的设计借鉴了 Linux 内核 \texttt{block\_device\_operations} 的职责分离思想，但通过 Rust 的类型系统提供了更强的安全性保证。
+所有 I/O 方法均返回 \texttt{Result<()>}，其中错误被封装在 \texttt{DmError} 枚举中，涵盖无效块大小、无效块号、密钥错误、完整性违规等场景。这个 trait 的设计借鉴了 Linux 内核 \texttt{block\_device\_operations} 的职责分离思想，但通过 Rust 的类型系统提供了更强的安全性保证——任何不安全的跨线程访问在编译期就会被阻止。
 
 在 Asterinas 内核中，该 trait 进一步映射到 \texttt{aster-block} 组件的 BIO 接口，从而支持真实的 VirtIO 块设备。
 
@@ -61,7 +63,7 @@ let crypt = DmCryptDevice::new(file, key)?;
 let verity = DmVerityDevice::open(crypt, tree, root_hash)?;
 \end{lstlisting}
 
-在星绽内核中，这种组合通过 \texttt{DmDevice} 结构体实现，它根据 \texttt{DmTarget} 枚举（Passthrough、Crypt、Verity）分发 BIO 请求。由于每个 mapper 的下层是 \texttt{Arc<dyn BlockDevice>}，启动阶段可将 \texttt{rootfs\_verity.device} 指向已注册的 crypt mapper 名（如 \texttt{dm-crypt0}），或显式设置 \texttt{dm\_stack=crypt,verity}，从而形成与用户态相同的叠栈：\texttt{vdc → dm-crypt0 → dm-verity0}。
+在星绽内核中，这种组合通过 \texttt{DmDevice} 结构体实现，它根据 \texttt{DmTarget} 枚举（Passthrough、Crypt、Verity）分发 BIO 请求。由于每个 mapper 的下层是 \texttt{Arc<dyn BlockDevice>}，启动阶段可将 \texttt{rootfs\_verity.device} 指向已注册的 crypt mapper 名（如 \texttt{dm-crypt0}），或显式设置 \texttt{dm\_stack=crypt,verity}，从而形成与用户态相同的叠栈：\texttt{vdc $\to$ dm-crypt0 $\to$ dm-verity0}。验收脚本为 \texttt{scripts/run\_dm\_stack.sh}。
 
 \section{核心模块分解}
 
@@ -69,20 +71,20 @@ let verity = DmVerityDevice::open(crypt, tree, root_hash)?;
 
 \begin{table}[H]
     \centering
-    \caption{核心模块职责划分与代码量}
-    \begin{tabular}{p{0.20\textwidth}p{0.40\textwidth}p{0.30\textwidth}}
+    \caption{核心模块职责划分与关键实体}
+    \begin{tabular}{p{0.18\textwidth}p{0.35\textwidth}p{0.37\textwidth}}
         \toprule
-        \textbf{模块} & \textbf{主要职责} & \textbf{代码量（约）} \\
+        \textbf{模块} & \textbf{主要职责} & \textbf{关键实体} \\
         \midrule
-        \texttt{block\_device} & 基础 I/O 抽象与物理/内存后端 & 400 行 \\
-        \texttt{dm\_crypt} & 使用 AES-XTS 的透明加密逻辑 & 350 行 \\
-        \texttt{dm\_verity} & 只读完整性校验逻辑 & 200 行 \\
-        \texttt{hash\_tree} & Merkle 树的构建与管理 & 150 行 \\
-        \texttt{sha256} & 纯 Rust SHA-256（无外部依赖） & 120 行 \\
-        \texttt{device\_mapper} & 设备链接（chaining）的基础设施 & 180 行 \\
-        \texttt{statistics} & I/O 性能计数器与阶段归因 & 150 行 \\
-        \texttt{runtime} & 运行时 mapper 管理（Linux dm\_ioctl 兼容） & 260 行 \\
-        \texttt{error} & 统一错误处理 & 80 行 \\
+        \texttt{block\_device} & 基础 I/O 抽象与物理/内存后端 & \texttt{BlockDevice}, \texttt{FileBlockDevice}, \texttt{MemoryBlockDevice} \\
+        \texttt{dm\_crypt} & 使用 AES-XTS 的透明加密逻辑 & \texttt{DmCryptDevice}, \texttt{DmCryptTable} \\
+        \texttt{dm\_verity} & 只读完整性校验逻辑 & \texttt{DmVerityDevice} \\
+        \texttt{hash\_tree} & Merkle 树的构建与管理 & \texttt{HashTree} \\
+        \texttt{sha256} & 纯 Rust SHA-256（无外部依赖） & \texttt{sha256::sha256} \\
+        \texttt{device\_mapper} & 设备链接（chaining）的基础设施 & \texttt{PassthroughDevice}, \texttt{DmStackBuilder} \\
+        \texttt{statistics} & I/O 性能计数器与阶段归因 & \texttt{InstrumentedDevice}, \texttt{IoStatsSnapshot} \\
+        \texttt{runtime} & 运行时 mapper 管理（Linux dm\_ioctl 兼容） & \texttt{RuntimeMapper}, \texttt{DmControlDevice} \\
+        \texttt{error} & 统一错误处理 & \texttt{DmError}, \texttt{Result} \\
         \bottomrule
     \end{tabular}
 \end{table}
@@ -98,6 +100,15 @@ let verity = DmVerityDevice::open(crypt, tree, root_hash)?;
 \section{双目标架构：跨环境可移植性}
 
 一个核心设计目标是：相同的逻辑同时服务于用户态演示和星绽内核。这是通过严格隔离环境特定代码来实现的。
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\textwidth]{code_entity_mapping_userspace_kernel.png}
+    \caption{代码实体映射图（用户态 vs 星绽内核）}
+    \label{fig:code_entity_mapping}
+\end{figure}
+
+如上图所示，用户态和内核态共享同一套核心算法实现（AES-XTS、SHA-256、Merkle 树验证），但适配层完全隔离：
 
 \begin{itemize}
     \item \textbf{用户态}：\texttt{dmctl} 工具实例化一个 \texttt{FileBlockDevice}，并根据命令行参数将其包装在 \texttt{DmCryptDevice} 或 \texttt{DmVerityDevice} 中；所有 I/O 操作是同步的，使用 \texttt{std::sync::Mutex} 保证线程安全。
@@ -125,6 +136,15 @@ let verity = DmVerityDevice::open(crypt, tree, root_hash)?;
 \end{table}
 
 \section{数据流架构}
+
+下图展示了应用程序的 I/O 请求如何穿过该分层栈：
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\textwidth]{block_io_layered_stack.png}
+    \caption{块 I/O 分层栈数据流图}
+    \label{fig:io_stack}
+\end{figure}
 
 在此模型中，\texttt{DmCryptDevice} 在执行 AES-256-XTS 转换后，将生成的密文传递给链中的下一个设备。类似地，\texttt{DmVerityDevice} 拦截读请求，以根据 Merkle 树校验数据的完整性。
 
@@ -162,7 +182,7 @@ let verity = DmVerityDevice::open(crypt, tree, root_hash)?;
     \item \texttt{PassthroughDevice}：依赖于底层设备实现了 \texttt{Sync}。
 \end{itemize}
 
-在星绽内核中，\texttt{DmDevice} 通过 \texttt{enqueue} 方法处理 BIO，内部使用 \texttt{spin::Mutex} 保护共享状态（如 \texttt{CryptScratchPool} 和 \texttt{VerifiedHashBlockCache}），并遵循内核的并发模型。AES-NI 变换期间通过 \texttt{disable\_preempt} 和 \texttt{irq::disable\_local} 确保 XMM 寄存器不被中断上下文破坏——这是因为 AES-NI 指令使用 XMM 寄存器，而中断处理程序可能复用这些寄存器导致数据损坏。
+在星绽内核中，\texttt{DmDevice} 通过 \texttt{enqueue} 方法处理 BIO，内部使用 \texttt{spin::Mutex} 保护共享状态（如 \texttt{CryptScratchPool} 和 \texttt{VerifiedHashBlockCache}），并遵循内核的并发模型。内核态使用自旋锁而非睡眠锁的原因是——在 BIO 完成回调等中断上下文中不能睡眠，而自旋锁可以在禁用抢占和中断的情况下安全地持有，不会导致调度延迟或死锁。AES-NI 变换期间通过 \texttt{disable\_preempt} 和 \texttt{irq::disable\_local} 确保 XMM 寄存器不被中断上下文破坏——这是因为 AES-NI 指令使用 XMM 寄存器，而中断处理程序可能复用这些寄存器导致数据损坏。
 
 \section{性能可观测性设计}
 
@@ -217,7 +237,7 @@ pub struct TargetCapabilities {
 
 \section{小结}
 
-本章详细阐述了系统的核心架构，包括统一的 \texttt{BlockDevice} 抽象、可组合的映射器链模式、模块分解、双目标跨环境可移植性、数据流、线程安全保证、性能可观测性设计、运行时控制面和 Asterinas 内核集成架构。通过将核心逻辑与平台细节解耦，并增加性能可观测性和安全能力传播机制，该项目为后续的加密、完整性校验及性能优化奠定了坚实的基础。
+本章详细阐述了系统的核心架构，包括统一的 \texttt{BlockDevice} 抽象、可组合的映射器链模式、模块分解、双目标跨环境可移植性（含代码实体映射图）、数据流架构（含分层栈数据流图）、线程安全保证（含内核/用户态锁策略差异）、性能可观测性设计、运行时控制面和 Asterinas 内核集成架构。通过将核心逻辑与平台细节解耦，并增加性能可观测性和安全能力传播机制，该项目为后续的加密、完整性校验及性能优化奠定了坚实的基础。
 
 关键设计亮点回顾：
 \begin{itemize}

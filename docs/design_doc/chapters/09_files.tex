@@ -90,6 +90,38 @@
 \hline
 \end{longtable}
 
+\section{引用的开源代码与依赖库}
+
+本项目在开发过程中参考或引用了以下开源代码和依赖库：
+
+\begin{table}[H]
+    \centering
+    \small
+    \caption{引用的开源代码与依赖库}
+    \label{tab:open_source_refs}
+    \begin{tabular}{p{0.18\textwidth}p{0.40\textwidth}p{0.36\textwidth}}
+        \toprule
+        \textbf{名称} & \textbf{来源/URL} & \textbf{使用目的} \\
+        \midrule
+        星绽操作系统（Asterinas） & \texttt{https://github.com/}\newline\texttt{asterinas/asterinas} & 基础操作系统框架和 OSTD 接口 \\
+        \texttt{aes} crate & \texttt{https://crates.io/}\newline\texttt{crates/aes} & AES 加密算法实现（RustCrypto 项目） \\
+        \texttt{xts-mode} crate & \texttt{https://crates.io/}\newline\texttt{crates/xts-mode} & XTS 加密模式实现（RustCrypto 项目） \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\textbf{开源协议合规性声明}：
+
+本项目严格遵守以下开源协议要求：
+
+\begin{itemize}
+    \item \textbf{项目源代码}（位于 \texttt{crates/}、\texttt{asterinas/kernel/comps/dm/} 等）：遵循 MIT 开源协议（见仓库根目录 \texttt{LICENSE} 文件）。
+    \item \textbf{技术文档与答辩材料}（位于 \texttt{docs/document/}）：遵循 CC-BY-SA 4.0 开源协议。
+    \item \textbf{设计赛道文档}（位于 \texttt{docs/design\_doc/}）：遵循 CC-BY-SA 4.0 开源协议。
+    \item \textbf{第三方依赖}：所有引用的 Rust crate（\texttt{aes}、\texttt{xts-mode} 等）均遵循其各自的开源协议（主要为 MIT 或 Apache-2.0），与本项目的 MIT 协议兼容。
+    \item \textbf{星绽操作系统}：作为基础框架，星绽本身采用 MPL-2.0 协议，本项目与之兼容（MIT 与 MPL-2.0 均为宽松许可证，可组合使用）。
+\end{itemize}
+
 \section{脚本分类说明}
 
 \texttt{scripts/} 目录包含约30个脚本，按功能分为以下五类：
@@ -267,9 +299,12 @@
         答辩 PPT & \texttt{\seqsplit{presentation\_project.pptx}} & 根目录 \\
         作品进展汇报幻灯片 & \texttt{作品进展汇报幻灯片.pptx} & 根目录 \\
         AI 工具声明 & \texttt{docs/\seqsplit{ai\_tool\_disclosure.md}} & \texttt{docs/} \\
+        项目补丁序列 & \texttt{asterinas\_port/patches/0001--0007.patch} & \texttt{asterinas\_port/patches/} \\
         \bottomrule
     \end{tabular}
 \end{table}
+
+\textbf{交付物清单补充说明}：除上述提交要求外，本项目还额外提供了以下材料：项目源码仓库包含 28 条可审计提交记录与 7 个补丁序列，完整覆盖从初始框架到最终交付的开发历程；作品进展汇报幻灯片（\texttt{作品进展汇报幻灯片.pptx}）详细记录了队员分工与开发进度；演示视频（\texttt{作品演示视频.mp4}）完整展示了运行环境介绍与受保护根文件系统启动全过程。所有材料均已按赛题要求提交至指定托管平台。
 
 \section{构建与测试产物（不提交）}
 
@@ -299,5 +334,6 @@
     \item 核心代码与平台适配分离（\texttt{crates/} vs \texttt{asterinas\_port/}）；
     \item 文档集中管理（\texttt{docs/}）且分类清晰（document、design\_doc、evidence）；两份 PDF 互为补充；
     \item 脚本可执行且自包含（\texttt{scripts/}），支持一键演示和验证；
-    \item 证据原始格式保存（不依赖手工修改数字），确保可复核性。
+    \item 证据原始格式保存（不依赖手工修改数字），确保可复核性；
+    \item 所有引用的开源代码均已明确标注来源，并严格遵守各自的开源协议要求。
 \end{enumerate}

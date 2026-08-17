@@ -34,6 +34,8 @@
 
 这些要求覆盖了功能完整性、Linux 兼容性、性能可观测性和技术创新性四个维度。本项目在全部五个指标上均已完成并通过验证。
 
+星绽操作系统采用 Framekernel 架构，通过 OSTD 框架将内核核心组件运行于非特权级，实现了可信计算基（TCB）的最小化。这一架构在提供强安全保障的同时，也意味着星绽的内核接口（BIO 系统、设备注册、启动流程）与 Linux 差异显著，无法直接复用 Linux Device Mapper 的已有实现，为本项目带来了独特的挑战——必须从头设计 Rust 实现并适配星绽内核。
+
 \subsection{赛题特征解析}
 
 根据赛题原文，本赛题具有以下关键特征，直接决定了项目的技术路线：
@@ -136,6 +138,8 @@ Linux 内核的 \texttt{aes-xts-plain64} 使用 64 位扇区号作为 IV 的基�
 
 该实现通过了与 Linux 内核逐字节比对验证，固定向量 SHA-256 为 \texttt{4334c17f...}。
 
+在星绽内核中，该引擎还支持 AES-NI 硬件加速：当 CPU 支持 AES-NI 且构建时启用了 \texttt{dm\_aes\_ni} 特性时，使用内联汇编直接调用 AES-NI 指令，并在操作前后保存/恢复 FPU/XMM 状态，确保不被中断上下文破坏。
+
 \subsubsection{SHA-256 哈希算法（FIPS PUB 180-4）}
 
 SHA-256 是 \texttt{dm-verity} 使用的哈希算法，输出 32 字节（256 位）摘要。其核心计算包括：
@@ -147,6 +151,52 @@ SHA-256 是 \texttt{dm-verity} 使用的哈希算法，输出 32 字节（256 �
 \end{itemize}
 
 本项目在 \texttt{sha256.rs} 中实现了无外部依赖的纯 Rust SHA-256，通过标准测试向量（空字符串、\texttt{"abc"}）验证正确性。
+
+\subsubsection{默克尔树构建机制}
+
+\texttt{dm-verity} 的核心数据结构是默克尔树，其构建流程如下：
+
+\begin{enumerate}
+    \item \textbf{叶子层（Leaf Level）}：使用 \texttt{sha256} 对底层设备的每个数据块进行哈希运算，生成叶子节点的哈希值；
+    \item \textbf{中间层（Intermediate Levels）}：将下一层的哈希值两两拼接并进行哈希运算，从而形成上一层；
+    \item \textbf{填充（Padding）}：如果某一层有奇数个哈希值，则最后一个哈希值会被复制一次以凑成一对，确保每层都能配对；
+    \item \textbf{根哈希（Root Hash）}：该过程持续进行，直到只剩下一个哈希值，该值被指定为 root hash，作为整个卷的“信任锚”。
+\end{enumerate}
+
+在星绽内核的 \texttt{aster-dm} 组件中，哈希树采用 on-disk 布局：数据块从镜像开头连续存放，哈希树从 \texttt{hash\_start\_block} 开始依次写入各层哈希块。每个哈希块可容纳 \texttt{4096 / 32 = 128} 个 SHA-256 哈希值。这种设计使得标准 ext2 镜像可以与哈希树共存，而无需修改原有的数据布局，便于在现有系统上部署。
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\textwidth]{merkle_tree_flow.png}
+    \caption{默克尔树构建与校验数据流图}
+    \label{fig:merkle_tree}
+\end{figure}
+
+\subsection{BlockDevice 抽象与可组合映射器链调研}
+
+本项目调研并借鉴了星绽操作系统的 \texttt{BlockDevice} trait 设计，该 trait 是所有块 I/O 操作的基础接口：
+
+\begin{lstlisting}[language=Rust, basicstyle=\ttfamily\small, breaklines=true]
+pub trait BlockDevice: Send + Sync {
+    fn block_size(&self) -> usize;
+    fn num_blocks(&self) -> u64;
+    fn read_block(&self, block_id: u64, buf: &mut [u8]) -> Result<()>;
+    fn write_block(&self, block_id: u64, buf: &[u8]) -> Result<()>;
+}
+\end{lstlisting}
+
+所有 I/O 方法均返回 \texttt{Result<()>}，其中错误被封装在 \texttt{DmError} 枚举中。该 trait 要求实现 \texttt{Send} 和 \texttt{Sync}，使得所有后端均可安全地跨线程共享。
+
+基于此抽象，本项目采用类似装饰器（Decorator）的设计模式：映射器（如 \texttt{DmCryptDevice} 和 \texttt{DmVerityDevice}）既实现了 \texttt{BlockDevice} trait，又在内部包装另一个实现了 \texttt{BlockDevice} 的对象，从而支持功能的任意堆叠与组合。例如，典型的栈可以是 \texttt{FileBlockDevice $\to$ DmCryptDevice $\to$ DmVerityDevice}。
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\textwidth]{blockdevice_trait_uml.png}
+    \caption{BlockDevice Trait 与后端实现关系图}
+    \label{fig:blockdevice_trait}
+\end{figure}
+
+该抽象已在用户态（\texttt{dmctl} 使用 \texttt{FileBlockDevice}）和星绽内核（\texttt{aster-dm} 使用 \texttt{VirtioBlkAdapter}）中得到统一实现，验证了跨环境可移植性的可行性。
 
 \subsection{Rust 在可信存储领域的独特优势}
 
@@ -230,13 +280,13 @@ SHA-256 是 \texttt{dm-verity} 使用的哈希算法，输出 32 字节（256 �
 
 \section{小结}
 
-本章从赛题要求、赛题特征、技术挑战、课程关联、相关技术调研、Rust 独特优势和可行性评估七个维度对比赛题目进行了全面分析。
+本章从赛题要求、赛题特征、技术挑战、课程关联、相关技术调研（含 Linux Device Mapper、星绽架构、AES-XTS、SHA-256、默克尔树、\texttt{BlockDevice} 抽象、Rust 优势）、参考实现和兼容性验证策略十个维度对比赛题目进行了全面分析。
 
 核心调研结论包括：
 \begin{enumerate}
     \item Linux Device Mapper 框架提供了成熟的 dm-crypt/dm-verity 参考实现，但 Asterinas 的内核接口与之不同，需要从头实现 Rust 适配层；
-    \item AES-256-XTS 和 SHA-256 有明确的标准规范，通过固定向量和 Linux 逐字节比对可验证兼容性；
-    \item Rust 的所有权系统、类型系统和零成本抽象为可信存储模块提供了 C 语言无法比拟的内存安全和可组合性；
+    \item AES-256-XTS 和 SHA-256 有明确的标准规范，通过固定向量和 Linux 逐字节比对可验证兼容性；默克尔树的 on-disk 布局设计使得标准 ext2 镜像可与哈希树共存；
+    \item Rust 的所有权系统、类型系统和零成本抽象为可信存储模块提供了 C 语言无法比拟的内存安全和可组合性；\texttt{BlockDevice} trait 的统一抽象为跨环境可移植性奠定了基础；
     \item 双目标架构（用户态验证 + 内核态集成）和分层兼容性验证策略确保了项目的可验证性和可复现性；
     \item 赛题要求的 QEMU + virtio-blk 标准化测试环境已在本项目中完整实现并用于所有验证。
 \end{enumerate}

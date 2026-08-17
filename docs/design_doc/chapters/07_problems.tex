@@ -76,6 +76,8 @@ for (index, sector_data) in data.chunks_exact_mut(SECTOR_SIZE).enumerate() {
 
 修复后，Rust 实现与 Linux 内核输出逐字节一致，固定向量 SHA-256 匹配（\texttt{4334c17f...}）。该问题在补丁 0002 中固化。\texttt{checked\_*} 算术运算在后续所有 I/O 路径中均被采用，防止了类似问题的出现。
 
+\textbf{工程启示}：块设备加密的正确性取决于扇区级语义的精确实现——必须将每个 4 KiB 块拆分为 8 个独立扇区分别加密，并同时考虑 IV offset 与 data offset；所有加减法都必须进行越界检查，避免整数溢出改变物理位置。
+
 \section{BIO 生命周期与错误传播问题}
 
 \subsection{问题描述}
@@ -117,6 +119,8 @@ for (index, sector_data) in data.chunks_exact_mut(SECTOR_SIZE).enumerate() {
 
 修复后，所有正确性测试（C01--C05、R02）通过，串口日志显示无错误丢失。该问题在补丁 0002 和补丁 0004 中逐步完善，后续所有 BIO 处理代码均遵循相同的生命周期管理模式。
 
+\textbf{工程启示}：异步 I/O 的生命周期管理是内核存储模块中最隐蔽的错误来源——mapper 必须在 lower BIO 完成后才能完成 upper BIO，错误状态必须原样传播，不能把失败转换为成功，也不能 fallback 到未保护设备。
+
 \section{dm-verity 信任边界与缓存安全}
 
 \subsection{问题描述}
@@ -151,6 +155,8 @@ dm-verity 的安全性依赖于根哈希作为信任锚，任何数据块或哈�
 
 V03--V07 的单字节篡改测试均被拒绝，验证了缓存未破坏信任边界。同时，\texttt{auth\_shortcuts} 计数器在第二轮顺序读中显著增加（从第一轮的 0 增加到第二轮的 200+），证明缓存命中路径确实跳过了上层哈希计算。\texttt{/proc/dm-verity-stats} 提供了缓存命中的精确量化数据。
 
+\textbf{工程启示}：在安全系统中，所有优化（缓存、缓冲池、硬件加速）必须在不削弱安全语义的前提下进行——root hash 由启动参数提供，镜像内数据和 hash tree 均视为不可信，认证后 hash cache 只有在完整路径验证成功后才插入，数据块、叶子 hash block 或中间 hash block 的单字节变化都必须在交付前被拒绝。
+
 \section{性能测试真实性问题}
 
 \subsection{问题描述}
@@ -177,6 +183,17 @@ V03--V07 的单字节篡改测试均被拒绝，验证了缓存未破坏信任�
     \item \textbf{重新执行}：使用修复后的 runner 重新执行所有 Asterinas dm-crypt 和 dm-verity 测试；
     \item \textbf{证据隔离}：正式证据目录只包含重新执行后的原始 JSON 和日志，旧数据及失败重试不进入最终目录。
 \end{enumerate}
+
+\subsection{正式数据标准}
+
+为确保性能数据的可信度，我们制定了以下正式数据标准：
+\begin{itemize}
+    \item 每个有效单元格包含 5 轮原始 JSON/CSV；
+    \item 每轮测试均保留完整的 fio 输出和环境 metadata；
+    \item 报告中位数和标准差，不选择最好一轮；
+    \item 旧数据、失败重试和调试日志不进入最终目录；
+    \item 生成器脚本不读取无效数据目录。
+\end{itemize}
 
 \subsection{验证结果}
 
@@ -339,6 +356,38 @@ fpu_context.load();
 
 修复后，AES-NI 启动日志显示 \texttt{backend=AES-NI}，所有 KVM 正确性测试通过，未再出现 FPU 状态损坏相关的问题。正式五轮性能测试确认 AES-NI 加速效果稳定可测。
 
+\section{工程收敛：渐进式保护路径}
+
+在上述九个关键问题逐一解决后，项目从“能工作”逐步演进为“可信赖”。为验证每个修复环节的安全性不退化，我们设计并验证了五阶段渐进式保护路径，从 Plain 到 Combined 逐步增加安全能力：
+
+\begin{table}[H]
+    \centering
+    \caption{五阶段验证路径}
+    \begin{tabular}{p{0.10\textwidth}p{0.20\textwidth}p{0.58\textwidth}}
+        \toprule
+        \textbf{阶段} & \textbf{名称} & \textbf{数据流} \\
+        \midrule
+        1 & Plain & virtio-blk $\to$ ext2 \\
+        2 & Passthrough & virtio-blk $\to$ PassthroughDevice $\to$ ext2 \\
+        3 & dm-verity & virtio-blk $\to$ DmVerityDevice $\to$ ext2 \\
+        4 & dm-crypt & virtio-blk $\to$ DmCryptDevice $\to$ ext2 \\
+        5 & Combined & virtio-blk $\to$ DmCryptDevice $\to$ DmVerityDevice $\to$ ext2 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+每个阶段都通过对应的 KVM 测试用例（R01--R03、C01--C05、V01--V07）验证了安全能力的正确叠加：
+\begin{itemize}
+    \item \textbf{Passthrough} 验证了 \texttt{BlockDevice} 抽象的正确性——I/O 请求能够无损通过装饰器链；
+    \item \textbf{dm-verity} 验证了完整性校验路径——V03--V07 单字节篡改均被拒绝；
+    \item \textbf{dm-crypt} 验证了加密路径——C01--C05 正确/错误密钥和多种 I/O 大小均通过；
+    \item \textbf{Combined} 验证了组合安全能力——同时提供机密性和完整性保护，串口输出 \texttt{stacked mapper} 标记。
+\end{itemize}
+
+Combined 的镜像构建与启动入口为 \texttt{scripts/build\_stack\_rootfs.sh} 和 \texttt{scripts/run\_dm\_stack.sh}。用户态 \texttt{dmctl demo-stack} 使用相同的装饰器顺序，验证了双目标架构的一致性。
+
+这一收敛路径证明了：每个工程问题的修复不仅解决了表面故障，更在安全能力传播层面得到了系统性验证。
+
 \section{问题解决效果统计}
 
 \begin{table}[H]
@@ -365,8 +414,9 @@ fpu_context.load();
 
 本章详细记录了项目开发过程中遇到的九个关键工程问题，包括块大小与扇区语义、BIO 生命周期、verity 信任边界、性能测试真实性、环境下载、\texttt{pivot\_root} 限制、组合栈设备发现、同步原语差异和 AES-NI FPU 状态保护。
 
-每个问题都通过细致的分析、针对性的代码修改和充分的测试验证得到了解决。这些问题及其解决方案不仅确保了项目的正确性，也为后续的 Rust OS 存储安全开发提供了宝贵的经验。关键统计数据：
+每个问题都通过细致的分析、针对性的代码修改和充分的测试验证得到了解决。在问题全部解决后，项目通过五阶段渐进式保护路径（Plain $\to$ Passthrough $\to$ dm-verity $\to$ dm-crypt $\to$ Combined）验证了安全能力的逐层叠加与正确传播，确保每个修复环节的安全性不退化。
 
+关键统计数据：
 \begin{itemize}
     \item 共解决 9 个关键工程问题；
     \item 涉及补丁 0001--0007 中的 6 个补丁；

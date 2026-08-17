@@ -10,8 +10,8 @@
         \textbf{成员} & \textbf{角色定位} & \textbf{核心贡献领域} & \textbf{关键产出} \\
         \midrule
         潘利源 & 核心架构师 & 加密/完整性实现、内核集成、性能优化 & 7个补丁、约5000行Rust代码 \\
-        陈韵 & 测试工程师 & 性能测试框架、数据验证、文档完善 & 测试脚本、6个Git commits \\
-        张乐桁 & 文档工程师 & 测试合同、基准脚本、文档排版、PPT & 技术文档120页、答辩PPT \\
+        陈韵 & 测试与文档工程师 & 性能测试框架、数据验证、技术文档撰写 & 测试脚本、技术文档120页 \\
+        张乐桁 & 文档与运维工程师 & README文档、测试合同、基准脚本、PPT & README、答辩PPT、设计赛道文档 \\
         \bottomrule
     \end{tabular}
 \end{table}
@@ -25,8 +25,8 @@
         \textbf{姓名} & \textbf{学校} & \textbf{队伍角色} & \textbf{主要职责} \\
         \midrule
         潘利源 & 华南师范大学 & 核心开发 & 核心加解密/完整性实现、星绽内核集成、性能优化、补丁制作 \\
-        陈韵（jqtxzs） & 华南师范大学 & 测试与文档 & 性能测试框架增强、测试数据收集与验证、文档完善 \\
-        张乐桁（lehengzhang） & 华南师范大学 & 测试与文档 & 性能测试合同编写、FIO/Filebench/SQLite/Boot脚本及证据目录整理、技术文档排版、答辩PPT \\
+        陈韵（jqtxzs） & 华南师范大学 & 测试与文档 & 性能测试框架增强、测试数据收集与验证、技术文档撰写 \\
+        张乐桁（lehengzhang） & 华南师范大学 & 文档与运维 & README文档、性能测试合同编写、FIO/Filebench/SQLite/Boot脚本及证据目录整理、答辩PPT \\
         \bottomrule
     \end{tabular}
 \end{table}
@@ -64,7 +64,7 @@
 
 \textbf{代表性提交}：\texttt{40a52179}（初始dm实现）、\texttt{6385e70b}（组合栈）、\texttt{e07ad006}（KVM基准证据）。
 
-\subsection{陈韵（jqtxzs，测试工程师）}
+\subsection{陈韵（jqtxzs，测试与文档工程师）}
 
 \textbf{性能测试框架增强}（约400行Rust/Shell）：
 \begin{itemize}
@@ -76,15 +76,15 @@
 \textbf{测试数据与文档完善}：
 \begin{itemize}
     \item 完善安全存储性能验证与交付材料（协助 commit \texttt{ca5afe46}）；
-    \item 修改完善文档（commits \texttt{7350e470}、\texttt{dde97a2f}）；
+    \item 撰写并修改完善技术文档（commits \texttt{7350e470}、\texttt{dde97a2f}）；
     \item 完善更新图表（commit \texttt{8b2018e7}）。
 \end{itemize}
 
-\textbf{核心产出}：6个Git commits、性能测试框架增强、数据验证支持。
+\textbf{核心产出}：6个Git commits、性能测试框架增强、技术文档（约120页，与潘利源协作完成技术内容审阅）。
 
-\textbf{代表性提交}：\texttt{40d8abba}（性能框架增强）、\texttt{21aa566d}（性能数据更新）。
+\textbf{代表性提交}：\texttt{40d8abba}（性能框架增强）、\texttt{7350e470}（技术文档撰写）。
 
-\subsection{张乐桁（lehengzhang，文档工程师）}
+\subsection{张乐桁（lehengzhang，文档与运维工程师）}
 
 \textbf{性能测试合同与基准脚本}（约1000行Shell/Python）：
 \begin{itemize}
@@ -93,16 +93,17 @@
     \item 维护 \texttt{scripts/run\_fio\_matrix.sh}、\texttt{scripts/run\_filebench\_matrix.sh}、\texttt{scripts/run\_sqlite\_matrix.sh}、\texttt{scripts/run\_boot\_matrix.sh} 等核心基准脚本。
 \end{itemize}
 
-\textbf{技术文档与答辩材料}（约200页LaTeX/Markdown）：
+\textbf{README与答辩材料}（约200页LaTeX/Markdown + PPT）：
 \begin{itemize}
-    \item 添加 LaTeX 技术文档、PDF 与答辩 PPT（commit \texttt{f5878935}）；
+    \item 撰写并维护项目根目录 \texttt{README.md}，包含快速验证指南、功能命令、性能结果和验收说明；
+    \item 添加 LaTeX 技术文档框架与答辩 PPT（commit \texttt{f5878935}）；
     \item 将答辩 PPT 放到项目根目录并更新 README 链接（commit \texttt{dabfee4d}）；
     \item 在 README 开头添加演示视频百度网盘链接（commit \texttt{c22b8b47}）。
 \end{itemize}
 
-\textbf{核心产出}：4个Git commits、技术文档120页、设计赛道文档80页、答辩PPT。
+\textbf{核心产出}：4个Git commits、README文档、设计赛道文档（80页）、答辩PPT。
 
-\textbf{代表性提交}：\texttt{f5878935}（LaTeX文档框架）、\texttt{1ac6325c}（性能测试合同与脚本）。
+\textbf{代表性提交}：\texttt{f5878935}（LaTeX文档框架与PPT）、\texttt{1ac6325c}（性能测试合同与脚本）。
 
 \section{协作方式}
 
@@ -114,6 +115,16 @@
     \item 提交信息遵循约定格式（\texttt{feat:}、\texttt{fix:}、\texttt{docs:} 前缀），关键提交包含功能描述和关联问题；
     \item 累计提交28次，覆盖从初始框架到最终交付的完整历程。
 \end{itemize}
+
+\textbf{关键迭代节点说明}：
+\begin{enumerate}
+    \item \textbf{基础架构与核心逻辑}（Commit \texttt{40a52179}）：完成了 \texttt{BlockDevice} trait 的抽象，实现了纯 Rust 的 AES-256-XTS 加密与 SHA-256 默克尔树校验。
+    \item \textbf{内核集成与 BIO 路径打通}（Commit \texttt{c72462b2}、\texttt{2f8a6711}）：将用户态逻辑移植至星绽内核，成功实现了基于 \texttt{pivot\_root} 的受保护根文件系统切换。
+    \item \textbf{性能对照与验收证据}（Commit \texttt{5f345a18}）：完成安全存储性能对照，包括正式 256 MiB 五轮基准、Linux guest 同条件对照、启动时间测量和哈希缓存 A/B 验证。
+    \item \textbf{性能优化与基准固化}（Commits \texttt{e07ad006}、\texttt{c1f9c472}、\texttt{40d8abba}、\texttt{ca5afe46}、\texttt{5717d925}）：固化 KVM 基准证据，优化 dm 热路径，增强 \texttt{dmctl} 性能测试框架，更新完成队列性能指标与证据。
+    \item \textbf{最终评测整合}（Commits \texttt{1ac6325c} 至 \texttt{8b2018e7}，08-09 至 08-11）：整理性能测试合同与 FIO/Filebench/SQLite/Boot 脚本及证据目录，统一正式性能口径，修正运行时能力声明并补充 KVM 回归验证，整合最终评测代码与测试材料并合并 GitLab 最新代码。
+    \item \textbf{文档与合规性完善}（Commits \texttt{84970aae}、\texttt{f5878935}、\texttt{7350e470}、\texttt{dde97a2f}）：全面梳理技术文档，完成中文化翻译，补充 AI 工具使用声明，并添加 LaTeX 技术文档和答辩 PPT。
+\end{enumerate}
 
 \subsection{沟通与同步}
 
@@ -169,26 +180,231 @@
 
 \begin{table}[H]
     \centering
-    \begin{tabular}{p{0.18\textwidth}p{0.35\textwidth}p{0.38\textwidth}}
+    \caption{AI 工具使用详情}
+    \begin{tabular}{p{0.15\textwidth}p{0.15\textwidth}p{0.60\textwidth}}
         \toprule
-        \textbf{工具名称} & \textbf{相关大模型} & \textbf{使用场景} \\
+        \textbf{工具名称} & \textbf{相关大模型} & \textbf{具体使用场景与辅助内容} \\
         \midrule
-        WorkBuddy & 腾讯混元 Hy3、DeepSeek & 阅读和梳理 Asterinas/dm-crypt/dm-verity 代码，辅助分析 BIO 数据路径与构建错误，生成/修改 Rust/Shell 测试和构建脚本，协助整理文档表述，辅助执行测试和 QEMU 验证 \\
-        通义千问（Qwen） & Qwen-Max & 技术文档润色和中英文专业术语校对 \\
-        豆包（Doubao） & 豆包大模型 & 答辩表述优化与常见问题整理 \\
+        OpenAI Codex & GPT-5 & 1. 阅读和梳理星绽框架、\texttt{dm-crypt}、\texttt{dm-verity} 相关底层代码；\\
+         & & 2. 辅助分析 BIO 数据路径、启动挂起与构建问题；\\
+         & & 3. 生成或修改部分 Rust、Shell 测试和构建脚本；\\
+         & & 4. 协助整理参赛文档表述并进行完成度自查。 \\
+        \midrule
+        通义千问（Qwen） & Qwen-Max & 技术文档的深度润色，确保中英文专业术语的准确性与一致性。 \\
+        \midrule
+        豆包（Doubao） & 豆包大模型 & 答辩表述的逻辑优化，整理技术答辩常见问题及应对策略。 \\
+        \midrule
+        WorkBuddy & 腾讯混元 Hy3、DeepSeek & 辅助执行测试、完整内核构建和 QEMU 验证并解读日志。 \\
         \bottomrule
     \end{tabular}
 \end{table}
 
-所有 AI 辅助生成的内容均经过团队成员人工审阅，并通过单元测试、Linux 兼容性验证和 KVM 端到端测试确认正确性。最终技术方案、代码取舍和参赛责任由团队全体成员承担。
+\textbf{AI 交互记录}：以下是开发过程中与 AI 工具的关键交互截图，证明 AI 仅作为辅助工具，开发逻辑由团队主导。
 
-\textbf{AI工具使用原则}：
+\subsubsection{OpenAI Codex 交互记录（GPT-5）}
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[b]{0.45\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{codex_ai_1.png}
+        \caption{代码分析与框架理解}
+        \label{fig:codex_1}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.45\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{codex_ai_2.png}
+        \caption{\texttt{sector\_size} 兼容性与算术溢出风险分析}
+        \label{fig:codex_2}
+    \end{subfigure}
+    \caption{OpenAI Codex 交互记录（1/4）}
+    \label{fig:codex_group1}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[b]{0.45\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{codex_ai_3.png}
+        \caption{兼容测试矩阵与验证脚本设计}
+        \label{fig:codex_3}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.45\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{codex_ai_4.png}
+        \caption{AES-XTS 实现与兼容测试验收}
+        \label{fig:codex_4}
+    \end{subfigure}
+    \caption{OpenAI Codex 交互记录（2/4）}
+    \label{fig:codex_group2}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[b]{0.45\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{codex_ai_5.png}
+        \caption{任务完成度自查与如实披露}
+        \label{fig:codex_5}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.45\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{codex_ai_6.png}
+        \caption{构建脚本调试与 QEMU 串口日志分析}
+        \label{fig:codex_6}
+    \end{subfigure}
+    \caption{OpenAI Codex 交互记录（3/4）}
+    \label{fig:codex_group3}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[b]{0.45\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{codex_ai_7.png}
+        \caption{GDB 硬件断点追踪内核异常}
+        \label{fig:codex_7}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.45\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{codex_ai_8.png}
+        \caption{BIO/块设备集成差距分析}
+        \label{fig:codex_8}
+    \end{subfigure}
+    \caption{OpenAI Codex 交互记录（4/4）}
+    \label{fig:codex_group4}
+\end{figure}
+
+\subsubsection{通义千问（Qwen）交互记录}
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[b]{0.45\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{qwen_ai_1.png}
+        \caption{技术文档润色}
+        \label{fig:qwen_1}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.45\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{qwen_ai_2.png}
+        \caption{专业术语校对}
+        \label{fig:qwen_2}
+    \end{subfigure}
+    \caption{通义千问（Qwen）交互记录}
+    \label{fig:qwen_group}
+\end{figure}
+
+\subsubsection{豆包（Doubao）交互记录}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{doubao_ai_1.png}
+    \caption{豆包（Doubao）答辩表述优化与 FAQ 整理}
+    \label{fig:doubao_1}
+\end{figure}
+
+\textbf{验证机制与责任声明}：
 \begin{enumerate}
-    \item AI 仅作为辅助工具，不替代团队成员的独立思考和判断；
-    \item 所有 AI 生成的代码必须经过人工审查和测试验证；
-    \item 关键设计决策（架构、安全策略、性能优化方向）由团队人工讨论决定；
-    \item AI 交互记录保留在项目 Codex 开发线程中，便于审计。
+    \item \textbf{人工审查}：所有 AI 生成的代码片段和文档内容，均经过团队成员的人工 Peer Review。
+    \item \textbf{交叉验证}：代码正确性通过严格的单元测试、与 Linux dm-crypt 的逐字节对照、星绽内核构建及 QEMU 端到端运行进行了多重验证。
+    \item \textbf{责任承担}：最终的技术方案、代码取舍、架构决策和提交材料均由参赛团队全权负责。
 \end{enumerate}
+
+\section{Git 提交记录概览}
+
+以下为项目主要 Git 提交记录（与 GitLab 仓库历史逐条对应），完整反映了项目的开发节奏和功能演进：
+
+\begin{table}[H]
+    \centering
+    \small
+    \caption{Git 提交记录完整概览}
+    \begin{tabular}{p{0.05\textwidth}p{0.09\textwidth}p{0.13\textwidth}p{0.51\textwidth}p{0.12\textwidth}}
+        \toprule
+        \textbf{序号} & \textbf{日期} & \textbf{Commit Hash} & \textbf{提交说明} & \textbf{作者} \\
+        \midrule
+        1 & 06-23 & \texttt{6bb9bc92} & 初始提交，仅源码，屏蔽编译产物 & 潘利源 \\
+        2 & 06-23 & \texttt{40a52179} & feat: add Linux-compatible device mapper implementation & 潘利源 \\
+        3 & 06-23 & \texttt{c72462b2} & fix: validate Asterinas dm BIO paths & 潘利源 \\
+        4 & 06-23 & \texttt{2f8a6711} & 接入受保护根文件系统并完善项目文档 & 潘利源 \\
+        5 & 06-23 & \texttt{a0dbb0f5} & 补充国产 AI 工具使用说明 & 潘利源 \\
+        6 & 06-23 & \texttt{84970aae} & 修改文档 & 潘利源 \\
+        7 & 06-29 & \texttt{f5878935} & 添加 LaTeX 项目文档、PDF 与答辩 PPT & 张乐桁 \\
+        8 & 06-29 & \texttt{dabfee4d} & 将答辩 PPT 放到项目根目录并更新 README 链接 & 张乐桁 \\
+        9 & 06-29 & \texttt{c22b8b47} & 在 README 开头添加演示视频百度网盘链接 & 张乐桁 \\
+        10 & 07-14 & \texttt{5f345a18} & 完成安全存储性能对照与国赛验收证据 & 潘利源 \\
+        11 & 07-25 & \texttt{e07ad006} & 修正评审材料并固化 KVM 基准证据 & 潘利源 \\
+        12 & 07-28 & \texttt{c1f9c472} & 优化 dm 热路径并补齐评审基准流程 & 潘利源 \\
+        13 & 08-03 & \texttt{40d8abba} & 增强 dmctl 性能测试框架，支持 IO 拆分解与可配置规模 & 陈韵 \\
+        14 & 08-03 & \texttt{ca5afe46} & 完善安全存储性能验证与交付材料 & 潘利源 \\
+        15 & 08-06 & \texttt{5717d925} & 更新 dm 完成队列性能指标与证据 & 潘利源 \\
+        16 & 08-09 & \texttt{21aa566d} & 更新性能测试数据与优化量化说明 & 陈韵 \\
+        17 & 08-09 & \texttt{6926b356} & change & 陈韵 \\
+        18 & 08-09 & \texttt{7431e5de} & 统一正式性能口径并补充优化证据 & 潘利源 \\
+        19 & 08-09 & \texttt{0e7f4c77} & 修正运行时能力声明并补充 KVM 回归验证 & 潘利源 \\
+        20 & 08-09 & \texttt{09f62e59} & 补充完整测试进度 & 潘利源 \\
+        21 & 08-09 & \texttt{1ac6325c} & 整理性能测试合同、FIO/Filebench/SQLite/Boot 脚本与证据目录 & 张乐桁 \\
+        22 & 08-10 & \texttt{fc548a9e} & 整合最终评测代码与测试材料 & 潘利源 \\
+        23 & 08-10 & \texttt{7350e470} & 修改完善文档 & 陈韵 \\
+        24 & 08-10 & \texttt{dde97a2f} & 更新完善技术文档内容 & 陈韵 \\
+        25 & 08-11 & \texttt{6385e70b} & feat: add kernel Combined crypt→verity stack path & 潘利源 \\
+        26 & 08-11 & \texttt{fda85aa4} & 整合最终评测代码与测试材料 & 潘利源 \\
+        27 & 08-11 & \texttt{84fe076e} & 合并 GitLab 最新代码并同步最终评测材料 & 潘利源 \\
+        28 & 08-11 & \texttt{8b2018e7} & 完善更新图表 & 陈韵 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\textbf{Git 提交历史截图}：
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[b]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{git_commit_history_1.png}
+        \caption{初始提交与文档阶段（06-23 / 06-29）}
+        \label{fig:git_history_1}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{git_commit_history_2.png}
+        \caption{性能对照与验收阶段（07-14 至 08-06）}
+        \label{fig:git_history_2}
+    \end{subfigure}
+
+    \begin{subfigure}[b]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{git_commit_history_3.png}
+        \caption{测试整合与文档完善阶段（08-09 / 08-10）}
+        \label{fig:git_history_3}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.48\textwidth}
+        \centering
+        \includegraphics[width=\textwidth]{git_commit_history_4.png}
+        \caption{最终评测整合阶段（08-11）}
+        \label{fig:git_history_4}
+    \end{subfigure}
+    \caption{GitLab 仓库提交历史截图}
+    \label{fig:git_history}
+\end{figure}
+
+此外，星绽内核集成补丁（\texttt{asterinas\_port/patches/}）包含更细粒度的演进历史：
+\begin{itemize}
+    \item \textbf{0001}（06-23）：组件集成与目标定义——创建 \texttt{aster-dm} 组件骨架
+    \item \textbf{0002}（06-23）：BIO 路径验证与自检——EXT2 魔数自检机制
+    \item \textbf{0003}（06-24）：根文件系统 \texttt{pivot\_root} 切换——两级引导方案
+    \item \textbf{0004}（07-14）：Runtime 控制面与 \texttt{cryptsetup} 兼容——\texttt{/dev/mapper/control}
+    \item \textbf{0005}（07-28）：性能优化——缓存、缓冲池、AES-NI、基准
+    \item \textbf{0006}（08-03）：性能阶段归因与正式合同——\texttt{/proc/dm-performance-stats}
+    \item \textbf{0007}（08-11）：Combined叠栈——\texttt{dm\_stack=crypt,verity}
+\end{itemize}
 
 \section{团队贡献量化}
 
@@ -200,8 +416,8 @@
         \textbf{成员} & \textbf{Git提交数} & \textbf{核心代码量} & \textbf{主要贡献领域} \\
         \midrule
         潘利源 & 17+ & 约5000行Rust & 核心加密/完整性（100\%）、内核集成（100\%）、性能优化（80\%）、补丁制作（100\%） \\
-        陈韵 & 6+ & 约400行Rust/Shell & 性能测试框架增强（70\%）、测试数据收集（50\%）、文档完善（40\%） \\
-        张乐桁 & 4+ & 约1000行Shell/Python + 200页文档 & 性能测试合同与脚本（60\%）、技术文档排版（80\%）、答辩PPT（80\%）、证据目录整理（50\%） \\
+        陈韵 & 6+ & 约400行Rust/Shell + 120页技术文档 & 性能测试框架增强（70\%）、测试数据收集（50\%）、技术文档撰写（70\%） \\
+        张乐桁 & 4+ & 约1000行Shell/Python + 80页设计赛道文档 + README & 性能测试合同与脚本（60\%）、README文档（80\%）、答辩PPT（80\%）、证据目录整理（50\%） \\
         \bottomrule
     \end{tabular}
 \end{table}
@@ -209,8 +425,9 @@
 \textbf{说明}：百分比为相对工作量估计，实际协作中存在交叉支援，例如：
 \begin{itemize}
     \item 性能优化中的缓存设计与验证由潘利源主导编码，陈韵协助测试数据验证；
-    \item 文档撰写由张乐桁主导排版和结构，陈韵和潘利源提供技术内容审阅和补充；
-    \item 性能测试脚本由张乐桁编写框架，陈韵增强具体功能，潘利源验证内核侧数据。
+    \item 技术文档由陈韵主导撰写，张乐桁提供 LaTeX 排版框架和结构支持，潘利源提供技术内容审阅和补充；
+    \item 性能测试脚本由张乐桁编写框架，陈韵增强具体功能，潘利源验证内核侧数据；
+    \item README 文档由张乐桁主导撰写和维护，陈韵和潘利源提供技术内容审阅。
 \end{itemize}
 
 \section{开发节奏与协作模式亮点}
@@ -237,14 +454,14 @@
 “作为核心开发者，我最大的体会是‘代码写得好不如团队协作得好’。最难的 bug（BIO 生命周期问题）不是我一个人解决的——陈韵帮我重现了稳定触发条件，张乐桁帮我梳理了调用栈日志。这次经历让我深刻理解了代码审查的价值。”
 
 \subsection{陈韵}
-“我负责测试和文档，一开始觉得‘不如写代码重要’。但当我发现性能测试的假 mapper 问题、帮团队避免了一次数据诚信危机时，我才意识到测试的价值——它是代码质量的最后一道防线。文档也是，没有好的文档，再好的代码评委也看不到价值。”
+“我负责测试、数据验证和技术文档撰写，一开始觉得‘不如写代码重要’。但当我发现性能测试的假 mapper 问题、帮团队避免了一次数据诚信危机时，我才意识到测试的价值——它是代码质量的最后一道防线。技术文档也是，没有好的文档，再好的代码评委也看不到价值。撰写 120 页技术文档的过程让我学会了如何把复杂的技术决策清晰地呈现给读者。”
 
 \subsection{张乐桁}
-“作为文档负责人，我需要把团队成员分散的代码、测试结果、设计思路整合成结构化的文档。这个过程让我学会了从‘用户视角’看项目——评委不需要知道每一行代码的细节，但需要知道‘为什么这样做’和‘这样做对不对’。LaTeX 排版 120 页文档的经历也让我对文档工具链有了质的提升。”
+“作为 README 文档和答辩材料的负责人，我需要把团队成员分散的代码、测试结果、设计思路整合成结构化的文档。这个过程让我学会了从‘用户视角’看项目——评委不需要知道每一行代码的细节，但需要知道‘为什么这样做’和‘这样做对不对’。从 README 到答辩 PPT 的全链条文档工作，让我对文档工具链有了质的提升。”
 
 \section{小结}
 
-项目团队由三名成员组成，分工明确且互补：潘利源负责核心技术实现和内核集成（约5000行Rust代码），陈韵负责性能测试框架增强和数据验证（约400行代码），张乐桁负责测试合同、脚本、文档（约1000行脚本 + 200页文档）和答辩材料。
+项目团队由三名成员组成，分工明确且互补：潘利源负责核心技术实现和内核集成（约5000行Rust代码），陈韵负责性能测试框架增强、数据验证和技术文档撰写（约400行代码 + 120页技术文档），张乐桁负责 README、测试合同、脚本、设计赛道文档（约1000行脚本 + 80页设计赛道文档 + README）和答辩材料。
 
 协作方式包括：Git 版本管理、每周线上会议、代码审查、共识决策和AI辅助。团队累计完成28次Git提交、7个内核补丁、12组KVM正确性测试和46个性能单元格。
 

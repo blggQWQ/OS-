@@ -53,15 +53,15 @@ Linux 内核通过 Device Mapper 框架提供的 \texttt{dm-crypt}（透明加�
 
 \subsection{为什么选择星绽操作系统（Asterinas）}
 
-星绽操作系统是一个采用创新性 Framekernel 架构的 Rust 操作系统，其核心特点包括：
+星绽操作系统（Asterinas）是一个采用创新性 Framekernel 架构的 Rust 操作系统，其核心特点包括：
 
 \begin{itemize}
-    \item \textbf{内存安全}：基于 Rust 的所有权与生命周期机制，从根源上规避了悬垂指针、use-after-free 和缓冲区溢出等内存安全问题；
-    \item \textbf{TCB 最小化}：通过 OSTD 框架将内核核心组件运行于非特权级，缩小了可信计算基；
-    \item \textbf{机密计算场景}：星绽计划作为 Guest Kernel 运行于可信虚拟机中，持久化存储的安全保护是其生态的关键一环。
+    \item \textbf{内存安全}：基于 Rust 的所有权与生命周期机制，从根源上规避了悬垂指针、use-after-free 和缓冲区溢出等内存安全问题。Rust 的借用检查器在编译期杜绝了这些 C 内核中占漏洞总量约 65\% 的内存安全风险；
+    \item \textbf{TCB 最小化}：通过 OSTD 框架将内核核心组件运行于非特权级，将可信计算基（TCB）缩小到仅包含调度、内存管理和中断处理等最小集合，大幅降低了攻击面；
+    \item \textbf{机密计算场景}：星绽计划作为 Guest Kernel 运行于可信虚拟机中（如 Intel TDX 或 AMD SEV），持久化存储的安全保护是其生态的关键一环——当内存数据受 TEE 保护时，存储介质仍可能位于不可信宿主机上，需要端到端的保护方案。
 \end{itemize}
 
-然而，星绽的内核接口与 Linux 差异较大（BIO 系统、设备注册、启动流程均不同），无法直接复用 Linux 的 Device Mapper 实现，需要从头设计 Rust 实现并适配星绽内核。
+然而，星绽的内核接口与 Linux 差异较大（BIO 系统、设备注册、启动流程均不同），无法直接复用 Linux 的 Device Mapper 实现，需要从头设计 Rust 实现并适配星绽内核。这既是挑战，也是机遇——Rust 的类型系统和所有权模型天然适合于构建安全可靠的内核存储模块。
 
 \subsection{项目定位}
 
@@ -84,7 +84,7 @@ Linux 内核通过 Device Mapper 框架提供的 \texttt{dm-crypt}（透明加�
 \subsection{功能目标二：dm-crypt 透明加密}
 
 \begin{itemize}
-    \item 支持 AES-256-XTS 加密模式（NIST SP 800-38E 标准），密钥长度 512 位；
+    \item 支持 AES-256-XTS 加密模式（NIST SP 800-38E 标准），密钥长度 512 位。XTS 模式使用两个独立的 AES-256 密钥：一个用于数据块加密，一个用于微调生成，每个 128 位数据块独立加密，适合块设备的随机 I/O 模式；
     \item 采用 \texttt{plain64} IV 生成策略（64 位扇区号小端序），与 Linux 内核 \texttt{aes-xts-plain64} 完全兼容——已通过固定向量逐字节比对验证（SHA-256: \texttt{4334c17f...}）；
     \item 支持 Linux \texttt{dm-crypt} 表格式解析（包括 \texttt{iv\_offset}、\texttt{data\_offset}、\texttt{allow\_discards}、\texttt{no\_read\_workqueue} 等标准选项），不支持的选项会显式报错；
     \item 提供真实的块设备读写路径，确保写入底层介质的为密文，读取时自动解密为明文；
@@ -161,6 +161,30 @@ Linux 内核通过 Device Mapper 框架提供的 \texttt{dm-crypt}（透明加�
 
 这种设计确保了用户态与内核态的逻辑一致性，使得测试和调试更加高效，同时也为后续的性能优化和功能扩展提供了统一的抽象基础。两个环境共享相同的算法实现（AES-XTS、SHA-256、Merkle 树验证），但适配层（BIO vs 同步文件 I/O、自旋锁 vs 互斥锁、on-disk tree vs in-memory tree）完全隔离，互不影响。
 
+\section{系统架构概述}
+
+系统的核心抽象是 \texttt{BlockDevice} trait，它定义了统一的块级 I/O 接口（\texttt{read\_block} 和 \texttt{write\_block}）。不同的存储后端（如内存、文件、物理磁盘）均实现该 trait，而加密和完整性校验模块（\texttt{DmCryptDevice}、\texttt{DmVerityDevice}）则以“装饰器”模式包装下层设备，形成可堆叠的映射器链。
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\textwidth]{architecture.png}
+    \caption{系统组件关系图}
+    \label{fig:architecture}
+\end{figure}
+
+如图所示，文件系统或应用程序与顶层的 \texttt{BlockDevice}（例如 \texttt{DmCryptDevice}）交互，该设备在执行加密转换后，将 I/O 委托给下一层设备（如 \texttt{VirtioBlkAdapter} 或 \texttt{FileBlockDevice}），最终到达物理存储介质。\texttt{BlockDevice} trait 要求实现 \texttt{Send} 和 \texttt{Sync}，使得所有后端均可安全地跨线程共享，同时 Rust 的类型系统在编译期保证了线程安全。
+
+在 Asterinas 内核中，该 trait 进一步映射到 \texttt{aster-block} 组件的 BIO 接口，从而支持真实的 VirtIO 块设备。数据流的分层结构如图 \ref{fig:io_stack} 所示：应用程序的 I/O 请求依次穿过 \texttt{DmCryptDevice}（加密/解密）和 \texttt{DmVerityDevice}（完整性校验），最终到达底层物理设备。
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\textwidth]{block_io_layered_stack.png}
+    \caption{块 I/O 分层栈数据流图}
+    \label{fig:io_stack}
+\end{figure}
+
+在此模型中，\texttt{DmCryptDevice} 在执行 AES-256-XTS 转换后，将生成的密文传递给链中的下一个设备。类似地，\texttt{DmVerityDevice} 拦截读请求，以根据默克尔树校验数据的完整性。这种分层设计使得安全能力可以按需组合——例如，dm-crypt 提供机密性，dm-verity 提供完整性，二者堆叠后同时提供两种保护。
+
 \section{测试环境与验证方法}
 
 赛题要求“基于 QEMU 虚拟机搭建标准化测试环境，存储设备统一通过 virtio-blk 标准化虚拟化接口实现管理与数据交互”。本项目严格遵循：
@@ -212,7 +236,7 @@ Linux 内核通过 Device Mapper 框架提供的 \texttt{dm-crypt}（透明加�
 
 \section{小结}
 
-本章明确了项目的背景、技术目标、赛题映射、双目标架构创新、测试环境和预期交付成果。项目已按期完成全部 P0 功能目标：
+本章明确了项目的背景、技术目标、赛题映射、双目标架构创新、系统架构概述、测试环境和预期交付成果。项目已按期完成全部 P0 功能目标：
 
 \begin{itemize}
     \item \texttt{dm-crypt}：AES-256-XTS 与 Linux 逐字节兼容，\texttt{cryptsetup} 控制面已接通；

@@ -31,7 +31,8 @@
     \item \textbf{编译期内存安全}：Rust 的借用检查器在编译期杜绝了悬垂指针、use-after-free 和缓冲区溢出等内核常见内存安全问题，使我们可以更专注于逻辑正确性而非内存管理。在整个开发过程中，我们没有遇到任何内存安全问题导致的崩溃——这在 C 语言内核开发中是难以想象的；
     \item \textbf{零成本抽象}：通过 trait 和泛型实现了高度可复用的代码，同时保持了与手写 C 代码相当的性能。AES-NI 路径下的加密吞吐达到 93+ MiB/s（256K随机写），抽象层没有引入 measurable 的运行时开销；
     \item \texttt{no\_std} 环境开发：在无标准库的内核环境中，我们学会了使用 \texttt{alloc}、核心库和自定义 panic handler 构建可靠的系统组件。内核组件成功运行于 Asterinas 的受限环境中，证明了 Rust 在 \texttt{no\_std} 场景下的成熟度；
-    \item \textbf{类型系统编码安全属性}：通过 \texttt{TargetCapabilities} 等类型设计，将安全策略在编译期编码到类型系统中，避免了运行时检查的开销和遗漏风险。
+    \item \textbf{类型系统编码安全属性}：通过 \texttt{TargetCapabilities} 等类型设计，将安全策略在编译期编码到类型系统中，避免了运行时检查的开销和遗漏风险；
+    \item \textbf{双目标架构设计}：核心逻辑被实现为与平台无关的 Rust 库（\texttt{dm} crate），同时服务于用户态（\texttt{dmctl}）和内核态（\texttt{aster-dm}）。这种设计使我们深刻理解了“一次实现、两处复用”的架构模式——用户态作为“安全网”快速验证算法，内核态保证真实 I/O 路径和性能，适配层（BIO vs 同步文件 I/O、自旋锁 vs 互斥锁）完全隔离，互不影响。
 \end{itemize}
 
 \subsection{密码学工程实践}
@@ -66,11 +67,27 @@
     \item \textbf{优化验证}：通过 A/B 对照（scratch pool on/off、hash cache on/off）验证了优化措施的实际收益，避免了“拍脑袋优化”。stats=0/1 的对照实验还量化了性能归因本身的观察者开销（<0.5\%），证明计时不会显著影响 I/O 性能。
 \end{itemize}
 
+\subsection{核心增量贡献总结}
+
+在借鉴 Linux 内核 Device Mapper 框架、星绽 Framekernel 架构和 Rust 生态密码学库的基础上，本项目的核心增量贡献包括：
+
+\begin{enumerate}
+    \item \textbf{统一的 \texttt{BlockDevice} Trait 抽象}：设计了与平台无关的块设备抽象层，使得同一套核心代码能够同时运行于用户态（\texttt{dmctl}）和星绽内核态（\texttt{aster-dm}）；
+    \item \textbf{纯 Rust 实现的 SHA-256}：独立实现了 FIPS 180-4 标准的 SHA-256 哈希算法，无外部依赖；
+    \item \textbf{星绽内核完整集成}：通过可审计 Git 补丁序列（7个补丁）将 \texttt{dm-crypt} 和 \texttt{dm-verity} 完整集成到星绽内核中，包括启动参数解析、BIO 路径适配、根文件系统切换；
+    \item \textbf{内核启动自检机制}：实现了基于 ext2 超级块魔数（\texttt{0x53EF}）的启动时自检（\texttt{self\_test\_ext2\_magic}），验证加解密路径正确性；
+    \item \textbf{五阶段渐进式保护路径}：设计并实现了从 Plain 到 Combined（dm-crypt + dm-verity 叠加）的渐进式安全保护路径；
+    \item \textbf{性能设计优化}：实现了认证后哈希块缓存、BIO 数据复用、有界临时缓冲池（scratch pool）和 AES-NI 硬件加速；
+    \item \textbf{Linux 兼容控制面}：实现了 \texttt{/dev/mapper/control} 的 Linux \texttt{dm\_ioctl} 兼容接口，支持 \texttt{cryptsetup} 动态创建/删除映射器。
+\end{enumerate}
+
+这些增量贡献共同构成了一个完整的、可验证的、与 Linux 兼容的 Rust OS 可信存储框架，验证了 Rust 在操作系统安全存储领域的技术可行性。
+
+\textbf{研发方法论的沉淀}：整个开发过程遵循“先保证安全语义，再接入真实块路径，最后固化复现入口”的研发原则——在用户态用 \texttt{BlockDevice} 抽象验证 AES-XTS、Merkle 树与错误边界；通过 \texttt{VirtioBlkAdapter} 接入 Asterinas BIO；分别完成 crypt、verity 与组合栈后再接入受保护 rootfs；最终使用 Linux 兼容性、KVM 正反例和物理损坏测试作为合入门禁，性能数据必须通过 target、参数和完成语义审计。这套方法论将成为我们未来系统软件开发的重要指导原则。
+
 \section{工程能力提升}
 
-\subsection{大型项目开发与协作}
-
-项目代码量超过11000行（约9000行Rust + 约2000行Shell/Python），涉及 Rust 工作区、内核补丁、Shell/Python 脚本和 LaTeX 文档等多个技术栈。我们在以下方面获得了显著提升：
+\textbf{“先验证、后集成”的工程理念}：项目代码量超过11000行（约9000行Rust + 约2000行Shell/Python），涉及 Rust 工作区、内核补丁、Shell/Python 脚本和 LaTeX 文档等多个技术栈。我们在以下方面获得了显著提升：
 
 \begin{itemize}
     \item \textbf{版本管理}：使用 Git 进行 28+ 次提交，通过补丁序列（0001--0007）管理内核集成的演进，养成了“原子化提交”的习惯——每次提交只做一件事，提交信息清晰描述“做了什么、为什么做”；
@@ -135,7 +152,15 @@
 
 \section{对 Rust OS 生态的认识}
 
-通过本次比赛，我们对 Rust 操作系统生态的现状和发展方向有了更深入的认识：
+通过本次比赛，我们对 Rust 操作系统生态的现状和发展方向有了更深入的认识。本项目的设计与实现深受以下基础项目和技术的启发，也让我们对 Rust OS 生态有了更系统的理解：
+
+\begin{itemize}
+    \item \textbf{Linux 内核 Device Mapper 框架}：\texttt{dm-crypt} 和 \texttt{dm-verity} 的功能逻辑、表格式规范（\texttt{DmCryptTable}）和 IV 生成语义（plain64）参考了 Linux 内核的成熟设计，使我们深刻理解了“标准兼容”在系统软件中的关键意义；
+    \item \textbf{星绽操作系统 Framekernel 架构}：基于星绽的 OSTD 框架和 \texttt{BlockDevice} 抽象进行适配和集成，让我们亲身体验了 Framekernel 架构在模块化开发和 TCB 最小化方面的优势；
+    \item \textbf{Rust 生态的密码学库}：借鉴了 \texttt{aes} 和 \texttt{xts-mode} crate 的接口设计，但本项目的 AES-256-XTS 引擎为独立实现，让我们深入理解了密码学库的工程实现细节。
+\end{itemize}
+
+基于此，我们对 Rust OS 生态形成了以下系统性认识：
 
 \begin{enumerate}
     \item \textbf{优势已得到验证}：Rust 的所有权和类型系统在系统编程中提供了无与伦比的内存安全保证——整个项目中未出现任何内存安全漏洞导致的崩溃，这在 C 语言内核开发中是几乎不可能做到的。Asterinas 的 Framekernel 架构将大部分内核组件运行在用户态，进一步缩小了 TCB，为可信计算提供了良好的基础。本项目验证了在 Rust OS 中实现与 Linux 兼容的可信存储是完全可行的；
@@ -180,6 +205,20 @@
     \end{tabular}
 \end{table}
 
+\subsection*{当前版本已知边界}
+
+在展望未来的同时，我们也清晰地认识到当前版本的主要边界：
+
+\begin{itemize}
+    \item 当前主路径聚焦 AES-256-XTS、plain64 与 SHA-256，尚未覆盖 Linux 的全部 target 选项；
+    \item 用户态 verity tree 用于快速测试，Asterinas 内核路径使用 on-disk hash tree，两种模式各有其适用场景；
+    \item dm-verity 为只读目标，写入 workload 明确记为 N/A，这是设计语义的固有边界；
+    \item 不同平台的性能环境分别报告，避免把宿主机差异解释为产品收益——这是性能评测的基本原则；
+    \item 密钥注入的生产化方案仍需结合可信启动、远程证明和密钥管理系统，当前实现聚焦于内核侧的加密与校验逻辑。
+\end{itemize}
+
+这些边界既是我们对当前版本诚实的技术定位，也是未来工作的重要出发点。
+
 \section{个人感悟}
 
 \subsection{潘利源}
@@ -209,4 +248,4 @@
     \item \textbf{个人成长}：每位成员都在技术自信和工程视野上有了质的提升。
 \end{enumerate}
 
-更重要的是，我们验证了 Rust 在操作系统安全存储领域的潜力——用内存安全的语言构建与 Linux 兼容的可信存储是完全可行的。这段经历将激励我们在系统软件的道路上继续前行。
+更重要的是，我们验证了 Rust 在操作系统安全存储领域的潜力——用内存安全的语言构建与 Linux 兼容的可信存储是完全可行的。我们从 Linux 内核 Device Mapper、星绽 Framekernel 架构和 Rust 生态密码学库中汲取了宝贵的借鉴，形成了 7 项核心增量贡献，并通过“先保证安全语义，再接入真实块路径，最后固化复现入口”的研发方法论，确保了项目的正确性、安全性和可复现性。这段经历将激励我们在系统软件的道路上继续前行。

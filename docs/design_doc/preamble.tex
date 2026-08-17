@@ -144,8 +144,9 @@
 \usepackage{afterpage}      % 在页面后执行命令
 
 % ==================== 图表路径 ====================
-% 本地 figures/ 与技术文档 docs/document/figures/ 互为补充
-\graphicspath{{figures/}{../document/figures/}}
+% 所有图片统一从 figures/ 目录读取
+% 注：已将 docs/document/figures/ 下的全部图片复制到本目录下的 figures/ 中
+\graphicspath{{figures/}}
 
 % ==================== 参考文献（可选） ====================
 % 如需引用参考文献，取消注释以下行并创建 references.bib

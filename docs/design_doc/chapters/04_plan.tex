@@ -38,6 +38,8 @@
     \item \textbf{文档与代码同步}：每个阶段完成后同步更新技术文档和用户手册，避免“代码改完、文档滞后”的常见问题。
 \end{enumerate}
 
+上述方法论的核心可概括为\textbf{“先保证安全语义，再接入真实块路径，最后固化复现入口”}。这一原则贯穿了整个开发周期：在用户态用 \texttt{BlockDevice} 抽象验证 AES-XTS、Merkle 树与错误边界；通过 \texttt{VirtioBlkAdapter} 接入 Asterinas BIO，不绕过真实下层设备；分别完成 crypt、verity 与组合栈后，再接入受保护 rootfs；最终使用 Linux 兼容性、KVM 正反例和物理损坏测试作为合入门禁，性能数据必须通过 target、参数和完成语义审计。
+
 \section{阶段划分与时间安排}
 
 本项目实际开发周期为 2026 年 6 月 23 日至 8 月 14 日，共计 50 天，分为六个阶段。以下按阶段详细描述计划内容与实际完成情况。
@@ -269,20 +271,37 @@
 
 \begin{table}[H]
     \centering
-    \begin{tabular}{p{0.20\textwidth}p{0.70\textwidth}}
+    \caption{开发环境依赖}
+    \begin{tabular}{p{0.20\textwidth}p{0.25\textwidth}p{0.45\textwidth}}
         \toprule
-        \textbf{工具/环境} & \textbf{版本/配置} \\
+        \textbf{依赖项} & \textbf{版本要求} & \textbf{用途} \\
         \midrule
-        开发语言 & Rust 1.75.0+（用户态），Asterinas 工具链 \texttt{nightly-2026-04-03}（内核） \\
-        构建系统 & Cargo workspace（用户态），\texttt{make kernel} + OSDK（内核） \\
-        虚拟化 & QEMU 8.2.2+，KVM 加速，\texttt{-cpu host} \\
-        容器环境 & Docker，镜像 \texttt{asterinas/asterinas:0.18.0-20260618} \\
-        版本控制 & Git，托管于 GitLab \\
-        文档工具 & \LaTeX（技术文档、设计赛道文档），Microsoft PowerPoint（答辩 PPT） \\
-        性能测试 & fio 3.36、Filebench 1.5-alpha3、SQLite 3.45.1 \\
+        Rust / Cargo & 1.75.0+ & 核心语言工具链（用户态） \\
+        Asterinas 工具链 & \texttt{nightly-2026-04-03} & 星绽内核编译 \\
+        QEMU & 8.2.2+ & 硬件虚拟化（KVM 加速，\texttt{-cpu host}） \\
+        Docker & 29.4.3+ & 容器化构建环境（用于内核构建） \\
+        星绽镜像 & \texttt{asterinas/asterinas:0.18.0-20260618} & 官方工具链和构建环境 \\
+        Clang / LLVM & 18.0.0+ & 内核编译 \\
+        fio & 3.36+ & I/O 性能基准测试 \\
+        Filebench & 1.5-alpha3+ & 文件系统基准测试 \\
+        SQLite & 3.45.1+ & 数据库基准测试 \\
         \bottomrule
     \end{tabular}
 \end{table}
+
+Ubuntu 24.04 上可通过以下命令安装基础依赖：
+\begin{lstlisting}[basicstyle=\ttfamily\small, breaklines=true]
+sudo apt update
+sudo apt install -y build-essential clang lld qemu-system-x86 docker.io
+\end{lstlisting}
+
+Rust 工具链安装：
+\begin{lstlisting}[basicstyle=\ttfamily\small, breaklines=true]
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+rustup default stable
+\end{lstlisting}
+
+构建系统方面，用户态使用 Cargo workspace 进行构建和测试，内核态通过 \texttt{make kernel} + OSDK 在 Docker 容器中编译。版本控制使用 Git（托管于 GitLab），文档工具使用 \LaTeX 和 Microsoft PowerPoint。
 
 \section{风险应对}
 
@@ -314,7 +333,6 @@
 
 \section{小结}
 
-本章详细阐述了项目的开发计划，包括六个阶段的划分、任务分解、交付物、验收标准、实际完成情况和风险应对。项目实际开发周期为 2026 年 6 月 23 日至 8 月 14 日，共 50 天，完成了从用户态核心实现到内核集成、性能优化、组合栈验证和文档整理的全部工作。所有阶段均按计划完成，关键里程碑均有可复核的证据支撑。
+本章详细阐述了项目的开发计划，包括六个阶段的划分、任务分解、交付物、验收标准、实际完成情况、开发环境与工具链、风险应对和计划执行偏差分析。项目实际开发周期为 2026 年 6 月 23 日至 8 月 14 日，共 50 天，完成了从用户态核心实现到内核集成、性能优化、组合栈验证和文档整理的全部工作。所有阶段均按计划完成，关键里程碑均有可复核的证据支撑。
 
-计划制定遵循“先验证、后集成、渐进式增量、测试驱动、文档同步”的方法论，确保了开发过程的可控性和可追溯性。项目最终成果全面覆盖赛题五项技术指标，代码、证据、文档和演示材料均按大赛要求提交至指定托管平台。
-
+计划制定遵循“先验证、后集成、渐进式增量、测试驱动、文档同步”的方法论，并贯穿“先保证安全语义，再接入真实块路径，最后固化复现入口”的研发原则，确保了开发过程的可控性和可追溯性。项目最终成果全面覆盖赛题五项技术指标，代码、证据、文档和演示材料均按大赛要求提交至指定托管平台。
