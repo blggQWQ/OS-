@@ -281,14 +281,14 @@ Asterinas 256 MiB 正式合同（4 KiB 同步读、QD1；相对值为配对 raw�
 
 \begin{table}[H]
     \centering
-    \caption{补充性能测试结果（五轮中位数）}
+    \caption{补充性能测试结果（五轮中位数）。Filebench 与 SQLite 为 Linux QEMU/KVM guest；启动耗时为 Asterinas。}
     \begin{tabular}{p{0.35\textwidth}p{0.18\textwidth}p{0.18\textwidth}p{0.18\textwidth}}
         \toprule
         \textbf{测试} & \textbf{raw/plain} & \textbf{dm-crypt} & \textbf{dm-verity} \\
         \midrule
-        Filebench fileserver（ops/s） & 147672.049 & 156507.741 & N/A \\
-        Filebench fileserver（MB/s） & 3542.7 & 3752.1 & N/A \\
-        SQLite 10000 行总耗时（s） & 0.060128 & 0.066395 & 0.003865（只读查询） \\
+        Filebench fileserver（ops/s） & 27855.155 & 25666.016 & N/A \\
+        Filebench fileserver（MB/s） & 656.9 & 605.0 & N/A \\
+        SQLite 10000 行总耗时（s） & 0.138095 & 0.143336 & 0.001151（只读查询） \\
         Asterinas 启动耗时（s） & 51.331303 & 51.629820 & 52.743415 \\
         \bottomrule
     \end{tabular}
@@ -298,8 +298,7 @@ SQLite dm-verity 只执行查询阶段，不能与完整写事务总耗时横比
 
 \textbf{证据路径}：
 \begin{itemize}
-    \item Filebench：\texttt{docs/evidence/final-performance-20260811/filebench-valid/}
-    \item SQLite：\texttt{docs/evidence/final-performance-20260811/sqlite/}
+    \item Filebench / SQLite（Linux QEMU guest）：\texttt{docs/evidence/linux-qemu-filebench-sqlite-20260817/}
     \item Boot：\texttt{docs/evidence/final-performance-20260811/boot-matrix/}
 \end{itemize}
 
@@ -356,8 +355,9 @@ python3 scripts/review_release_check.py
         \texttt{\seqsplit{final-performance-20260811/}} & 最终性能矩阵、报告、原始数据 \\
         \texttt{\seqsplit{final-performance-20260811/asterinas-fio/}} & Asterinas KVM FIO 原始 JSON \\
         \texttt{\seqsplit{linux-qemu-fio-20260816/}} & Linux QEMU virtio FIO 原始 JSON \\
-        \texttt{\seqsplit{final-performance-20260811/filebench-valid/}} & Filebench 5+5 轮日志 \\
-        \texttt{\seqsplit{final-performance-20260811/sqlite/}} & SQLite 5+5+5 轮记录 \\
+        \texttt{\seqsplit{linux-qemu-filebench-sqlite-20260817/}} & Linux QEMU guest Filebench / SQLite \\
+        \texttt{\seqsplit{final-performance-20260811/filebench-valid/}} & Linux host Filebench 归档，不再引用 \\
+        \texttt{\seqsplit{final-performance-20260811/sqlite/}} & Linux host SQLite 归档，不再引用 \\
         \texttt{\seqsplit{final-performance-20260811/boot-matrix/}} & 启动 15 轮记录 \\
         \texttt{stack/} & 组合栈启动证据 \\
         \bottomrule
@@ -381,8 +381,8 @@ python3 scripts/review_release_check.py
         C01--C05 加密功能 & \texttt{PASS} & \texttt{correctness-kvm/crypt/} \\
         V01--V07 完整性校验 & \texttt{PASS} & \texttt{correctness-kvm/corruption/} \\
         FIO 性能矩阵（46 PASS） & \texttt{PASS} & \texttt{final-performance-20260811/} \\
-        Filebench（5+5 轮） & \texttt{PASS} & \texttt{\seqsplit{final-performance-20260811/filebench-valid/}} \\
-        SQLite（5+5+5 轮） & \texttt{PASS} & \texttt{\seqsplit{final-performance-20260811/sqlite/}} \\
+        Filebench（5+5 轮） & \texttt{PASS} & \texttt{\seqsplit{linux-qemu-filebench-sqlite-20260817/filebench/}} \\
+        SQLite（5+5+5 轮） & \texttt{PASS} & \texttt{\seqsplit{linux-qemu-filebench-sqlite-20260817/sqlite/}} \\
         Boot 耗时（5+5+5 轮） & \texttt{PASS} & \texttt{\seqsplit{final-performance-20260811/boot-matrix/}} \\
         静态包检查 & \texttt{PASS} & \texttt{review\_release\_check.py} \\
         \bottomrule

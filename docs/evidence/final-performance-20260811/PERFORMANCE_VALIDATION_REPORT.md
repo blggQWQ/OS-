@@ -35,22 +35,24 @@ KVM、1 vCPU、8 GiB、virtio-blk、4 KiB 同步读、QD1、10 秒 runtime、交
 
 同一宿主机、同一 virtio-blk 数据盘前 256 MiB 的 Linux guest 对照：Linux raw/dm-crypt 为 5.150 / 4.746（保留率 92.158%），Asterinas 为 4.245 / 4.059（保留率 95.621%）。Asterinas 相对自身 raw 的 crypt 保留率高于 Linux，不代表绝对吞吐超过 Linux。
 
-## Filebench fileserver（Linux host）
+## Filebench fileserver（Linux QEMU/KVM guest）
 
 | 目标 | 轮数 | 中位 ops/s | 中位 MB/s | 中位延迟 ms/op |
 |---|---:|---:|---:|---:|
-| raw | 5 | 147672.049 | 3542.7 | 0.7 |
-| dm-crypt | 5 | 156507.741 | 3752.1 | 0.7 |
+| raw | 5 | 27855.155 | 656.9 | 3.3 |
+| dm-crypt | 5 | 25666.016 | 605.0 | 3.7 |
 
-这里沿用 Filebench 原始输出的 MB/s 口径。dm-verity 为只读目标，与 fileserver 写密集负载不兼容，记为 N/A。
+Linux QEMU virtio `/dev/vdb`，fileserver，2000 文件，50 线程，60 s。沿用 Filebench 原始输出的 MB/s 口径。dm-verity 为只读目标，与 fileserver 写密集负载不兼容，记为 N/A。证据：`docs/evidence/linux-qemu-filebench-sqlite-20260817/filebench/`。旧 Linux host 目录 `filebench-valid/` 仅归档，不再引用。
 
-## SQLite（Linux host，10,000 行）
+## SQLite（Linux QEMU/KVM guest，10,000 行）
 
 | 目标 | 轮数 | 中位总耗时 s | 中位查询耗时 s | 说明 |
 |---|---:|---:|---:|---|
-| raw | 5 | 0.060128 | 0.000153 | 完整写入与查询 |
-| dm-crypt | 5 | 0.066395 | 0.000147 | 完整写入与查询 |
-| dm-verity | 5 | 0.003865 | 0.000426 | 只读查询；不可与完整事务总耗时横比 |
+| raw | 5 | 0.138095 | 0.000191 | 完整写入与查询 |
+| dm-crypt | 5 | 0.143336 | 0.000149 | 完整写入与查询 |
+| dm-verity | 5 | 0.001151 | 0.000571 | 只读查询；不可与完整事务总耗时横比 |
+
+证据：`docs/evidence/linux-qemu-filebench-sqlite-20260817/sqlite/`。旧 Linux host 目录 `final-performance-20260811/sqlite/` 仅归档，不再引用。
 
 ## Asterinas 启动耗时
 
@@ -67,8 +69,9 @@ KVM、1 vCPU、8 GiB、virtio-blk、4 KiB 同步读、QD1、10 秒 runtime、交
 - `asterinas-fio/asterinas-kvm/dm-crypt-recovery/`：真实性审计后重新执行的 dm-crypt
 - `asterinas-fio/asterinas-kvm/dm-verity/`：修正 runner 后重新执行的 dm-verity
 - `docs/evidence/linux-qemu-fio-20260816/`：Linux QEMU virtio raw/dm-crypt/dm-verity FIO JSON 与汇总
-- `filebench-valid/`：Filebench 5+5 轮原始日志和 CSV
-- `sqlite/`：SQLite 5+5+5 轮记录
+- `docs/evidence/linux-qemu-filebench-sqlite-20260817/`：Linux QEMU guest Filebench / SQLite
+- `filebench-valid/`：Linux host Filebench 归档，不再引用
+- `sqlite/`：Linux host SQLite 归档，不再引用
 - `boot-matrix/`：Asterinas 启动 15 轮记录
 - `cargo/`：构建与测试记录
 

@@ -1,0 +1,2 @@
+target,rows,status,create_s,bulk_insert_s,transaction_s,select_s,update_s,select2_s,total_s,db_path
+dm-crypt,10000,ok,0.046886,0.015582,0.044940,0.000239,0.040904,0.000737,0.149288,/home/test/cscc-bench/mnt-sqlite-crypt/cscc-10000.db

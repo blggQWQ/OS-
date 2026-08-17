@@ -1,0 +1,54 @@
+% main.tex
+% 主文档：导入导言区、各章节和附录
+% 与 docs/design_doc/design_doc.pdf 互为补充：
+% 本文侧重实现架构、算法、测试、合规与用户手册；
+% 设计赛道文档侧重题目分析、开发计划、进展、分工与收获。
+
+\documentclass[12pt,a4paper]{report}
+
+% 导入导言区
+\input{preamble}
+
+\begin{document}
+
+% 封面页
+\begin{titlepage}
+    \centering
+    \vspace*{2cm}
+    {\Huge\bfseries 星绽操作系统 dm-crypt/dm-verity\\[0.5cm]
+    设计与实现技术文档\par}
+    \vspace{1cm}
+    {\Large 全国操作系统设计赛——功能挑战赛道\par}
+    \vspace{1.5cm}
+    {\large 参赛队伍：Go\_Go\_Go\par}
+    {\large 高校：华南师范大学\par}
+    {\large 成员：张乐桁、陈韵、潘利源\par}
+    \vspace{1cm}
+    {\large \today\par}  % 自动使用当前日期
+\end{titlepage}
+
+% 目录
+\tableofcontents
+\clearpage
+
+% 正文部分
+\input{chapters/01_introduction}
+\input{chapters/02_architecture}
+\input{chapters/03_dm_verity}
+\input{chapters/04_dm_crypt}
+\input{chapters/05_performance}
+\input{chapters/06_testing}
+\input{chapters/07_compliance}
+\input{chapters/08_user_manual}
+\input{chapters/09_development}
+
+% 附录
+\appendix
+\input{appendices/appendix_glossary}
+\input{appendices/appendix_commands}
+
+% 参考文献（如需要可取消注释）
+\bibliographystyle{plain}
+\bibliography{references}
+
+\end{document}

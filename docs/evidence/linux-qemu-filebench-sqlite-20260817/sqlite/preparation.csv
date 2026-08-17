@@ -1,0 +1,2 @@
+target,rows,status,create_s,bulk_insert_s,transaction_s,select_s,update_s,select2_s,total_s,db_path
+raw,10000,ok,0.050864,0.015999,0.049839,0.000202,0.045237,0.000127,0.162267,/home/test/cscc-bench/mnt-sqlite-verity-prep/cscc-10000.db

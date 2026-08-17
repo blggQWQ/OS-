@@ -1,0 +1,10 @@
+platform=linux-qemu-kvm
+workload=fileserver
+fb_device=/dev/vdb
+nfiles=2000
+nthreads=50
+iosize=1m
+meanappendsize=16k
+runtime_seconds=60
+runs=5
+dm_crypt_cipher=aes-xts-plain64

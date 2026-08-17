@@ -8,8 +8,9 @@
 | `final-performance-20260811/PERFORMANCE_MATRIX.csv` | Linux/Asterinas FIO 全部正式单元格 | 正式 |
 | `final-performance-20260811/asterinas-fio/` | 恢复后的 dm-crypt 与修正后的 dm-verity 原始证据 | 正式 |
 | `linux-qemu-fio-20260816/` | Linux QEMU virtio raw / dm-crypt / dm-verity FIO JSON | 正式 |
-| `final-performance-20260811/filebench-valid/` | Filebench raw/dm-crypt 各 5 轮 | 正式 |
-| `final-performance-20260811/sqlite/` | SQLite 三目标各 5 轮 | 正式 |
+| `linux-qemu-filebench-sqlite-20260817/` | Linux QEMU guest Filebench / SQLite | 正式 |
+| `final-performance-20260811/filebench-valid/` | Linux host Filebench | 归档，不再引用 |
+| `final-performance-20260811/sqlite/` | Linux host SQLite | 归档，不再引用 |
 | `final-performance-20260811/boot-matrix/` | Asterinas 三场景共 15 轮 | 正式 |
 | `stabilization/correctness-kvm/` | R01–R03、C01–C05、V02–V07 | 正式 |
 | `stabilization/build-recovery/make-kernel-x86_64.log` | kernel build | 正式 |

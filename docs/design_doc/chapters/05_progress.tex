@@ -181,8 +181,8 @@
 \textbf{关键数据}：
 \begin{itemize}
     \item 启动中位耗时：plain 51.331303 s，dm-crypt 51.629820 s（+0.582\%），dm-verity 52.743415 s（+2.751\%），验证了“dm-verity不显著增加boot时间”；
-    \item Filebench fileserver中位ops/s：raw 147672.049，dm-crypt 156507.741；
-    \item SQLite 10000行总耗时：raw 0.060128s，dm-crypt 0.066395s，dm-verity 0.003865s（只读查询）。
+    \item Filebench fileserver中位ops/s（Linux QEMU/KVM guest）：raw 27855.155，dm-crypt 25666.016；
+    \item SQLite 10000行总耗时（Linux QEMU/KVM guest）：raw 0.138095s，dm-crypt 0.143336s，dm-verity 0.001151s（只读查询）。
 \end{itemize}
 
 \subsection{8月11日：组合栈（补丁 0007）与最终整合}
@@ -216,8 +216,8 @@
 
 \textbf{关键事件}：
 \begin{itemize}
-    \item 完善正式技术文档（\texttt{\seqsplit{docs/design\_doc/design\_doc.pdf}}，10章）；
-    \item 完成设计赛道文档（10章节 LaTeX，约80页），严格按大赛大纲组织；
+    \item 完善技术文档（\texttt{docs/document/main.pdf}，9章+附录，约120页），包含设计说明、架构图、测试报告、合规声明和用户手册；与设计赛道文档互为补充；
+    \item 完成设计赛道文档（\texttt{\seqsplit{docs/design\_doc/design\_doc.pdf}}，10章，约80页），按大赛大纲组织题目分析、计划、进展、分工与收获；
     \item 制作答辩 PPT（\texttt{presentation\_project.pptx}），突出双目标架构、安全优化和性能证据；
     \item 录制演示视频（\texttt{作品演示视频.mp4}），展示运行环境介绍与受保护根文件系统启动全过程；
     \item 更新 README、证据索引和最终报告。

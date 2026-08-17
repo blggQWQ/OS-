@@ -1,0 +1,2 @@
+target,rows,status,create_s,bulk_insert_s,transaction_s,select_s,update_s,select2_s,total_s,db_path
+dm-verity,10000,ok_readonly,N/A,N/A,N/A,0.001418,N/A,0.000096,0.001766,/home/test/cscc-bench/mnt-sqlite-verity/cscc-10000.db

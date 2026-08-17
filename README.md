@@ -10,9 +10,9 @@
 | 讲解视频 | [百度网盘：星绽守卫讲解视频](https://pan.baidu.com/s/1ol7pTZAZyqmYsqUcwRPung?pwd=oscp)，提取码 `oscp` |
 | 演示视频 | [作品演示视频.mp4](作品演示视频.mp4) |
 | 进展汇报 | [作品进展汇报幻灯片.pptx](作品进展汇报幻灯片.pptx) |
-| 技术文档 | [PDF](docs/design_doc/design_doc.pdf) · [LaTeX 源码](docs/design_doc/) · [答辩 PPT](presentation_project.pptx) |
+| 技术文档 | [实现说明](docs/document/main.pdf) · [设计赛道](docs/design_doc/design_doc.pdf) · [实现源码](docs/document/) · [设计赛道源码](docs/design_doc/) · [答辩 PPT](presentation_project.pptx) |
 
-机密计算 Guest 里内存可受 TEE 保护，rootfs 仍落在宿主机不可信介质上，面临明文可读、离线篡改和整盘替换。Linux 用 Device Mapper 的 `dm-crypt` / `dm-verity` 补机密性与完整性；官方星绽的块设备栈没有等价能力，BIO、设备注册和启动流程也与 Linux 不同，不能直接移植 C 实现。本项目用 Rust 补这一层，算法与 Linux `aes-xts-plain64`、SHA-256 Merkle 布局对齐，并同时落到用户态工具和 Asterinas 内核。题目分析、开发计划、问题与分工见 [技术文档](docs/design_doc/design_doc.pdf)。
+机密计算 Guest 里内存可受 TEE 保护，rootfs 仍落在宿主机不可信介质上，面临明文可读、离线篡改和整盘替换。Linux 用 Device Mapper 的 `dm-crypt` / `dm-verity` 补机密性与完整性；官方星绽的块设备栈没有等价能力，BIO、设备注册和启动流程也与 Linux 不同，不能直接移植 C 实现。本项目用 Rust 补这一层，算法与 Linux `aes-xts-plain64`、SHA-256 Merkle 布局对齐，并同时落到用户态工具和 Asterinas 内核。实现架构、算法、测试、合规与用户手册见 [技术文档](docs/document/main.pdf)；题目分析、开发计划、问题与分工见 [设计赛道文档](docs/design_doc/design_doc.pdf)。两份 PDF 互为补充。
 
 ## 完成内容
 
@@ -85,7 +85,8 @@ asterinas/                 已打补丁的 Asterinas 树（gitlink）
 asterinas_port/            内核补丁 0001–0007 和移植说明
 scripts/                   构建、演示、正确性与性能 runner
 docs/evidence/             最终验证证据
-docs/design_doc/           技术文档源码及 PDF
+docs/document/             技术实现文档源码及 PDF（main.pdf）
+docs/design_doc/           设计赛道文档源码及 PDF（与 main.pdf 互为补充）
 ```
 
 ## 快速验证
@@ -217,7 +218,25 @@ DM_HASH_START=<哈希树起始块> PROBE_BLOCK=<逻辑块号> \
 
 ## 性能结果
 
-下列数字来自 **内核态 KVM 真 mapper**，不要和用户态 `dmctl benchmark` 混读。所有数值均为 5 轮中位数。Linux 与 Asterinas 的硬件/runner 不同，分表展示，不计算跨平台倍率。完整环境、统计量和证据路径见 [中文性能报告](docs/evidence/final-performance-20260811/PERFORMANCE_VALIDATION_REPORT.md)。
+下列数字来自 **内核态 KVM 真 mapper**，不要和用户态 `dmctl benchmark` 混读。所有数值均为 5 轮中位数。Linux 与 Asterinas 的硬件/runner 不同，分表展示，不计算跨平台倍率。完整环境、统计量和证据路径见 [中文性能报告](docs/evidence/final-performance-20260811/PERFORMANCE_VALIDATION_REPORT.md)。设计赛道文档第 6 章只摘了 FIO 代表行；下面给出同一口径的完成情况与全表。
+
+### 完成情况
+
+正式 FIO 矩阵 **46 PASS + 6 只读 N/A**；Filebench / SQLite / Boot 各五轮。每项有效单元格保留全部原始轮次，不剔除异常值。
+
+| 范围 | 有效单元格 | 结果 |
+|---|---|---|
+| Asterinas KVM dm-crypt | 13 项 × 5 轮 | PASS |
+| Asterinas KVM dm-verity | 7 项 × 5 轮 | PASS（6 项写 N/A） |
+| Linux QEMU virtio raw | 13 项 × 5 轮 | PASS |
+| Linux QEMU virtio dm-crypt | 13 项 × 5 轮 | PASS |
+| Linux QEMU virtio dm-verity 读 | 7 项 × 5 轮 | PASS（6 项写 N/A） |
+
+| 补充测试 | 轮数 | 结果 | 证据 |
+|---|---|---|---|
+| Filebench fileserver | raw 5 + dm-crypt 5 | PASS；verity 只读 N/A | `docs/evidence/linux-qemu-filebench-sqlite-20260817/filebench/` |
+| SQLite 10,000 行 | raw 5 + dm-crypt 5 + dm-verity 5 | PASS | `docs/evidence/linux-qemu-filebench-sqlite-20260817/sqlite/` |
+| Asterinas 启动耗时 | plain 5 + dm-crypt 5 + dm-verity 5 | PASS | `docs/evidence/final-performance-20260811/boot-matrix/` |
 
 ### 256 MiB 正式合同：Asterinas raw / dm-crypt / dm-verity
 
@@ -284,14 +303,35 @@ Asterinas raw（256 MiB 正式合同，KVM、1 vCPU、8 GiB、virtio-blk、4 KiB
 | randwrite | 32K | 1 | 53.551 | N/A（只读） |
 | randwrite | 256K | 1 | 93.541 | N/A（只读） |
 
-### Filebench、SQLite 与启动耗时
+### Filebench fileserver（Linux QEMU/KVM guest）
 
-| 测试 | raw/plain | dm-crypt | dm-verity |
-|---|---:|---:|---:|
-| Filebench fileserver，ops/s | 147672.049 | 156507.741 | N/A（只读） |
-| Filebench fileserver，MB/s | 3542.7 | 3752.1 | N/A（只读） |
-| SQLite 10,000 行，总耗时 s | 0.060128 | 0.066395 | 0.003865（仅查询） |
-| Asterinas 启动中位耗时 s | 51.331303 | 51.629820 | 52.743415 |
+virtio `/dev/vdb`，fileserver，2000 文件，50 线程，60 s，五轮中位。沿用 Filebench 原始 MB/s。dm-verity 为只读目标，与写密集 fileserver 不兼容，记为 N/A。证据：`docs/evidence/linux-qemu-filebench-sqlite-20260817/filebench/`。
+
+| 目标 | 轮数 | 中位 ops/s | 中位 MB/s | 中位延迟 ms/op |
+|---|---:|---:|---:|---:|
+| raw | 5 | 27855.155 | 656.9 | 3.3 |
+| dm-crypt | 5 | 25666.016 | 605.0 | 3.7 |
+| dm-verity | — | N/A（只读） | N/A | N/A |
+
+### SQLite（Linux QEMU/KVM guest，10,000 行）
+
+五轮中位。dm-verity 只执行查询阶段，不能与 raw / dm-crypt 完整写事务总耗时横比。证据：`docs/evidence/linux-qemu-filebench-sqlite-20260817/sqlite/`。
+
+| 目标 | 轮数 | 中位总耗时 s | 中位查询耗时 s | 说明 |
+|---|---:|---:|---:|---|
+| raw | 5 | 0.138095 | 0.000191 | 完整写入与查询 |
+| dm-crypt | 5 | 0.143336 | 0.000149 | 完整写入与查询 |
+| dm-verity | 5 | 0.001151 | 0.000571 | 只读查询 |
+
+### Asterinas 启动耗时
+
+QEMU 进程启动计至串口出现受保护根文件系统 PASS 标记。相对 plain 的中位开销：dm-crypt **0.582%**，dm-verity **2.751%**。证据：`docs/evidence/final-performance-20260811/boot-matrix/`。
+
+| 场景 | 轮数 | 中位耗时 s |
+|---|---:|---:|
+| plain | 5 | 51.331303 |
+| dm-crypt rootfs | 5 | 51.629820 |
+| dm-verity rootfs | 5 | 52.743415 |
 
 旧 Asterinas FIO 目录曾把不存在的 mapper 当普通文件测试，已判定为 `HARNESS_BUG`，不在仓库正式数据或生成器输入中。
 
@@ -306,13 +346,8 @@ OUT_ROOT="$PWD/docs/evidence/asterinas-fio" \
   bash scripts/run_fio_matrix.sh --platform asterinas-kvm \
   --asterinas-dir "$PWD/asterinas" --runs 5
 
-# Filebench fileserver：raw + dm-crypt，各 5 轮
-sudo OUT_DIR="$PWD/docs/evidence/filebench" RUNS=5 \
-  bash scripts/run_filebench_matrix.sh
-
-# SQLite：raw + dm-crypt + dm-verity，各 5 轮
-sudo OUT_DIR="$PWD/docs/evidence/sqlite" RUNS=5 ROWS=10000 \
-  bash scripts/run_sqlite_matrix.sh
+# Linux QEMU guest Filebench / SQLite 正式数字见
+# docs/evidence/linux-qemu-filebench-sqlite-20260817/
 
 # Asterinas plain / dm-crypt / dm-verity 启动，各 5 轮
 sudo bash scripts/build_asterinas_boot_images.sh
@@ -343,4 +378,4 @@ git status --short
 
 ## 许可证与来源
 
-用户态 `dm`/`dmctl` 代码采用 MIT 许可证，Asterinas 子模块遵循其上游许可证。第三方工具、参考资料、AI 辅助范围和提交合规说明见 [技术文档](docs/design_doc/design_doc.pdf) 与 [最终报告](docs/final_report.md)。
+用户态 `dm`/`dmctl` 代码采用 MIT 许可证，Asterinas 子模块遵循其上游许可证。第三方工具、参考资料、AI 辅助范围和提交合规说明见 [技术文档](docs/document/main.pdf)、[设计赛道文档](docs/design_doc/design_doc.pdf) 与 [最终报告](docs/final_report.md)。
