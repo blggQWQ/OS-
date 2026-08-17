@@ -8,7 +8,7 @@
 | 学校 | 华南师范大学 |
 | 成员 | 张乐桁、陈韵、潘利源 |
 | 赛题 | 面向 Rust OS 的高性能可信存储实现 |
-| 网盘资料 | [百度网盘：操作系统竞赛](https://pan.baidu.com/s/1aDbv9a4HCEqz8pUGUqma9A?pwd=oscp)，提取码 `oscp` |
+| 讲解视频 | [百度网盘：操作系统竞赛](https://pan.baidu.com/s/1aDbv9a4HCEqz8pUGUqma9A?pwd=oscp)，提取码 `oscp` |
 | 技术文档 | [实现说明](docs/document/main.pdf) · [设计赛道](docs/design_doc/design_doc.pdf) · [实现源码](docs/document/) · [设计赛道源码](docs/design_doc/) · [答辩 PPT](presentation_project.pptx) |
 
 两份 PDF 互为补充：设计赛道按大赛大纲写题目分析、计划、进展、测试、问题、分工；技术文档写架构、AES-XTS / Merkle 算法、合规与用户手册。
