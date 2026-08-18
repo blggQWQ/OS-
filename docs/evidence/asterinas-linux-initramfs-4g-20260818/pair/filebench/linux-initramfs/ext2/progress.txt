@@ -1,0 +1,13 @@
+[pair] START linux-initramfs filebench/ext2_benchmarks MEM=4G kernel=/opt/linux_binary_cache/vmlinuz
+mke2fs 1.47.0 (5-Feb-2023)
+Discarding device blocks:      0/524287             done                            
+Creating filesystem with 524287 4k blocks and 131072 inodes
+Filesystem UUID: e876c9ea-bd7c-4732-acb0-7268edc6a708
+Superblock backups stored on blocks: 
+	32768, 98304, 163840, 229376, 294912
+
+Allocating group tables:  0/16     done                            
+Writing inode tables:  0/16     done                            
+Writing superblocks and filesystem accounting information:  0/16     done
+
+qemu_pid=7392

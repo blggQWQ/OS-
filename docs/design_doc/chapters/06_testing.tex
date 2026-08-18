@@ -332,6 +332,48 @@ SQLite dm-verity 只执行查询阶段，不能与完整写事务总耗时横比
     \item Boot：\texttt{docs/evidence/final-performance-20260811/boot-matrix/}
 \end{itemize}
 
+\subsection{4\,GiB initramfs：Asterinas 与 Linux 对照（新配置）}
+
+与上一小节 8\,GiB Linux guest Filebench / SQLite \textbf{不是同一合同}，不能横比，也不能并进五轮中位表。两端运行 Asterinas 同一套 initramfs job，测 virtio-blk 上的 ext2，不是 dm-crypt / dm-verity mapper。各 1 轮，不取中位数。证据：\texttt{\seqsplit{docs/evidence/asterinas-linux-initramfs-4g-20260818/}}。
+
+\begin{table}[H]
+    \centering
+    \small
+    \caption{4\,GiB initramfs 对照配置}
+    \begin{tabular}{p{0.28\textwidth}p{0.62\textwidth}}
+        \toprule
+        \textbf{项} & \textbf{本配置} \\
+        \midrule
+        内存 / vCPU & 4\,GiB / 1 \\
+        加速 / CPU & KVM / \texttt{Icelake-Server}（\texttt{-pcid,+x2apic}） \\
+        QEMU 锁页 & 关（无 mlock） \\
+        块设备 & virtio-blk ext2（\texttt{\string^ext\_attr \string^resize\_inode \string^dir\_index}） \\
+        Asterinas & \texttt{make kernel BENCHMARK=\ldots\ MEM=4G ENABLE\_KVM=1 RELEASE\_LTO=1 NETDEV=user} \\
+        Linux 对照 & 同一 initramfs：\texttt{-kernel} + \texttt{-initrd}，\texttt{rdinit=/benchmark/common/bench\_runner.sh} \\
+        SQLite & \texttt{sqlite-speedtest1 --size 1000 /ext2/test.db}，记录 TOTAL 秒 \\
+        Filebench & 1.5-alpha3 CSCC fileserver；日志：10000 文件、dirwidth=20、1250\,MB、runtime 60\,s \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\begin{table}[H]
+    \centering
+    \small
+    \caption{4\,GiB initramfs 单轮结果（无 IOMMU）}
+    \begin{tabular}{lrrr}
+        \toprule
+        \textbf{负载} & \textbf{Asterinas} & \textbf{Linux initramfs} & \textbf{相对} \\
+        \midrule
+        SQLite TOTAL（s） & 244.649 & 94.040 & Asterinas 为 Linux 的 $2.60\times$ \\
+        Filebench ops/s & 8398.724 & 11545.120 & Asterinas 为 Linux 的 72.7\% \\
+        Filebench MB/s & 201.9 & 278.5 & Asterinas 为 Linux 的 72.5\% \\
+        Filebench ms/op & 4.3 & 3.1 & --- \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+SQLite 第二轮：Asterinas \texttt{SCHEME=iommu} 为 111.956\,s，Linux（未开 \texttt{intel-iommu}）为 55.302\,s。Linux 在未改自身标志时也从 94.040 变到 55.302，存在宿主机噪声，不能单独归因于 IOMMU。
+
 \section{复现命令}
 
 以下命令提供了从单元测试到性能验证的完整复现路径，确保所有测试结果均可独立验证：
@@ -417,6 +459,7 @@ python3 scripts/review_release_check.py
         \texttt{\seqsplit{final-performance-20260811/asterinas-fio/}} & Asterinas KVM FIO 原始 JSON \\
         \texttt{\seqsplit{linux-qemu-fio-20260816/}} & Linux QEMU virtio FIO 原始 JSON \\
         \texttt{\seqsplit{linux-qemu-filebench-sqlite-20260817/}} & Linux QEMU guest Filebench / SQLite \\
+        \texttt{\seqsplit{asterinas-linux-initramfs-4g-20260818/}} & 4\,GiB initramfs Asterinas vs Linux Filebench / SQLite \\
         \texttt{\seqsplit{final-performance-20260811/filebench-valid/}} & Linux host Filebench 归档，不再引用 \\
         \texttt{\seqsplit{final-performance-20260811/sqlite/}} & Linux host SQLite 归档，不再引用 \\
         \texttt{\seqsplit{final-performance-20260811/boot-matrix/}} & 启动 15 轮记录 \\
@@ -444,6 +487,7 @@ python3 scripts/review_release_check.py
         FIO 性能矩阵（46 PASS） & \texttt{PASS} & \texttt{final-performance-20260811/} \\
         Filebench（5+5 轮） & \texttt{PASS} & \texttt{\seqsplit{linux-qemu-filebench-sqlite-20260817/filebench/}} \\
         SQLite（5+5+5 轮） & \texttt{PASS} & \texttt{\seqsplit{linux-qemu-filebench-sqlite-20260817/sqlite/}} \\
+        4\,GiB initramfs Filebench / SQLite & 单轮对照 & \texttt{\seqsplit{asterinas-linux-initramfs-4g-20260818/}} \\
         Boot 耗时（5+5+5 轮） & \texttt{PASS} & \texttt{\seqsplit{final-performance-20260811/boot-matrix/}} \\
         静态包检查 & \texttt{PASS} & \texttt{review\_release\_check.py} \\
         \bottomrule

@@ -1,0 +1,12 @@
+timestamp_utc=2026-08-17T18:03:48Z
+platform=asterinas-kvm+linux-initramfs
+memory=4G
+vcpus=1
+accelerator=kvm
+cpu_model=Icelake-Server
+qemu_lock=off
+boot=make-run_kernel-osdk
+linux_initramfs_net=virtio-net-user-official-flags
+jobs=sqlite/ext2_benchmarks
+asterinas_scheme=iommu
+retest_note=4G pair; not official 8G README numbers

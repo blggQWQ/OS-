@@ -1,0 +1,620 @@
+2026-08-17T17:23:54Z run_fb_sqlite_4g_v2.sh pid=9955 MEM=4G repo=/home/jacob/ccoontest/project3136859-389133 lock=off
+2026-08-17T17:23:57Z cgroup=/retest.slice/retest-4g.slice/runner memory.min=4G qemu_lock=off
+2026-08-17T17:23:57Z prereq kvm=ok MemAvailable=6575MiB MEM=4G qemu_lock=off
+2026-08-17T17:23:57Z START asterinas-linux-initramfs pair
+45aba494989419cf55205c8cb1eb5f51dfda9d5a6469b90336d48726e50c4db0
+[inner] PATH=/root/.nix-profile/bin:/root/.cargo/bin:/usr/local/qemu/bin:/root/.nix-profile/bin:/nix/var/nix/profiles/default/bin:/root/asterinas/target/bin:/nix/var/nix/profiles/default/bin:/usr/local/grub/bin:/usr/local/qemu/bin:/root/.cargo/bin:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+/root/.nix-profile/bin/nix-build
+/root/.cargo/bin/rustc
+/usr/local/qemu/bin/qemu-system-x86_64
+[inner] smoke-build filebench (fail fast before kernel compile)
+this derivation will be built:
+  /nix/store/vnc5r216x9qi6li3dgz8avxvmc66rxk1-filebench-1.5-alpha3.drv
+these 3 paths will be fetched (1.1 MiB download, 5.1 MiB unpacked):
+  /nix/store/142lbjxi74mv9nkb9k4831v2x8v5w5zv-bison-3.8.2
+  /nix/store/wzwlizg15dwh6x0h3ckjmibdblfkfdzf-flex-2.6.4
+  /nix/store/cab2yvnph1hfym998vdq0q4nr9zfndrs-gnum4-1.4.19
+copying path '/nix/store/cab2yvnph1hfym998vdq0q4nr9zfndrs-gnum4-1.4.19' from 'https://cache.nixos.org'...
+copying path '/nix/store/142lbjxi74mv9nkb9k4831v2x8v5w5zv-bison-3.8.2' from 'https://cache.nixos.org'...
+copying path '/nix/store/wzwlizg15dwh6x0h3ckjmibdblfkfdzf-flex-2.6.4' from 'https://cache.nixos.org'...
+building '/nix/store/vnc5r216x9qi6li3dgz8avxvmc66rxk1-filebench-1.5-alpha3.drv'...
+Running phase: unpackPhase
+unpacking source archive /nix/store/pdxgl75p1p76nznn3wmx0slxa53zxg17-filebench-1.5-alpha3.tar.gz
+source root is filebench-1.5-alpha3
+setting SOURCE_DATE_EPOCH to timestamp 1468533013 of file "filebench-1.5-alpha3/ylwrap"
+Running phase: patchPhase
+applying patch /nix/store/2cmqblhpxbf49frsarcy0m9yrhg4kkhi-filebench-ism-mmap.patch
+patching file ipc.c
+Running phase: updateAutotoolsGnuConfigScriptsPhase
+Updating Autotools / GNU config script to a newer upstream version: ./config.sub
+Updating Autotools / GNU config script to a newer upstream version: ./config.guess
+Running phase: configurePhase
+fixing libtool script ./ltmain.sh
+./configure
+patching script interpreter paths in ./configure
+./configure: interpreter directive changed from "#! /bin/sh" to "/nix/store/xy4jjgw87sbgwylm5kn047d9gkbhsr9x-bash-5.2p37/bin/sh"
+configure flags: --disable-static --disable-dependency-tracking --prefix=/nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3 --enable-shared=no
+checking for a BSD-compatible install... /nix/store/87fck6hm17chxjq7badb11mq036zbyv9-coreutils-9.7/bin/install -c
+checking whether build environment is sane... yes
+checking for a thread-safe mkdir -p... /nix/store/87fck6hm17chxjq7badb11mq036zbyv9-coreutils-9.7/bin/mkdir -p
+checking for gawk... gawk
+checking whether make sets $(MAKE)... yes
+checking whether make supports nested variables... yes
+checking for gcc... gcc
+checking whether the C compiler works... yes
+checking for C compiler default output file name... a.out
+checking for suffix of executables... 
+checking whether we are cross compiling... no
+checking for suffix of object files... o
+checking whether we are using the GNU C compiler... yes
+checking whether gcc accepts -g... yes
+checking for gcc option to accept ISO C89... none needed
+checking whether gcc understands -c and -o together... yes
+checking for style of include used by make... GNU
+checking dependency style of gcc... none
+checking build system type... x86_64-pc-linux-gnu
+checking host system type... x86_64-pc-linux-gnu
+checking how to print strings... printf
+checking for a sed that does not truncate output... /nix/store/clbb2cvigynr235ab5zgi18dyavznlk2-gnused-4.9/bin/sed
+checking for grep that handles long lines and -e... /nix/store/gqmr3gixlddz3667ba1iyqck3c0dkpvd-gnugrep-3.11/bin/grep
+checking for egrep... /nix/store/gqmr3gixlddz3667ba1iyqck3c0dkpvd-gnugrep-3.11/bin/grep -E
+checking for fgrep... /nix/store/gqmr3gixlddz3667ba1iyqck3c0dkpvd-gnugrep-3.11/bin/grep -F
+checking for ld used by gcc... ld
+checking if the linker (ld) is GNU ld... yes
+checking for BSD- or MS-compatible name lister (nm)... nm
+checking the name lister (nm) interface... BSD nm
+checking whether ln -s works... yes
+checking the maximum length of command line arguments... 1572864
+checking how to convert x86_64-pc-linux-gnu file names to x86_64-pc-linux-gnu format... func_convert_file_noop
+checking how to convert x86_64-pc-linux-gnu file names to toolchain format... func_convert_file_noop
+checking for ld option to reload object files... -r
+checking for objdump... objdump
+checking how to recognize dependent libraries... (cached) pass_all
+checking for dlltool... no
+checking how to associate runtime and link libraries... printf %s\n
+checking for archiver @FILE support... @
+checking for strip... strip
+checking for ranlib... ranlib
+checking command to parse nm output from gcc object... ok
+checking for sysroot... no
+checking for a working dd... /nix/store/87fck6hm17chxjq7badb11mq036zbyv9-coreutils-9.7/bin/dd
+checking how to truncate binary pipes... /nix/store/87fck6hm17chxjq7badb11mq036zbyv9-coreutils-9.7/bin/dd bs=4096 count=1
+checking for mt... no
+checking if : is a manifest tool... no
+checking how to run the C preprocessor... gcc -E
+checking for ANSI C header files... yes
+checking for sys/types.h... yes
+checking for sys/stat.h... yes
+checking for stdlib.h... yes
+checking for string.h... yes
+checking for memory.h... yes
+checking for strings.h... yes
+checking for inttypes.h... yes
+checking for stdint.h... yes
+checking for unistd.h... yes
+checking for dlfcn.h... yes
+checking for objdir... .libs
+checking if gcc supports -fno-rtti -fno-exceptions... no
+checking for gcc option to produce PIC... -fPIC -DPIC
+checking if gcc PIC flag -fPIC -DPIC works... yes
+checking if gcc static flag -static works... no
+checking if gcc supports -c -o file.o... yes
+checking if gcc supports -c -o file.o... (cached) yes
+checking whether the gcc linker (ld -m elf_x86_64) supports shared libraries... yes
+checking dynamic linker characteristics... GNU/Linux ld.so
+checking how to hardcode library paths into programs... immediate
+checking whether stripping libraries is possible... yes
+checking if libtool supports shared libraries... yes
+checking whether to build shared libraries... no
+checking whether to build static libraries... yes
+checking for bison... bison -y
+checking for flex... flex
+checking lex output file root... lex.yy
+checking lex library... -lfl
+checking whether yytext is a pointer... yes
+checking for stdint.h... (cached) yes
+checking arpa/inet.h usability... yes
+checking arpa/inet.h presence... yes
+checking for arpa/inet.h... yes
+checking fcntl.h usability... yes
+checking fcntl.h presence... yes
+checking for fcntl.h... yes
+checking libintl.h usability... yes
+checking libintl.h presence... yes
+checking for libintl.h... yes
+checking limits.h usability... yes
+checking limits.h presence... yes
+checking for limits.h... yes
+checking locale.h usability... yes
+checking locale.h presence... yes
+checking for locale.h... yes
+checking malloc.h usability... yes
+checking malloc.h presence... yes
+checking for malloc.h... yes
+checking netdb.h usability... yes
+checking netdb.h presence... yes
+checking for netdb.h... yes
+checking netinet/in.h usability... yes
+checking netinet/in.h presence... yes
+checking for netinet/in.h... yes
+checking stddef.h usability... yes
+checking stddef.h presence... yes
+checking for stddef.h... yes
+checking math.h usability... yes
+checking math.h presence... yes
+checking for math.h... yes
+checking sys/param.h usability... yes
+checking sys/param.h presence... yes
+checking for sys/param.h... yes
+checking sys/socket.h usability... yes
+checking sys/socket.h presence... yes
+checking for sys/socket.h... yes
+checking sys/statvfs.h usability... yes
+checking sys/statvfs.h presence... yes
+checking for sys/statvfs.h... yes
+checking sys/time.h usability... yes
+checking sys/time.h presence... yes
+checking for sys/time.h... yes
+checking sys/personality.h usability... yes
+checking sys/personality.h presence... yes
+checking for sys/personality.h... yes
+checking for dirent.h that defines DIR... yes
+checking for library containing opendir... none required
+checking for stdbool.h that conforms to C99... yes
+checking for _Bool... yes
+checking for sys/wait.h that is POSIX.1 compatible... yes
+checking whether time.h and sys/time.h may both be included... yes
+checking for ftruncate... yes
+checking for ftruncate64... yes
+checking for getcwd... yes
+checking for gethostname... yes
+checking for gethrtime... no
+checking for gettimeofday... yes
+checking for memset... yes
+checking for mkdir... yes
+checking for munmap... yes
+checking for pow... no
+checking for rmdir... yes
+checking for socket... yes
+checking for sqrt... no
+checking for strchr... yes
+checking for strdup... yes
+checking for strerror... yes
+checking for strncasecmp... yes
+checking for strstr... yes
+checking for strlcat... yes
+checking for strlcpy... yes
+checking for fork1... no
+checking for getrlimit... yes
+checking for setrlimit... yes
+checking for sigsend... no
+checking for ftok... yes
+checking for semget... yes
+checking for semop... yes
+checking for semtimedop... yes
+checking for cftime... no
+checking for _lwp_self... no
+checking for sigignore... yes
+checking for stdlib.h... (cached) yes
+checking for unistd.h... (cached) yes
+checking for sys/param.h... (cached) yes
+checking for getpagesize... yes
+checking for working mmap... yes
+checking for size_t... yes
+checking for working alloca.h... yes
+checking for alloca... yes
+checking whether closedir returns void... no
+checking for pid_t... yes
+checking vfork.h usability... no
+checking vfork.h presence... no
+checking for vfork.h... no
+checking for fork... yes
+checking for vfork... yes
+checking for working fork... yes
+checking for working vfork... (cached) yes
+checking for stdlib.h... (cached) yes
+checking for GNU libc compatible malloc... yes
+checking for getpagesize... (cached) yes
+checking for working mmap... (cached) yes
+checking for stdlib.h... (cached) yes
+checking for GNU libc compatible realloc... yes
+checking whether lstat correctly handles trailing slash... yes
+checking whether stat accepts an empty string... no
+checking for strftime... yes
+checking for working strtod... yes
+checking for vprintf... yes
+checking for _doprnt... no
+checking whether to use system()... no
+checking for aio_write in -lrt... yes
+checking for aio_write in -lrt... (cached) yes
+checking for aio_waitn in -lrt... no
+checking for pow in -lm... yes
+checking for pthread_mutex_lock in -lpthread... yes
+checking for pthread_mutexattr_setrobust_np in -lpthread... no
+checking for pthread_mutexattr_setpshared in -lpthread... yes
+checking for pthread_mutexattr_setprotocol in -lpthread... yes
+checking for dlopen in -ldl... yes
+checking for /proc/sys/kernel/shmmax... yes
+checking for off_t... yes
+checking for pid_t... (cached) yes
+checking return type of signal handlers... void
+checking for size_t... (cached) yes
+checking whether struct tm is in sys/time.h or time.h... time.h
+checking for off64_t... yes
+checking for boolean_t... no
+checking for u_longlong_t... no
+checking for uint_t... no
+checking for stat64... yes
+checking for posix_fadvise... yes
+checking for waitid... yes
+checking for aio_error64... yes
+checking for aio_write64... yes
+checking for aio_return64... yes
+checking for open64... yes
+checking for mmap64... yes
+checking for fstat64... yes
+checking for lseek64... yes
+checking for pwrite64... yes
+checking for pread64... yes
+checking for IPC_RMID control for semctl()... yes
+checking for I/O priority system calls... no
+checking for SHM_SHARE_MMU... no
+checking for ADDR_NO_RANDOMIZE... yes
+checking for DIRECT open flag... yes
+checking for directio... no
+checking for NOCACHE fcntl... no
+checking for struct stat.st_rdev... yes
+checking for an ANSI C-conforming const... yes
+checking that generated files are newer than configure... done
+configure: creating ./config.status
+config.status: creating Makefile
+config.status: creating workloads/Makefile
+config.status: creating cvars/Makefile
+config.status: creating config.h
+config.status: executing depfiles commands
+config.status: executing libtool commands
+Running phase: buildPhase
+build flags: -j12 SHELL=/nix/store/xy4jjgw87sbgwylm5kn047d9gkbhsr9x-bash-5.2p37/bin/bash
+/nix/store/xy4jjgw87sbgwylm5kn047d9gkbhsr9x-bash-5.2p37/bin/bash ./ylwrap parser_gram.y y.tab.c parser_gram.c y.tab.h `echo parser_gram.c | sed -e s/cc$/hh/ -e s/cpp$/hpp/ -e s/cxx$/hxx/ -e s/c++$/h++/ -e s/c$/h/` y.output parser_gram.output -- bison -y -d 
+/build/filebench-1.5-alpha3/parser_gram.y:152.14-27: warning: POSIX yacc reserves %type to nonterminals [-Wyacc]
+  152 | %type <ival> FSV_VAL_POSINT FSV_VAL_NEGINT
+      |              ^~~~~~~~~~~~~~
+/build/filebench-1.5-alpha3/parser_gram.y:152.29-42: warning: POSIX yacc reserves %type to nonterminals [-Wyacc]
+  152 | %type <ival> FSV_VAL_POSINT FSV_VAL_NEGINT
+      |                             ^~~~~~~~~~~~~~
+/build/filebench-1.5-alpha3/parser_gram.y:153.14-28: warning: POSIX yacc reserves %type to nonterminals [-Wyacc]
+  153 | %type <bval> FSV_VAL_BOOLEAN
+      |              ^~~~~~~~~~~~~~~
+/build/filebench-1.5-alpha3/parser_gram.y:154.14-23: warning: POSIX yacc reserves %type to nonterminals [-Wyacc]
+  154 | %type <sval> FSV_STRING FSV_WHITESTRING FSV_VARIABLE FSK_ASSIGN
+      |              ^~~~~~~~~~
+/build/filebench-1.5-alpha3/parser_gram.y:154.25-39: warning: POSIX yacc reserves %type to nonterminals [-Wyacc]
+  154 | %type <sval> FSV_STRING FSV_WHITESTRING FSV_VARIABLE FSK_ASSIGN
+      |                         ^~~~~~~~~~~~~~~
+/build/filebench-1.5-alpha3/parser_gram.y:154.41-52: warning: POSIX yacc reserves %type to nonterminals [-Wyacc]
+  154 | %type <sval> FSV_STRING FSV_WHITESTRING FSV_VARIABLE FSK_ASSIGN
+      |                                         ^~~~~~~~~~~~
+/build/filebench-1.5-alpha3/parser_gram.y:154.54-63: warning: POSIX yacc reserves %type to nonterminals [-Wyacc]
+  154 | %type <sval> FSV_STRING FSV_WHITESTRING FSV_VARIABLE FSK_ASSIGN
+      |                                                      ^~~~~~~~~~
+/build/filebench-1.5-alpha3/parser_gram.y:156.14-23: warning: POSIX yacc reserves %type to nonterminals [-Wyacc]
+  156 | %type <ival> FSC_DEFINE FSC_SET FSC_RUN FSC_ENABLE FSC_PSRUN
+      |              ^~~~~~~~~~
+/build/filebench-1.5-alpha3/parser_gram.y:156.25-31: warning: POSIX yacc reserves %type to nonterminals [-Wyacc]
+  156 | %type <ival> FSC_DEFINE FSC_SET FSC_RUN FSC_ENABLE FSC_PSRUN
+      |                         ^~~~~~~
+/build/filebench-1.5-alpha3/parser_gram.y:156.33-39: warning: POSIX yacc reserves %type to nonterminals [-Wyacc]
+  156 | %type <ival> FSC_DEFINE FSC_SET FSC_RUN FSC_ENABLE FSC_PSRUN
+      |                                 ^~~~~~~
+/build/filebench-1.5-alpha3/parser_gram.y:156.41-50: warning: POSIX yacc reserves %type to nonterminals [-Wyacc]
+  156 | %type <ival> FSC_DEFINE FSC_SET FSC_RUN FSC_ENABLE FSC_PSRUN
+      |                                         ^~~~~~~~~~
+/build/filebench-1.5-alpha3/parser_gram.y:156.52-60: warning: POSIX yacc reserves %type to nonterminals [-Wyacc]
+  156 | %type <ival> FSC_DEFINE FSC_SET FSC_RUN FSC_ENABLE FSC_PSRUN
+      |                                                    ^~~~~~~~~
+/build/filebench-1.5-alpha3/parser_gram.y:157.14-28: warning: POSIX yacc reserves %type to nonterminals [-Wyacc]
+  157 | %type <ival> FSC_DOMULTISYNC
+      |              ^~~~~~~~~~~~~~~
+/build/filebench-1.5-alpha3/parser_gram.y:158.14-21: warning: POSIX yacc reserves %type to nonterminals [-Wyacc]
+  158 | %type <ival> FSE_FILE FSE_FILES FSE_PROC FSE_THREAD FSC_VERSION
+      |              ^~~~~~~~
+/build/filebench-1.5-alpha3/parser_gram.y:158.23-31: warning: POSIX yacc reserves %type to nonterminals [-Wyacc]
+  158 | %type <ival> FSE_FILE FSE_FILES FSE_PROC FSE_THREAD FSC_VERSION
+      |                       ^~~~~~~~~
+/build/filebench-1.5-alpha3/parser_gram.y:158.33-40: warning: POSIX yacc reserves %type to nonterminals [-Wyacc]
+  158 | %type <ival> FSE_FILE FSE_FILES FSE_PROC FSE_THREAD FSC_VERSION
+      |                                 ^~~~~~~~
+/build/filebench-1.5-alpha3/parser_gram.y:158.42-51: warning: POSIX yacc reserves %type to nonterminals [-Wyacc]
+  158 | %type <ival> FSE_FILE FSE_FILES FSE_PROC FSE_THREAD FSC_VERSION
+      |                                          ^~~~~~~~~~
+/build/filebench-1.5-alpha3/parser_gram.y:158.53-63: warning: POSIX yacc reserves %type to nonterminals [-Wyacc]
+  158 | %type <ival> FSE_FILE FSE_FILES FSE_PROC FSE_THREAD FSC_VERSION
+      |                                                     ^~~~~~~~~~~
+/build/filebench-1.5-alpha3/parser_gram.y:182.32-39: warning: POSIX yacc reserves %type to nonterminals [-Wyacc]
+  182 | %type <ival> randvar_attr_name FSA_TYPE randtype_name
+      |                                ^~~~~~~~
+/build/filebench-1.5-alpha3/parser_gram.y:183.27-37: warning: POSIX yacc reserves %type to nonterminals [-Wyacc]
+  183 | %type <ival> randsrc_name FSA_RANDSRC em_attr_name
+      |                           ^~~~~~~~~~~
+/build/filebench-1.5-alpha3/parser_gram.y:184.14-21: warning: POSIX yacc reserves %type to nonterminals [-Wyacc]
+  184 | %type <ival> FSS_TYPE FSS_SEED FSS_GAMMA FSS_MEAN FSS_MIN FSS_SRC
+      |              ^~~~~~~~
+/build/filebench-1.5-alpha3/parser_gram.y:184.23-30: warning: POSIX yacc reserves %type to nonterminals [-Wyacc]
+  184 | %type <ival> FSS_TYPE FSS_SEED FSS_GAMMA FSS_MEAN FSS_MIN FSS_SRC
+      |                       ^~~~~~~~
+/build/filebench-1.5-alpha3/parser_gram.y:184.32-40: warning: POSIX yacc reserves %type to nonterminals [-Wyacc]
+  184 | %type <ival> FSS_TYPE FSS_SEED FSS_GAMMA FSS_MEAN FSS_MIN FSS_SRC
+      |                                ^~~~~~~~~
+/build/filebench-1.5-alpha3/parser_gram.y:184.42-49: warning: POSIX yacc reserves %type to nonterminals [-Wyacc]
+  184 | %type <ival> FSS_TYPE FSS_SEED FSS_GAMMA FSS_MEAN FSS_MIN FSS_SRC
+      |                                          ^~~~~~~~
+/build/filebench-1.5-alpha3/parser_gram.y:184.51-57: warning: POSIX yacc reserves %type to nonterminals [-Wyacc]
+  184 | %type <ival> FSS_TYPE FSS_SEED FSS_GAMMA FSS_MEAN FSS_MIN FSS_SRC
+      |                                                   ^~~~~~~
+/build/filebench-1.5-alpha3/parser_gram.y:184.59-65: warning: POSIX yacc reserves %type to nonterminals [-Wyacc]
+  184 | %type <ival> FSS_TYPE FSS_SEED FSS_GAMMA FSS_MEAN FSS_MIN FSS_SRC
+      |                                                           ^~~~~~~
+updating parser_gram.h
+make  all-recursive
+make[1]: Entering directory '/build/filebench-1.5-alpha3'
+Making all in workloads
+make[2]: Entering directory '/build/filebench-1.5-alpha3/workloads'
+make[2]: Nothing to be done for 'all'.
+make[2]: Leaving directory '/build/filebench-1.5-alpha3/workloads'
+Making all in cvars
+make[2]: Entering directory '/build/filebench-1.5-alpha3/cvars'
+/nix/store/xy4jjgw87sbgwylm5kn047d9gkbhsr9x-bash-5.2p37/bin/bash ../libtool  --tag=CC   --mode=compile gcc -DHAVE_CONFIG_H -I. -I..     -g -O2 -c -o cvar-erlang.lo cvar-erlang.c
+/nix/store/xy4jjgw87sbgwylm5kn047d9gkbhsr9x-bash-5.2p37/bin/bash ../libtool  --tag=CC   --mode=compile gcc -DHAVE_CONFIG_H -I. -I..     -g -O2 -c -o cvar_tokens.lo cvar_tokens.c
+/nix/store/xy4jjgw87sbgwylm5kn047d9gkbhsr9x-bash-5.2p37/bin/bash ../libtool  --tag=CC   --mode=compile gcc -DHAVE_CONFIG_H -I. -I..     -g -O2 -c -o cvar-exponential.lo cvar-exponential.c
+/nix/store/xy4jjgw87sbgwylm5kn047d9gkbhsr9x-bash-5.2p37/bin/bash ../libtool  --tag=CC   --mode=compile gcc -DHAVE_CONFIG_H -I. -I..     -g -O2 -c -o cvar-lognormal.lo cvar-lognormal.c
+/nix/store/xy4jjgw87sbgwylm5kn047d9gkbhsr9x-bash-5.2p37/bin/bash ../libtool  --tag=CC   --mode=compile gcc -DHAVE_CONFIG_H -I. -I..     -g -O2 -c -o cvar-normal.lo cvar-normal.c
+/nix/store/xy4jjgw87sbgwylm5kn047d9gkbhsr9x-bash-5.2p37/bin/bash ../libtool  --tag=CC   --mode=compile gcc -DHAVE_CONFIG_H -I. -I..     -g -O2 -c -o cvar-triangular.lo cvar-triangular.c
+/nix/store/xy4jjgw87sbgwylm5kn047d9gkbhsr9x-bash-5.2p37/bin/bash ../libtool  --tag=CC   --mode=compile gcc -DHAVE_CONFIG_H -I. -I..     -g -O2 -c -o cvar-uniform.lo cvar-uniform.c
+/nix/store/xy4jjgw87sbgwylm5kn047d9gkbhsr9x-bash-5.2p37/bin/bash ../libtool  --tag=CC   --mode=compile gcc -DHAVE_CONFIG_H -I. -I..     -g -O2 -c -o cvar-weibull.lo cvar-weibull.c
+/nix/store/xy4jjgw87sbgwylm5kn047d9gkbhsr9x-bash-5.2p37/bin/bash ../libtool  --tag=CC   --mode=compile gcc -DHAVE_CONFIG_H -I. -I..     -g -O2 -c -o cvar-gamma.lo cvar-gamma.c
+/nix/store/xy4jjgw87sbgwylm5kn047d9gkbhsr9x-bash-5.2p37/bin/bash ../libtool  --tag=CC   --mode=compile gcc -DHAVE_CONFIG_H -I. -I..     -g -O2 -c -o mtwist/mtwist.lo mtwist/mtwist.c
+/nix/store/xy4jjgw87sbgwylm5kn047d9gkbhsr9x-bash-5.2p37/bin/bash ../libtool  --tag=CC   --mode=compile gcc -DHAVE_CONFIG_H -I. -I..     -g -O2 -c -o mtwist/randistrs.lo mtwist/randistrs.c
+libtool: compile:  gcc -DHAVE_CONFIG_H -I. -I.. -g -O2 -c cvar_tokens.c -o cvar_tokens.o
+libtool: compile:  gcc -DHAVE_CONFIG_H -I. -I.. -g -O2 -c cvar-exponential.c -o cvar-exponential.o
+libtool: compile:  gcc -DHAVE_CONFIG_H -I. -I.. -g -O2 -c cvar-triangular.c -o cvar-triangular.o
+libtool: compile:  gcc -DHAVE_CONFIG_H -I. -I.. -g -O2 -c cvar-gamma.c -o cvar-gamma.o
+libtool: compile:  gcc -DHAVE_CONFIG_H -I. -I.. -g -O2 -c cvar-erlang.c -o cvar-erlang.o
+libtool: compile:  gcc -DHAVE_CONFIG_H -I. -I.. -g -O2 -c mtwist/mtwist.c -o mtwist/mtwist.o
+libtool: compile:  gcc -DHAVE_CONFIG_H -I. -I.. -g -O2 -c cvar-lognormal.c -o cvar-lognormal.o
+libtool: compile:  gcc -DHAVE_CONFIG_H -I. -I.. -g -O2 -c cvar-uniform.c -o cvar-uniform.o
+libtool: compile:  gcc -DHAVE_CONFIG_H -I. -I.. -g -O2 -c mtwist/randistrs.c -o mtwist/randistrs.o
+libtool: compile:  gcc -DHAVE_CONFIG_H -I. -I.. -g -O2 -c cvar-weibull.c -o cvar-weibull.o
+libtool: compile:  gcc -DHAVE_CONFIG_H -I. -I.. -g -O2 -c cvar-normal.c -o cvar-normal.o
+/nix/store/xy4jjgw87sbgwylm5kn047d9gkbhsr9x-bash-5.2p37/bin/bash ../libtool  --tag=CC   --mode=link gcc  -g -O2   -o libcvar-erlang.la -rpath /nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench/cvars cvar-erlang.lo mtwist/mtwist.lo mtwist/randistrs.lo cvar_tokens.lo  -ldl -lpthread -lm -lrt 
+/nix/store/xy4jjgw87sbgwylm5kn047d9gkbhsr9x-bash-5.2p37/bin/bash ../libtool  --tag=CC   --mode=link gcc  -g -O2   -o libcvar-exponential.la -rpath /nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench/cvars cvar-exponential.lo mtwist/mtwist.lo mtwist/randistrs.lo cvar_tokens.lo  -ldl -lpthread -lm -lrt 
+/nix/store/xy4jjgw87sbgwylm5kn047d9gkbhsr9x-bash-5.2p37/bin/bash ../libtool  --tag=CC   --mode=link gcc  -g -O2   -o libcvar-lognormal.la -rpath /nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench/cvars cvar-lognormal.lo mtwist/mtwist.lo mtwist/randistrs.lo cvar_tokens.lo  -ldl -lpthread -lm -lrt 
+/nix/store/xy4jjgw87sbgwylm5kn047d9gkbhsr9x-bash-5.2p37/bin/bash ../libtool  --tag=CC   --mode=link gcc  -g -O2   -o libcvar-normal.la -rpath /nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench/cvars cvar-normal.lo mtwist/mtwist.lo mtwist/randistrs.lo cvar_tokens.lo  -ldl -lpthread -lm -lrt 
+/nix/store/xy4jjgw87sbgwylm5kn047d9gkbhsr9x-bash-5.2p37/bin/bash ../libtool  --tag=CC   --mode=link gcc  -g -O2   -o libcvar-triangular.la -rpath /nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench/cvars cvar-triangular.lo mtwist/mtwist.lo mtwist/randistrs.lo cvar_tokens.lo  -ldl -lpthread -lm -lrt 
+/nix/store/xy4jjgw87sbgwylm5kn047d9gkbhsr9x-bash-5.2p37/bin/bash ../libtool  --tag=CC   --mode=link gcc  -g -O2   -o libcvar-weibull.la -rpath /nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench/cvars cvar-weibull.lo mtwist/mtwist.lo mtwist/randistrs.lo cvar_tokens.lo  -ldl -lpthread -lm -lrt 
+/nix/store/xy4jjgw87sbgwylm5kn047d9gkbhsr9x-bash-5.2p37/bin/bash ../libtool  --tag=CC   --mode=link gcc  -g -O2   -o libcvar-gamma.la -rpath /nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench/cvars cvar-gamma.lo mtwist/mtwist.lo mtwist/randistrs.lo cvar_tokens.lo  -ldl -lpthread -lm -lrt 
+/nix/store/xy4jjgw87sbgwylm5kn047d9gkbhsr9x-bash-5.2p37/bin/bash ../libtool  --tag=CC   --mode=link gcc  -g -O2   -o libcvar-uniform.la -rpath /nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench/cvars cvar-uniform.lo mtwist/mtwist.lo mtwist/randistrs.lo cvar_tokens.lo  -ldl -lpthread -lm -lrt 
+libtool: link: ar cru .libs/libcvar-gamma.a  cvar-gamma.o mtwist/mtwist.o mtwist/randistrs.o cvar_tokens.o
+ar: `u' modifier ignored since `D' is the default (see `U')
+libtool: link: ranlib .libs/libcvar-gamma.a
+libtool: link: ar cru .libs/libcvar-weibull.a  cvar-weibull.o mtwist/mtwist.o mtwist/randistrs.o cvar_tokens.o
+libtool: link: ar cru .libs/libcvar-normal.a  cvar-normal.o mtwist/mtwist.o mtwist/randistrs.o cvar_tokens.o
+libtool: link: ar cru .libs/libcvar-exponential.a  cvar-exponential.o mtwist/mtwist.o mtwist/randistrs.o cvar_tokens.o
+ar: `u' modifier ignored since `D' is the default (see `U')
+ar: `u' modifier ignored since `D' is the default (see `U')
+ar: `u' modifier ignored since `D' is the default (see `U')
+libtool: link: ar cru .libs/libcvar-triangular.a  cvar-triangular.o mtwist/mtwist.o mtwist/randistrs.o cvar_tokens.o
+ar: `u' modifier ignored since `D' is the default (see `U')
+libtool: link: ranlib .libs/libcvar-exponential.a
+libtool: link: ar cru .libs/libcvar-lognormal.a  cvar-lognormal.o mtwist/mtwist.o mtwist/randistrs.o cvar_tokens.o
+libtool: link: ranlib .libs/libcvar-triangular.a
+ar: `u' modifier ignored since `D' is the default (see `U')
+libtool: link: ranlib .libs/libcvar-weibull.a
+libtool: link: ranlib .libs/libcvar-normal.a
+libtool: link: ranlib .libs/libcvar-lognormal.a
+libtool: link: ( cd ".libs" && rm -f "libcvar-gamma.la" && ln -s "../libcvar-gamma.la" "libcvar-gamma.la" )
+libtool: link: ( cd ".libs" && rm -f "libcvar-exponential.la" && ln -s "../libcvar-exponential.la" "libcvar-exponential.la" )
+libtool: link: ( cd ".libs" && rm -f "libcvar-triangular.la" && ln -s "../libcvar-triangular.la" "libcvar-triangular.la" )
+libtool: link: ( cd ".libs" && rm -f "libcvar-weibull.la" && ln -s "../libcvar-weibull.la" "libcvar-weibull.la" )
+libtool: link: ar cru .libs/libcvar-erlang.a  cvar-erlang.o mtwist/mtwist.o mtwist/randistrs.o cvar_tokens.o
+libtool: link: ( cd ".libs" && rm -f "libcvar-lognormal.la" && ln -s "../libcvar-lognormal.la" "libcvar-lognormal.la" )
+ar: `u' modifier ignored since `D' is the default (see `U')
+libtool: link: ( cd ".libs" && rm -f "libcvar-normal.la" && ln -s "../libcvar-normal.la" "libcvar-normal.la" )
+libtool: link: ranlib .libs/libcvar-erlang.a
+libtool: link: ar cru .libs/libcvar-uniform.a  cvar-uniform.o mtwist/mtwist.o mtwist/randistrs.o cvar_tokens.o
+ar: `u' modifier ignored since `D' is the default (see `U')
+libtool: link: ranlib .libs/libcvar-uniform.a
+libtool: link: ( cd ".libs" && rm -f "libcvar-erlang.la" && ln -s "../libcvar-erlang.la" "libcvar-erlang.la" )
+libtool: link: ( cd ".libs" && rm -f "libcvar-uniform.la" && ln -s "../libcvar-uniform.la" "libcvar-uniform.la" )
+make[2]: Leaving directory '/build/filebench-1.5-alpha3/cvars'
+make[2]: Entering directory '/build/filebench-1.5-alpha3'
+gcc -D_REENTRANT -DYYDEBUG -DYY_NO_INPUT -DFBDATADIR=\"/nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench\" -D_LARGEFILE64_SOURCE -D_GNU_SOURCE -I.    -Wall -Wno-unknown-pragmas -g -O2 -c -o eventgen.o eventgen.c
+gcc -D_REENTRANT -DYYDEBUG -DYY_NO_INPUT -DFBDATADIR=\"/nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench\" -D_LARGEFILE64_SOURCE -D_GNU_SOURCE -I.    -Wall -Wno-unknown-pragmas -g -O2 -c -o fb_avl.o fb_avl.c
+gcc -D_REENTRANT -DYYDEBUG -DYY_NO_INPUT -DFBDATADIR=\"/nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench\" -D_LARGEFILE64_SOURCE -D_GNU_SOURCE -I.    -Wall -Wno-unknown-pragmas -g -O2 -c -o fb_localfs.o fb_localfs.c
+gcc -D_REENTRANT -DYYDEBUG -DYY_NO_INPUT -DFBDATADIR=\"/nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench\" -D_LARGEFILE64_SOURCE -D_GNU_SOURCE -I.    -Wall -Wno-unknown-pragmas -g -O2 -c -o fb_random.o fb_random.c
+gcc -D_REENTRANT -DYYDEBUG -DYY_NO_INPUT -DFBDATADIR=\"/nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench\" -D_LARGEFILE64_SOURCE -D_GNU_SOURCE -I.    -Wall -Wno-unknown-pragmas -g -O2 -c -o fileset.o fileset.c
+gcc -D_REENTRANT -DYYDEBUG -DYY_NO_INPUT -DFBDATADIR=\"/nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench\" -D_LARGEFILE64_SOURCE -D_GNU_SOURCE -I.    -Wall -Wno-unknown-pragmas -g -O2 -c -o flowop.o flowop.c
+gcc -D_REENTRANT -DYYDEBUG -DYY_NO_INPUT -DFBDATADIR=\"/nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench\" -D_LARGEFILE64_SOURCE -D_GNU_SOURCE -I.    -Wall -Wno-unknown-pragmas -g -O2 -c -o flowop_library.o flowop_library.c
+gcc -D_REENTRANT -DYYDEBUG -DYY_NO_INPUT -DFBDATADIR=\"/nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench\" -D_LARGEFILE64_SOURCE -D_GNU_SOURCE -I.    -Wall -Wno-unknown-pragmas -g -O2 -c -o gamma_dist.o gamma_dist.c
+gcc -D_REENTRANT -DYYDEBUG -DYY_NO_INPUT -DFBDATADIR=\"/nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench\" -D_LARGEFILE64_SOURCE -D_GNU_SOURCE -I.    -Wall -Wno-unknown-pragmas -g -O2 -c -o ipc.o ipc.c
+gcc -D_REENTRANT -DYYDEBUG -DYY_NO_INPUT -DFBDATADIR=\"/nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench\" -D_LARGEFILE64_SOURCE -D_GNU_SOURCE -I.    -Wall -Wno-unknown-pragmas -g -O2 -c -o misc.o misc.c
+gcc -D_REENTRANT -DYYDEBUG -DYY_NO_INPUT -DFBDATADIR=\"/nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench\" -D_LARGEFILE64_SOURCE -D_GNU_SOURCE -I.    -Wall -Wno-unknown-pragmas -g -O2 -c -o multi_client_sync.o multi_client_sync.c
+gcc -D_REENTRANT -DYYDEBUG -DYY_NO_INPUT -DFBDATADIR=\"/nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench\" -D_LARGEFILE64_SOURCE -D_GNU_SOURCE -I.    -Wall -Wno-unknown-pragmas -g -O2 -c -o parser_gram.o parser_gram.c
+ipc.c: In function 'preallocated_entries':
+ipc.c:464:49: warning: expression does not compute the number of elements in this array; element type is 'struct avd', not 'avd_t' {aka 'struct avd *'} [-Wsizeof-array-div]
+  464 |                                                 / sizeof(avd_t);
+      |                                                 ^
+ipc.c:464:49: note: add parentheses around the second 'sizeof' to silence this warning
+multi_client_sync.c: In function 'mc_sync_open_sock':
+multi_client_sync.c:52:16: warning: 'strncpy' specified bound 128 equals destination size [-Wstringop-truncation]
+   52 |         (void) strncpy(this_client_name, my_name, MCS_NAMELENGTH);
+      |                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+misc.c: In function 'filebench_log':
+misc.c:139:65: warning: 'snprintf' output may be truncated before the last format character [-Wformat-truncation=]
+  139 |                         (void) snprintf(buf, sizeof (buf), "%s\n", line);
+      |                                                                 ^
+misc.c:139:32: note: 'snprintf' output between 2 and 131073 bytes into a destination of size 131072
+  139 |                         (void) snprintf(buf, sizeof (buf), "%s\n", line);
+      |                                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+parser_gram.y: In function 'parser_abort':
+parser_gram.y:1564:9: warning: 'sigignore' is deprecated: Use the signal function instead [-Wdeprecated-declarations]
+ 1564 |         (void) sigignore(SIGINT);
+      |         ^
+In file included from parser_gram.y:36:
+/nix/store/r25srliigrrv5q3n7y8ms6z10spvjcd9-glibc-2.40-66-dev/include/signal.h:363:12: note: declared here
+  363 | extern int sigignore (int __sig) __THROW
+      |            ^~~~~~~~~
+/nix/store/xy4jjgw87sbgwylm5kn047d9gkbhsr9x-bash-5.2p37/bin/bash ./ylwrap parser_lex.l lex.yy.c parser_lex.c -- flex  
+gcc -D_REENTRANT -DYYDEBUG -DYY_NO_INPUT -DFBDATADIR=\"/nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench\" -D_LARGEFILE64_SOURCE -D_GNU_SOURCE -I.    -Wall -Wno-unknown-pragmas -g -O2 -c -o procflow.o procflow.c
+ipc.c: In function 'ipc_stralloc':
+ipc.c:695:16: warning: 'strncpy' output truncated before terminating nul copying as many bytes from a string as its length [-Wstringop-truncation]
+  695 |         (void) strncpy(allocstr, string, strlen(string));
+      |                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ipc.c:695:16: note: length computed here
+  695 |         (void) strncpy(allocstr, string, strlen(string));
+      |                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ipc.c: In function 'ipc_pathalloc':
+ipc.c:724:16: warning: 'strncpy' output truncated before terminating nul copying as many bytes from a string as its length [-Wstringop-truncation]
+  724 |         (void) strncpy(allocpath, path, strlen(path));
+      |                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ipc.c:724:16: note: length computed here
+  724 |         (void) strncpy(allocpath, path, strlen(path));
+      |                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+procflow.c: In function 'procflow_createproc':
+procflow.c:107:17: warning: 'sigignore' is deprecated: Use the signal function instead [-Wdeprecated-declarations]
+  107 |                 (void) sigignore(SIGINT);
+      |                 ^
+In file included from procflow.c:28:
+/nix/store/r25srliigrrv5q3n7y8ms6z10spvjcd9-glibc-2.40-66-dev/include/signal.h:363:12: note: declared here
+  363 | extern int sigignore (int __sig) __THROW
+      |            ^~~~~~~~~
+gcc -D_REENTRANT -DYYDEBUG -DYY_NO_INPUT -DFBDATADIR=\"/nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench\" -D_LARGEFILE64_SOURCE -D_GNU_SOURCE -I.    -Wall -Wno-unknown-pragmas -g -O2 -c -o stats.o stats.c
+gcc -D_REENTRANT -DYYDEBUG -DYY_NO_INPUT -DFBDATADIR=\"/nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench\" -D_LARGEFILE64_SOURCE -D_GNU_SOURCE -I.    -Wall -Wno-unknown-pragmas -g -O2 -c -o threadflow.o threadflow.c
+gcc -D_REENTRANT -DYYDEBUG -DYY_NO_INPUT -DFBDATADIR=\"/nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench\" -D_LARGEFILE64_SOURCE -D_GNU_SOURCE -I.    -Wall -Wno-unknown-pragmas -g -O2 -c -o utils.o utils.c
+gcc -D_REENTRANT -DYYDEBUG -DYY_NO_INPUT -DFBDATADIR=\"/nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench\" -D_LARGEFILE64_SOURCE -D_GNU_SOURCE -I.    -Wall -Wno-unknown-pragmas -g -O2 -c -o vars.o vars.c
+gcc -D_REENTRANT -DYYDEBUG -DYY_NO_INPUT -DFBDATADIR=\"/nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench\" -D_LARGEFILE64_SOURCE -D_GNU_SOURCE -I.    -Wall -Wno-unknown-pragmas -g -O2 -c -o ioprio.o ioprio.c
+gcc -D_REENTRANT -DYYDEBUG -DYY_NO_INPUT -DFBDATADIR=\"/nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench\" -D_LARGEFILE64_SOURCE -D_GNU_SOURCE -I.    -Wall -Wno-unknown-pragmas -g -O2 -c -o fbtime.o fbtime.c
+gcc -D_REENTRANT -DYYDEBUG -DYY_NO_INPUT -DFBDATADIR=\"/nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench\" -D_LARGEFILE64_SOURCE -D_GNU_SOURCE -I.    -Wall -Wno-unknown-pragmas -g -O2 -c -o fb_cvar.o fb_cvar.c
+gcc -D_REENTRANT -DYYDEBUG -DYY_NO_INPUT -DFBDATADIR=\"/nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench\" -D_LARGEFILE64_SOURCE -D_GNU_SOURCE -I.    -Wall -Wno-unknown-pragmas -g -O2 -c -o aslr.o aslr.c
+gcc -D_REENTRANT -DYYDEBUG -DYY_NO_INPUT -DFBDATADIR=\"/nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench\" -D_LARGEFILE64_SOURCE -D_GNU_SOURCE -I.    -Wall -Wno-unknown-pragmas -g -O2 -c -o parser_lex.o parser_lex.c
+/nix/store/xy4jjgw87sbgwylm5kn047d9gkbhsr9x-bash-5.2p37/bin/bash ./libtool  --tag=CC   --mode=link gcc -Wall -Wno-unknown-pragmas -g -O2   -o filebench eventgen.o fb_avl.o fb_localfs.o fb_random.o fileset.o flowop.o flowop_library.o gamma_dist.o ipc.o misc.o multi_client_sync.o parser_gram.o parser_lex.o procflow.o stats.o threadflow.o utils.o vars.o ioprio.o fbtime.o fb_cvar.o aslr.o cvars/mtwist/mtwist.o  -ldl -lpthread -lm -lrt 
+libtool: link: gcc -Wall -Wno-unknown-pragmas -g -O2 -o filebench eventgen.o fb_avl.o fb_localfs.o fb_random.o fileset.o flowop.o flowop_library.o gamma_dist.o ipc.o misc.o multi_client_sync.o parser_gram.o parser_lex.o procflow.o stats.o threadflow.o utils.o vars.o ioprio.o fbtime.o fb_cvar.o aslr.o cvars/mtwist/mtwist.o  -ldl -lpthread -lm -lrt
+make[2]: Leaving directory '/build/filebench-1.5-alpha3'
+make[1]: Leaving directory '/build/filebench-1.5-alpha3'
+Running phase: installPhase
+install flags: -j12 SHELL=/nix/store/xy4jjgw87sbgwylm5kn047d9gkbhsr9x-bash-5.2p37/bin/bash install
+make  install-recursive
+make[1]: Entering directory '/build/filebench-1.5-alpha3'
+Making install in workloads
+make[2]: Entering directory '/build/filebench-1.5-alpha3/workloads'
+make[3]: Entering directory '/build/filebench-1.5-alpha3/workloads'
+make[3]: Nothing to be done for 'install-exec-am'.
+ /nix/store/87fck6hm17chxjq7badb11mq036zbyv9-coreutils-9.7/bin/mkdir -p '/nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench/workloads'
+ /nix/store/87fck6hm17chxjq7badb11mq036zbyv9-coreutils-9.7/bin/install -c -m 644 compflow_demo.f copyfiles.f createfiles.f cvar_example.f filemicro_create.f filemicro_createfiles.f filemicro_createrand.f filemicro_delete.f filemicro_rread.f filemicro_rwritedsync.f filemicro_rwrite.f filemicro_rwritefsync.f filemicro_seqread.f filemicro_seqwrite.f filemicro_seqwriterand.f filemicro_seqwriterandvargam.f filemicro_seqwriterandvartab.f filemicro_statfile.f filemicro_writefsync.f fileserver.f listdirs.f makedirs.f mongo.f fivestreamreaddirect.f fivestreamread.f fivestreamwritedirect.f fivestreamwrite.f netsfs.f networkfs.f oltp.f openfiles.f randomfileaccess.f randomread.f randomrw.f randomwrite.f ratelimcopyfiles.f removedirs.f singlestreamreaddirect.f singlestreamread.f singlestreamwritedirect.f '/nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench/workloads'
+ /nix/store/87fck6hm17chxjq7badb11mq036zbyv9-coreutils-9.7/bin/install -c -m 644 singlestreamwrite.f tpcso.f varmail.f videoserver.f webproxy.f webserver.f '/nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench/workloads'
+make[3]: Leaving directory '/build/filebench-1.5-alpha3/workloads'
+make[2]: Leaving directory '/build/filebench-1.5-alpha3/workloads'
+Making install in cvars
+make[2]: Entering directory '/build/filebench-1.5-alpha3/cvars'
+make[3]: Entering directory '/build/filebench-1.5-alpha3/cvars'
+ /nix/store/87fck6hm17chxjq7badb11mq036zbyv9-coreutils-9.7/bin/mkdir -p '/nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench/cvars'
+make[3]: Nothing to be done for 'install-data-am'.
+ /nix/store/xy4jjgw87sbgwylm5kn047d9gkbhsr9x-bash-5.2p37/bin/bash ../libtool   --mode=install /nix/store/87fck6hm17chxjq7badb11mq036zbyv9-coreutils-9.7/bin/install -c   libcvar-erlang.la libcvar-exponential.la libcvar-lognormal.la libcvar-normal.la libcvar-triangular.la libcvar-uniform.la libcvar-weibull.la libcvar-gamma.la '/nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench/cvars'
+libtool: install: /nix/store/87fck6hm17chxjq7badb11mq036zbyv9-coreutils-9.7/bin/install -c .libs/libcvar-erlang.lai /nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench/cvars/libcvar-erlang.la
+libtool: install: /nix/store/87fck6hm17chxjq7badb11mq036zbyv9-coreutils-9.7/bin/install -c .libs/libcvar-exponential.lai /nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench/cvars/libcvar-exponential.la
+libtool: install: /nix/store/87fck6hm17chxjq7badb11mq036zbyv9-coreutils-9.7/bin/install -c .libs/libcvar-lognormal.lai /nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench/cvars/libcvar-lognormal.la
+libtool: install: /nix/store/87fck6hm17chxjq7badb11mq036zbyv9-coreutils-9.7/bin/install -c .libs/libcvar-normal.lai /nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench/cvars/libcvar-normal.la
+libtool: install: /nix/store/87fck6hm17chxjq7badb11mq036zbyv9-coreutils-9.7/bin/install -c .libs/libcvar-triangular.lai /nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench/cvars/libcvar-triangular.la
+libtool: install: /nix/store/87fck6hm17chxjq7badb11mq036zbyv9-coreutils-9.7/bin/install -c .libs/libcvar-uniform.lai /nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench/cvars/libcvar-uniform.la
+libtool: install: /nix/store/87fck6hm17chxjq7badb11mq036zbyv9-coreutils-9.7/bin/install -c .libs/libcvar-weibull.lai /nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench/cvars/libcvar-weibull.la
+libtool: install: /nix/store/87fck6hm17chxjq7badb11mq036zbyv9-coreutils-9.7/bin/install -c .libs/libcvar-gamma.lai /nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench/cvars/libcvar-gamma.la
+libtool: install: /nix/store/87fck6hm17chxjq7badb11mq036zbyv9-coreutils-9.7/bin/install -c .libs/libcvar-erlang.a /nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench/cvars/libcvar-erlang.a
+libtool: install: chmod 644 /nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench/cvars/libcvar-erlang.a
+libtool: install: ranlib /nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench/cvars/libcvar-erlang.a
+libtool: install: /nix/store/87fck6hm17chxjq7badb11mq036zbyv9-coreutils-9.7/bin/install -c .libs/libcvar-exponential.a /nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench/cvars/libcvar-exponential.a
+libtool: install: chmod 644 /nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench/cvars/libcvar-exponential.a
+libtool: install: ranlib /nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench/cvars/libcvar-exponential.a
+libtool: install: /nix/store/87fck6hm17chxjq7badb11mq036zbyv9-coreutils-9.7/bin/install -c .libs/libcvar-lognormal.a /nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench/cvars/libcvar-lognormal.a
+libtool: install: chmod 644 /nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench/cvars/libcvar-lognormal.a
+libtool: install: ranlib /nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench/cvars/libcvar-lognormal.a
+libtool: install: /nix/store/87fck6hm17chxjq7badb11mq036zbyv9-coreutils-9.7/bin/install -c .libs/libcvar-normal.a /nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench/cvars/libcvar-normal.a
+libtool: install: chmod 644 /nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench/cvars/libcvar-normal.a
+libtool: install: ranlib /nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench/cvars/libcvar-normal.a
+libtool: install: /nix/store/87fck6hm17chxjq7badb11mq036zbyv9-coreutils-9.7/bin/install -c .libs/libcvar-triangular.a /nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench/cvars/libcvar-triangular.a
+libtool: install: chmod 644 /nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench/cvars/libcvar-triangular.a
+libtool: install: ranlib /nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench/cvars/libcvar-triangular.a
+libtool: install: /nix/store/87fck6hm17chxjq7badb11mq036zbyv9-coreutils-9.7/bin/install -c .libs/libcvar-uniform.a /nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench/cvars/libcvar-uniform.a
+libtool: install: chmod 644 /nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench/cvars/libcvar-uniform.a
+libtool: install: ranlib /nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench/cvars/libcvar-uniform.a
+libtool: install: /nix/store/87fck6hm17chxjq7badb11mq036zbyv9-coreutils-9.7/bin/install -c .libs/libcvar-weibull.a /nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench/cvars/libcvar-weibull.a
+libtool: install: chmod 644 /nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench/cvars/libcvar-weibull.a
+libtool: install: ranlib /nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench/cvars/libcvar-weibull.a
+libtool: install: /nix/store/87fck6hm17chxjq7badb11mq036zbyv9-coreutils-9.7/bin/install -c .libs/libcvar-gamma.a /nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench/cvars/libcvar-gamma.a
+libtool: install: chmod 644 /nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench/cvars/libcvar-gamma.a
+libtool: install: ranlib /nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench/cvars/libcvar-gamma.a
+libtool: finish: PATH="/nix/store/142lbjxi74mv9nkb9k4831v2x8v5w5zv-bison-3.8.2/bin:/nix/store/cab2yvnph1hfym998vdq0q4nr9zfndrs-gnum4-1.4.19/bin:/nix/store/wzwlizg15dwh6x0h3ckjmibdblfkfdzf-flex-2.6.4/bin:/nix/store/2jc1jmzis19adawjwhl8qhdvh7vlbk0q-patchelf-0.15.0/bin:/nix/store/0fsnicvfpf55nkza12cjnad0w84d6ba7-gcc-wrapper-14.2.1.20250322/bin:/nix/store/9ds850ifd4jwcccpp3v14818kk74ldf2-gcc-14.2.1.20250322/bin:/nix/store/303islqk386z1w2g1ngvxnkl4glfpgrs-glibc-2.40-66-bin/bin:/nix/store/87fck6hm17chxjq7badb11mq036zbyv9-coreutils-9.7/bin:/nix/store/hhfm5fkvb1alg1np5a69m2qlcjqhr062-binutils-wrapper-2.44/bin:/nix/store/v63bxfiacw082c7ijshf60alvvrpfxsq-binutils-2.44/bin:/nix/store/87fck6hm17chxjq7badb11mq036zbyv9-coreutils-9.7/bin:/nix/store/7y59hzi3svdj1xjddjn2k7km96pifcyl-findutils-4.10.0/bin:/nix/store/7h0sard22wnbz0jyz07w8y9y0fcs795r-diffutils-3.12/bin:/nix/store/clbb2cvigynr235ab5zgi18dyavznlk2-gnused-4.9/bin:/nix/store/gqmr3gixlddz3667ba1iyqck3c0dkpvd-gnugrep-3.11/bin:/nix/store/fcyn0dqszgfysiasdmkv1jh3syncajay-gawk-5.3.2/bin:/nix/store/wrxvqj822kz8746608lgns7h8mkpn79f-gnutar-1.35/bin:/nix/store/afhkqb5a94zlwjxigsnwsfwkf38h21dk-gzip-1.14/bin:/nix/store/1abbyfv3bpxalfjfgpmwg8jcy931bf76-bzip2-1.0.8-bin/bin:/nix/store/kv10h4pidkmx8cjs2sw2pi9rlcnighbc-gnumake-4.4.1/bin:/nix/store/xy4jjgw87sbgwylm5kn047d9gkbhsr9x-bash-5.2p37/bin:/nix/store/x0kaspzb5jqvgp357bj27z6iq24ximfg-patch-2.7.6/bin:/nix/store/98zamhd8d0jq3skqwz28dlgph94mrqir-xz-5.8.1-bin/bin:/nix/store/imhzyxqr7swq08ip81az5kfa07r07kg0-file-5.46/bin:/sbin" ldconfig -n /nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench/cvars
+----------------------------------------------------------------------
+Libraries have been installed in:
+   /nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/share/filebench/cvars
+
+If you ever happen to want to link against installed libraries
+in a given directory, LIBDIR, you must either use libtool, and
+specify the full pathname of the library, or use the '-LLIBDIR'
+flag during linking and do at least one of the following:
+   - add LIBDIR to the 'LD_LIBRARY_PATH' environment variable
+     during execution
+   - add LIBDIR to the 'LD_RUN_PATH' environment variable
+     during linking
+   - use the '-Wl,-rpath -Wl,LIBDIR' linker flag
+
+See any operating system documentation about shared libraries for
+more information, such as the ld(1) and ld.so(8) manual pages.
+----------------------------------------------------------------------
+make[3]: Leaving directory '/build/filebench-1.5-alpha3/cvars'
+make[2]: Leaving directory '/build/filebench-1.5-alpha3/cvars'
+make[2]: Entering directory '/build/filebench-1.5-alpha3'
+make[3]: Entering directory '/build/filebench-1.5-alpha3'
+make[3]: Nothing to be done for 'install-data-am'.
+ /nix/store/87fck6hm17chxjq7badb11mq036zbyv9-coreutils-9.7/bin/mkdir -p '/nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/bin'
+  /nix/store/xy4jjgw87sbgwylm5kn047d9gkbhsr9x-bash-5.2p37/bin/bash ./libtool   --mode=install /nix/store/87fck6hm17chxjq7badb11mq036zbyv9-coreutils-9.7/bin/install -c filebench '/nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/bin'
+libtool: install: /nix/store/87fck6hm17chxjq7badb11mq036zbyv9-coreutils-9.7/bin/install -c filebench /nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/bin/filebench
+make[3]: Leaving directory '/build/filebench-1.5-alpha3'
+make[2]: Leaving directory '/build/filebench-1.5-alpha3'
+make[1]: Leaving directory '/build/filebench-1.5-alpha3'
+Running phase: fixupPhase
+shrinking RPATHs of ELF executables and libraries in /nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3
+shrinking /nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/bin/filebench
+checking for references to /build/ in /nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3...
+patching script interpreter paths in /nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3
+stripping (with command strip and flags -S -p) in  /nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/bin
+/nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3
+[inner] filebench nix-build ok: /nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/bin/filebench
+[pair] ===== job sqlite/ext2_benchmarks =====
+[pair] START asterinas sqlite/ext2_benchmarks MEM=4G
+[inner] make kernel BENCHMARK=sqlite/ext2_benchmarks MEM=4G (Icelake via osdk, no mlock)
+build_rc=0
+make_pid=4988
+qemu_log=/root/asterinas/qemu.log
+watchdog=booted after 6s
+parsed_asterinas-kvm_ext2=244.649
+[pair] START linux-initramfs sqlite/ext2_benchmarks MEM=4G kernel=/opt/linux_binary_cache/vmlinuz
+[pair] prepare_fs mke2fs ext2 (Asterinas-compatible features)
+qemu_pid=5949
+watchdog=booted after 4s
+parsed_linux-qemu-initramfs_ext2=94.040
+[pair] ===== job filebench/ext2_benchmarks =====
+[pair] START asterinas filebench/ext2_benchmarks MEM=4G
+[inner] make kernel BENCHMARK=filebench/ext2_benchmarks MEM=4G (Icelake via osdk, no mlock)
+build_rc=0
+make_pid=6339
+qemu_log=/root/asterinas/qemu.log
+parsed_asterinas-kvm_ext2=NO_SUMMARY
+[pair] START linux-initramfs filebench/ext2_benchmarks MEM=4G kernel=/opt/linux_binary_cache/vmlinuz
+[pair] prepare_fs mke2fs ext2 (Asterinas-compatible features)
+qemu_pid=6549
+watchdog=done after 4s pid=6549
+parsed_linux-qemu-initramfs_ext2=PANIC
+[pair] docker inner done
+[asterinas-pair] done -> /home/jacob/ccoontest/retest/fb-sqlite-4g-v2/pair
+2026-08-17T17:30:49Z DONE pair
+wrote /home/jacob/ccoontest/retest/fb-sqlite-4g-v2/SUMMARY.md
+2026-08-17T17:30:49Z ALL_STAGES_FINISHED summary=/home/jacob/ccoontest/retest/fb-sqlite-4g-v2/SUMMARY.md pair_rc=0

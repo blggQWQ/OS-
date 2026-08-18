@@ -208,6 +208,7 @@ V03–V07 只翻转清单里的一个字节，继续用原始正确 root hash；
 |---|---|---|---|
 | Filebench fileserver | raw 5 + dm-crypt 5 | PASS；verity 只读 N/A | `docs/evidence/linux-qemu-filebench-sqlite-20260817/filebench/` |
 | SQLite 10,000 行 | raw 5 + dm-crypt 5 + dm-verity 5 | PASS | `docs/evidence/linux-qemu-filebench-sqlite-20260817/sqlite/` |
+| 4 GiB initramfs Filebench / SQLite | Asterinas vs Linux 各 1 轮 | 新配置对照 | `docs/evidence/asterinas-linux-initramfs-4g-20260818/` |
 | Asterinas 启动耗时 | plain 5 + dm-crypt 5 + dm-verity 5 | PASS | `docs/evidence/final-performance-20260811/boot-matrix/` |
 
 ### 256 MiB 正式合同：Asterinas raw / dm-crypt / dm-verity
@@ -294,6 +295,31 @@ virtio `/dev/vdb`，fileserver，2000 文件，50 线程，60 s，五轮中位�
 | raw | 5 | 0.138095 | 0.000191 | 完整写入与查询 |
 | dm-crypt | 5 | 0.143336 | 0.000149 | 完整写入与查询 |
 | dm-verity | 5 | 0.001151 | 0.000571 | 只读查询 |
+
+### 4 GiB initramfs：Asterinas vs Linux（新配置）
+
+与上一节 8 GiB Linux guest Filebench / SQLite **不是同一合同**，不能横比、不能并进五轮中位表。两端跑 Asterinas 同一套 initramfs job，测 virtio-blk 上的 **ext2**，不是 dm-crypt / dm-verity mapper。证据：`docs/evidence/asterinas-linux-initramfs-4g-20260818/`。
+
+| 项 | 本配置 |
+|---|---|
+| 内存 / vCPU | 4 GiB / 1 |
+| 加速 / CPU | KVM / `Icelake-Server`（`-pcid,+x2apic`） |
+| QEMU 锁页 | 关（无 mlock） |
+| 块设备 | virtio-blk ext2（`^ext_attr ^resize_inode ^dir_index`） |
+| Asterinas | `make kernel BENCHMARK=… MEM=4G ENABLE_KVM=1 RELEASE_LTO=1 NETDEV=user` |
+| Linux 对照 | 同一 initramfs：`-kernel` + `-initrd`，`rdinit=/benchmark/common/bench_runner.sh` |
+| 轮数 | 各 1 轮，不取中位数 |
+| SQLite | `sqlite-speedtest1 --size 1000 /ext2/test.db`，记录 TOTAL 秒 |
+| Filebench | 1.5-alpha3 CSCC fileserver；日志：10000 文件、dirwidth=20、1250 MB、runtime 60 s |
+
+| 负载 | Asterinas | Linux initramfs | 相对 |
+|---|---:|---:|---|
+| SQLite TOTAL（s，越小越好） | 244.649 | 94.040 | Asterinas 为 Linux 的 **2.60×** |
+| Filebench ops/s | 8398.724 | 11545.120 | Asterinas 为 Linux 的 **72.7%** |
+| Filebench MB/s | 201.9 | 278.5 | Asterinas 为 Linux 的 **72.5%** |
+| Filebench ms/op | 4.3 | 3.1 | — |
+
+另有 SQLite 第二轮：Asterinas `SCHEME=iommu` 为 111.956 s，Linux（未开 `intel-iommu`）为 55.302 s。Linux 在未改自身标志时也从 94.040 变到 55.302，存在宿主机噪声，不能单独归因于 IOMMU。原始 CSV 见 `pair/` 与 `pair-iommu/`。
 
 ### Asterinas 启动耗时
 
@@ -464,6 +490,7 @@ OUT_ROOT="$PWD/docs/evidence/asterinas-fio" \
   --asterinas-dir "$PWD/asterinas" --runs 5
 
 # Filebench / SQLite：docs/evidence/linux-qemu-filebench-sqlite-20260817/
+# 4 GiB initramfs 对照：docs/evidence/asterinas-linux-initramfs-4g-20260818/
 
 sudo bash scripts/build_asterinas_boot_images.sh
 OUT_DIR="$PWD/docs/evidence/boot-matrix" RUNS=5 ENABLE_KVM=1 \

@@ -1,0 +1,6 @@
+2026-08-17T17:23:54Z run_fb_sqlite_4g_v2.sh pid=9955 MEM=4G repo=/home/jacob/ccoontest/project3136859-389133 lock=off
+2026-08-17T17:23:57Z cgroup=/retest.slice/retest-4g.slice/runner memory.min=4G qemu_lock=off
+2026-08-17T17:23:57Z prereq kvm=ok MemAvailable=6575MiB MEM=4G qemu_lock=off
+2026-08-17T17:23:57Z START asterinas-linux-initramfs pair
+2026-08-17T17:30:49Z DONE pair
+2026-08-17T17:30:49Z ALL_STAGES_FINISHED summary=/home/jacob/ccoontest/retest/fb-sqlite-4g-v2/SUMMARY.md pair_rc=0

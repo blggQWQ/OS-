@@ -9,6 +9,7 @@
 | `final-performance-20260811/asterinas-fio/` | 恢复后的 dm-crypt 与修正后的 dm-verity 原始证据 | 正式 |
 | `linux-qemu-fio-20260816/` | Linux QEMU virtio raw / dm-crypt / dm-verity FIO JSON | 正式 |
 | `linux-qemu-filebench-sqlite-20260817/` | Linux QEMU guest Filebench / SQLite | 正式 |
+| `asterinas-linux-initramfs-4g-20260818/` | 4 GiB initramfs：Asterinas vs Linux Filebench / SQLite（新配置，单轮） | 补充对照 |
 | `final-performance-20260811/filebench-valid/` | Linux host Filebench | 归档，不再引用 |
 | `final-performance-20260811/sqlite/` | Linux host SQLite | 归档，不再引用 |
 | `final-performance-20260811/boot-matrix/` | Asterinas 三场景共 15 轮 | 正式 |

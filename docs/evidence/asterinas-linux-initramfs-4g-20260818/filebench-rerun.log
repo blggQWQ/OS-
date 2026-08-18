@@ -1,0 +1,25 @@
+[inner] PATH=/root/.nix-profile/bin:/root/.cargo/bin:/usr/local/qemu/bin:/root/.nix-profile/bin:/nix/var/nix/profiles/default/bin:/root/asterinas/target/bin:/nix/var/nix/profiles/default/bin:/usr/local/grub/bin:/usr/local/qemu/bin:/root/.cargo/bin:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+/root/.nix-profile/bin/nix-build
+/root/.cargo/bin/rustc
+/usr/local/qemu/bin/qemu-system-x86_64
+[inner] smoke-build filebench (fail fast before kernel compile)
+/nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3
+[inner] filebench nix-build ok: /nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/bin/filebench
+[pair] ===== job filebench/ext2_benchmarks =====
+[pair] START asterinas filebench/ext2_benchmarks MEM=4G
+[inner] make kernel BENCHMARK=filebench/ext2_benchmarks MEM=4G (Icelake via osdk, no mlock)
+build_rc=0
+make_pid=6932
+qemu_log=/root/asterinas/qemu.log
+watchdog=booted after 4s
+/root/retest/scripts/asterinas_pair_inner.sh: line 98:  6932 Killed                  setsid make run_kernel "BENCHMARK=${bench}" "SMP=${SMP}" "MEM=${MEM}" ENABLE_KVM=1 RELEASE_LTO=1 NETDEV=user >> "$cell/make.log" 2>&1
+watchdog=done after 88s pid=6932
+parsed_asterinas-kvm_ext2=8398.724ops/s
+[pair] START linux-initramfs filebench/ext2_benchmarks MEM=4G kernel=/opt/linux_binary_cache/vmlinuz
+[pair] prepare_fs mke2fs ext2 (Asterinas-compatible features)
+qemu_pid=7392
+watchdog=booted after 4s
+watchdog=done after 73s pid=7392
+parsed_linux-qemu-initramfs_ext2=11545.120ops/s
+[pair] docker inner done
+[asterinas-pair] done -> /home/jacob/ccoontest/retest/fb-sqlite-4g-v2/pair

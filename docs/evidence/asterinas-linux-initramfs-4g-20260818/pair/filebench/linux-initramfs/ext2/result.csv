@@ -1,0 +1,2 @@
+platform,filesystem,workload,status,ops,ops_per_sec,mb_per_sec
+linux-qemu-initramfs,ext2,filebench-fileserver,ok,693039,11545.120,278.5

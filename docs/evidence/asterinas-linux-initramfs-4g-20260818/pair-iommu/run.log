@@ -1,0 +1,22 @@
+[inner] PATH=/root/.nix-profile/bin:/root/.cargo/bin:/usr/local/qemu/bin:/root/.nix-profile/bin:/nix/var/nix/profiles/default/bin:/root/asterinas/target/bin:/nix/var/nix/profiles/default/bin:/usr/local/grub/bin:/usr/local/qemu/bin:/root/.cargo/bin:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+/root/.nix-profile/bin/nix-build
+/root/.cargo/bin/rustc
+/usr/local/qemu/bin/qemu-system-x86_64
+[inner] smoke-build filebench (fail fast before kernel compile)
+/nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3
+[inner] filebench nix-build ok: /nix/store/h0hbd7dkmcy0p10i7i2snaldfz5qy58l-filebench-1.5-alpha3/bin/filebench
+[pair] ===== job sqlite/ext2_benchmarks =====
+[pair] START asterinas sqlite/ext2_benchmarks MEM=4G
+[inner] make kernel BENCHMARK=sqlite/ext2_benchmarks MEM=4G SCHEME=iommu (Icelake via osdk, no mlock)
+build_rc=0
+make_pid=190
+qemu_log=/root/asterinas/qemu.log
+watchdog=booted after 5s
+parsed_asterinas-kvm_ext2=111.956
+[pair] START linux-initramfs sqlite/ext2_benchmarks MEM=4G kernel=/opt/linux_binary_cache/vmlinuz
+[pair] prepare_fs mke2fs ext2 (Asterinas-compatible features)
+qemu_pid=741
+watchdog=booted after 3s
+parsed_linux-qemu-initramfs_ext2=55.302
+[pair] docker inner done
+[asterinas-pair] done -> /home/jacob/ccoontest/retest/fb-sqlite-4g-v2/pair-iommu
