@@ -236,42 +236,41 @@ Asterinas 的 raw、dm-crypt、dm-verity 绝对吞吐分别为 Linux guest 的 *
 
 ### Linux FIO：QEMU/KVM virtio-blk（raw / dm-crypt / dm-verity）
 
-QEMU/KVM、`-cpu host`、1 vCPU、8 GiB、virtio-blk、受测区 256 MiB、fio 3.36、`libaio`、`direct=1`、`numjobs=1`、5 轮中位。证据：`docs/evidence/linux-qemu-fio-20260816/`。
+QEMU/KVM、`-cpu host`、1 vCPU、8 GiB、virtio-blk、受测区 256 MiB、fio 3.36、`libaio`、`direct=1`、`numjobs=1`、**qd=1**、5 轮中位。证据：`docs/evidence/linux-qemu-fio-20260816/`。
 
-| workload | bs | qd | raw | dm-crypt | dm-verity |
-|---|---:|---:|---:|---:|---:|
-| read | 4K | 1 | 11.391 | 10.942 | 10.704 |
-| read | 32K | 1 | 73.074 | 68.706 | 67.859 |
-| read | 256K | 1 | 134.623 | 129.474 | 122.088 |
-| randread | 4K | 1 | 10.673 | 10.703 | 10.245 |
-| randread | 32K | 1 | 69.902 | 67.168 | 65.493 |
-| randread | 256K | 1 | 136.823 | 128.612 | 123.775 |
-| write | 4K | 1 | 11.490 | 10.992 | N/A（只读） |
-| write | 32K | 1 | 73.705 | 69.765 | N/A（只读） |
-| write | 256K | 1 | 129.087 | 119.888 | N/A（只读） |
-| randwrite | 4K | 1 | 10.811 | 10.479 | N/A（只读） |
-| randwrite | 32K | 1 | 71.927 | 68.253 | N/A（只读） |
-| randwrite | 256K | 1 | 130.124 | 109.453 | N/A（只读） |
+| workload | bs | raw | dm-crypt | dm-verity |
+|---|---:|---:|---:|---:|
+| read | 4K | 11.391 | 10.942 | 10.704 |
+| read | 32K | 73.074 | 68.706 | 67.859 |
+| read | 256K | 134.623 | 129.474 | 122.088 |
+| randread | 4K | 10.673 | 10.703 | 10.245 |
+| randread | 32K | 69.902 | 67.168 | 65.493 |
+| randread | 256K | 136.823 | 128.612 | 123.775 |
+| write | 4K | 11.490 | 10.992 | N/A（只读） |
+| write | 32K | 73.705 | 69.765 | N/A（只读） |
+| write | 256K | 129.087 | 119.888 | N/A（只读） |
+| randwrite | 4K | 10.811 | 10.479 | N/A（只读） |
+| randwrite | 32K | 71.927 | 68.253 | N/A（只读） |
+| randwrite | 256K | 130.124 | 109.453 | N/A（只读） |
 
 ### Asterinas KVM FIO：真实保护 mapper
 
-单位：MiB/s。KVM、1 vCPU、8 GiB、virtio-blk、五轮中位。
+单位：MiB/s。KVM、1 vCPU、8 GiB、virtio-blk、**qd=1**、五轮中位。
 
-| workload | bs | qd | raw | dm-crypt | dm-verity |
-|---|---:|---:|---:|---:|---:|
-| read | 4K | 1 | 8.813 | 8.908 | 7.505 |
-| read | 32K | 1 | 55.981 | 52.810 | 33.893 |
-| read | 256K | 1 | 104.929 | 97.456 | 53.363 |
-| randread | 4K | 1 | 7.563 | 8.514 | 4.970 |
-| randread | 4K | 16 | N/A | 8.614 | 4.618 |
-| randread | 32K | 1 | 51.808 | 52.176 | 26.110 |
-| randread | 256K | 1 | N/A | 96.890 | 50.050 |
-| write | 4K | 1 | 9.333 | 8.926 | N/A（只读） |
-| write | 32K | 1 | 56.906 | 54.782 | N/A（只读） |
-| write | 256K | 1 | 99.090 | 94.097 | N/A（只读） |
-| randwrite | 4K | 1 | 5.523 | 8.482 | N/A（只读） |
-| randwrite | 32K | 1 | 43.295 | 53.551 | N/A（只读） |
-| randwrite | 256K | 1 | 73.742 | 93.541 | N/A（只读） |
+| workload | bs | raw | dm-crypt | dm-verity |
+|---|---:|---:|---:|---:|
+| read | 4K | 8.813 | 8.908 | 7.505 |
+| read | 32K | 55.981 | 52.810 | 33.893 |
+| read | 256K | 104.929 | 97.456 | 53.363 |
+| randread | 4K | 7.563 | 8.514 | 4.970 |
+| randread | 32K | 51.808 | 52.176 | 26.110 |
+| randread | 256K | N/A | 96.890 | 50.050 |
+| write | 4K | 9.333 | 8.926 | N/A（只读） |
+| write | 32K | 56.906 | 54.782 | N/A（只读） |
+| write | 256K | 99.090 | 94.097 | N/A（只读） |
+| randwrite | 4K | 5.523 | 8.482 | N/A（只读） |
+| randwrite | 32K | 43.295 | 53.551 | N/A（只读） |
+| randwrite | 256K | 73.742 | 93.541 | N/A（只读） |
 
 ### Filebench fileserver（Linux QEMU/KVM guest）
 
