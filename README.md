@@ -8,7 +8,7 @@
 | 学校 | 华南师范大学 |
 | 成员 | 张乐桁、陈韵、潘利源 |
 | 赛题 | 面向 Rust OS 的高性能可信存储实现 |
-| 讲解视频 | [百度网盘：操作系统竞赛](https://pan.baidu.com/s/1aDbv9a4HCEqz8pUGUqma9A?pwd=oscp)，提取码 `oscp` |
+| 演示视频 | [百度网盘：操作系统竞赛](https://pan.baidu.com/s/1aDbv9a4HCEqz8pUGUqma9A?pwd=oscp)，提取码 `oscp` |
 | 答辩材料 | PPT（PPTX/PDF）与 8 分钟视频已通过希冀专门入口提交 |
 | 上游内核 | [`asterinas/`](asterinas/) 软链接 [Asterinas 官方仓库](https://github.com/asterinas/asterinas) |
 | 技术文档 |  [设计赛道](docs/design_doc/design_doc.pdf) · [设计赛道源码](docs/design_doc/) |
