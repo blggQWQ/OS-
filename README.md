@@ -236,7 +236,7 @@ Asterinas 的 raw、dm-crypt、dm-verity 绝对吞吐分别为 Linux guest 的 *
 
 ### Linux FIO：QEMU/KVM virtio-blk（raw / dm-crypt / dm-verity）
 
-QEMU/KVM、`-cpu host`、1 vCPU、8 GiB、virtio-blk、受测区 256 MiB、fio 3.36、`libaio`、`direct=1`、`numjobs=1`、**qd=1**、5 轮中位。证据：`docs/evidence/linux-qemu-fio-20260816/`。
+QEMU/KVM、`-cpu host`、1 vCPU、8 GiB、virtio-blk、受测区 256 MiB、fio 3.36、`libaio`、`direct=1`、`numjobs=1`、qd=1、5 轮中位。证据：`docs/evidence/linux-qemu-fio-20260816/`。
 
 | workload | bs | raw | dm-crypt | dm-verity |
 |---|---:|---:|---:|---:|
@@ -255,7 +255,7 @@ QEMU/KVM、`-cpu host`、1 vCPU、8 GiB、virtio-blk、受测区 256 MiB、fio 3
 
 ### Asterinas KVM FIO：真实保护 mapper
 
-单位：MiB/s。KVM、1 vCPU、8 GiB、virtio-blk、**qd=1**、五轮中位。
+单位：MiB/s。KVM、1 vCPU、8 GiB、virtio-blk、qd=1、五轮中位。
 
 | workload | bs | raw | dm-crypt | dm-verity |
 |---|---:|---:|---:|---:|
