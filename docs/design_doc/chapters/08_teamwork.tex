@@ -186,10 +186,14 @@
         \toprule
         \textbf{工具名称} & \textbf{相关大模型} & \textbf{具体使用场景与辅助内容} \\
         \midrule
-        OpenAI Codex & GPT-5 & 1. 阅读和梳理星绽框架、\texttt{dm-crypt}、\texttt{dm-verity} 相关底层代码；\\
-         & & 2. 辅助分析 BIO 数据路径、启动挂起与构建问题；\\
-         & & 3. 生成或修改部分 Rust、Shell 测试和构建脚本；\\
-         & & 4. 协助整理参赛文档表述并进行完成度自查。 \\
+        Cursor & Composer 2.5 & 1. 全盘检索答辩素材（PPT、PDF、图片、文本等）并核对清单；\\
+         & & 2. 按答辩四段结构将14个素材文件分类归档至 \texttt{答辩PPT素材/} 目录；\\
+         & & 3. 辅助整理答辩 PPT 的素材组织结构。\\
+        \midrule
+        Claude Code & GLM 5.2 & 1. 深度审查 dm-crypt 实现，重点检查 AES-256-XTS 的 tweak 计算、扇区号换算、加解密对称性与边界条件；\\
+         & & 2. 与 Asterinas 内核侧实现及 Linux dm-crypt/cryptsetup 语义交叉比对，验证核心算法正确性；\\
+         & & 3. 输出结构化审查报告，列出 \texttt{iv\_large\_sectors} 被静默接受、缺少已知答案测试（KAT）等6项潜在问题及验证方法；\\
+         & & 4. 给出修复优先级建议，并提供相应补丁与 NIST KAT 测试用例供人工审阅取舍。\\
         \midrule
         通义千问（Qwen） & Qwen-Max & 技术文档的深度润色，确保中英文专业术语的准确性与一致性。 \\
         \midrule
@@ -202,82 +206,36 @@
 
 \textbf{AI 交互记录}：以下是开发过程中与 AI 工具的关键交互截图，证明 AI 仅作为辅助工具，开发逻辑由团队主导。
 
-\subsubsection{OpenAI Codex 交互记录（GPT-5）}
+\subsubsection{Cursor（Composer 2.5）交互记录}
 
 \begin{figure}[H]
     \centering
-    \begin{subfigure}[b]{0.45\textwidth}
-        \centering
-        \includegraphics[width=\textwidth]{codex_ai_1.png}
-        \caption{代码分析与框架理解}
-        \label{fig:codex_1}
-    \end{subfigure}
-    \hfill
-    \begin{subfigure}[b]{0.45\textwidth}
-        \centering
-        \includegraphics[width=\textwidth]{codex_ai_2.png}
-        \caption{\texttt{sector\_size} 兼容性与算术溢出风险分析}
-        \label{fig:codex_2}
-    \end{subfigure}
-    \caption{OpenAI Codex 交互记录（1/4）}
-    \label{fig:codex_group1}
+    \includegraphics[width=0.9\textwidth]{cursor_ai_1.png}
+    \caption{Cursor（Composer 2.5）检索答辩素材并按四段结构分类归档}
+    \label{fig:cursor_1}
+\end{figure}
+
+\subsubsection{Claude Code（GLM 5.2）交互记录}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\textwidth]{claude_code_ai_1.png}
+    \caption{Claude Code（GLM 5.2）dm-crypt 审查：核心算法验证符合 IEEE 1619 / plain64 语义}
+    \label{fig:claude_code_1}
 \end{figure}
 
 \begin{figure}[H]
     \centering
-    \begin{subfigure}[b]{0.45\textwidth}
-        \centering
-        \includegraphics[width=\textwidth]{codex_ai_3.png}
-        \caption{兼容测试矩阵与验证脚本设计}
-        \label{fig:codex_3}
-    \end{subfigure}
-    \hfill
-    \begin{subfigure}[b]{0.45\textwidth}
-        \centering
-        \includegraphics[width=\textwidth]{codex_ai_4.png}
-        \caption{AES-XTS 实现与兼容测试验收}
-        \label{fig:codex_4}
-    \end{subfigure}
-    \caption{OpenAI Codex 交互记录（2/4）}
-    \label{fig:codex_group2}
+    \includegraphics[width=0.95\textwidth]{claude_code_ai_2.png}
+    \caption{Claude Code（GLM 5.2）潜在问题列表与验证方法}
+    \label{fig:claude_code_2}
 \end{figure}
 
 \begin{figure}[H]
     \centering
-    \begin{subfigure}[b]{0.45\textwidth}
-        \centering
-        \includegraphics[width=\textwidth]{codex_ai_5.png}
-        \caption{任务完成度自查与如实披露}
-        \label{fig:codex_5}
-    \end{subfigure}
-    \hfill
-    \begin{subfigure}[b]{0.45\textwidth}
-        \centering
-        \includegraphics[width=\textwidth]{codex_ai_6.png}
-        \caption{构建脚本调试与 QEMU 串口日志分析}
-        \label{fig:codex_6}
-    \end{subfigure}
-    \caption{OpenAI Codex 交互记录（3/4）}
-    \label{fig:codex_group3}
-\end{figure}
-
-\begin{figure}[H]
-    \centering
-    \begin{subfigure}[b]{0.45\textwidth}
-        \centering
-        \includegraphics[width=\textwidth]{codex_ai_7.png}
-        \caption{GDB 硬件断点追踪内核异常}
-        \label{fig:codex_7}
-    \end{subfigure}
-    \hfill
-    \begin{subfigure}[b]{0.45\textwidth}
-        \centering
-        \includegraphics[width=\textwidth]{codex_ai_8.png}
-        \caption{BIO/块设备集成差距分析}
-        \label{fig:codex_8}
-    \end{subfigure}
-    \caption{OpenAI Codex 交互记录（4/4）}
-    \label{fig:codex_group4}
+    \includegraphics[width=0.95\textwidth]{claude_code_ai_3.png}
+    \caption{Claude Code（GLM 5.2）修复优先级建议}
+    \label{fig:claude_code_3}
 \end{figure}
 
 \subsubsection{通义千问（Qwen）交互记录}
