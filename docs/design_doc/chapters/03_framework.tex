@@ -9,24 +9,24 @@
         \toprule
         \textbf{设计维度} & \textbf{核心决策} & \textbf{技术收益} \\
         \midrule
-        核心抽象 & \texttt{BlockDevice} trait（约 150 行接口定义） & 统一所有存储后端和映射器，实现可互换、可堆叠 \\
-        架构模式 & 装饰器模式 + 组合模式 & 支持任意层级的映射器链（Passthrough $\to$ Crypt $\to$ Verity） \\
-        双目标复用 & 核心逻辑与平台无关 & 用户态验证算法正确性，内核态保证真实性能，共享同一套核心实现 \\
-        线程安全 & Rust \texttt{Send} + \texttt{Sync} + 自旋锁 & 编译期保证线程安全，避免竞态条件 \\
-        安全能力传播 & \texttt{TargetCapabilities} 类型编码 & 组合栈的安全属性在编译期静态检查 \\
-        性能可观测 & 原子计数器 + 阶段计时 & 精确量化每个子系统的开销，指导优化方向 \\
+        核心抽象 & \texttt{BlockDevice} trait & 后端与 mapper 可互换、可堆叠 \\
+        架构模式 & 装饰器 + 组合 & \texttt{Passthrough $\to$ Crypt $\to$ Verity} \\
+        双目标 & 核心逻辑与平台无关 & 用户态验算法，内核态走真 BIO \\
+        同步 & 用户态 \texttt{Mutex}；内核 \texttt{spin::Mutex} + 关抢占 & AES-NI 期间 XMM 不被打断 \\
+        能力传播 & \texttt{TargetCapabilities} & 组合栈机密性/完整性/只读可静态汇总 \\
+        可观测 & 原子计数器 + 阶段计时 & \texttt{/proc/dm-*-stats} 归因 \\
         \bottomrule
     \end{tabular}
 \end{table}
 
 \section{设计原则}
 
-本项目的基本设计原则是使用统一的抽象来表示任何能够进行块级 I/O 的实体，并采用“分层”或“可组合”的架构，使加密和校验逻辑与底层存储介质完全解耦。核心设计原则包括：
+本项目的基本设计原则是使用统一的抽象来表示任何能够进行块级 I/O 的实体，并采用"分层"或"可组合"的架构，使加密和校验逻辑与底层存储介质完全解耦。核心设计原则包括：
 
 \begin{enumerate}
     \item \textbf{统一抽象}：所有存储后端和映射器均实现同一个 \texttt{BlockDevice} trait，确保模块可互换、可堆叠；
     \item \textbf{双目标共享}：核心逻辑与平台无关，同时服务于用户态命令行工具（\texttt{dmctl}）和星绽内核（\texttt{aster-dm}）；
-    \item \textbf{安全优先}：所有优化（缓存、缓冲池）遵循“先认证后使用”原则，不削弱安全边界；
+    \item \textbf{安全优先}：所有优化（缓存、缓冲池）遵循"先认证后使用"原则，不削弱安全边界；
     \item \textbf{可观测性内置}：关键路径嵌入原子计数器和阶段计时，支持性能归因和优化验证。
 \end{enumerate}
 
@@ -67,24 +67,23 @@ let verity = DmVerityDevice::open(crypt, tree, root_hash)?;
 
 \section{核心模块分解}
 
-项目被结构化为离散的模块，以清晰地分离密码学原语、数据结构和设备逻辑。整个 \texttt{dm} crate 约 3000 行 Rust 代码，模块划分如下：
+项目被结构化为离散的模块，以清晰地分离密码学原语、数据结构和设备逻辑。整个 \texttt{dm} crate 约 3000 行 Rust 代码，\texttt{dmctl} 约 800 行；内核补丁 0001--0007 约 4000 行。不是两套互不相干的实现：用户态是算法与布局的安全网，内核态才是赛题交付物。模块划分如下：
 
 \begin{table}[H]
     \centering
-    \caption{核心模块职责划分与关键实体}
-    \begin{tabular}{p{0.18\textwidth}p{0.35\textwidth}p{0.37\textwidth}}
+    \caption{核心模块职责划分与代码量}
+    \begin{tabular}{p{0.16\textwidth}p{0.38\textwidth}p{0.10\textwidth}p{0.26\textwidth}}
         \toprule
-        \textbf{模块} & \textbf{主要职责} & \textbf{关键实体} \\
+        \textbf{模块} & \textbf{主要职责} & \textbf{约行数} & \textbf{关键实体} \\
         \midrule
-        \texttt{block\_device} & 基础 I/O 抽象与物理/内存后端 & \texttt{BlockDevice}, \texttt{FileBlockDevice}, \texttt{MemoryBlockDevice} \\
-        \texttt{dm\_crypt} & 使用 AES-XTS 的透明加密逻辑 & \texttt{DmCryptDevice}, \texttt{DmCryptTable} \\
-        \texttt{dm\_verity} & 只读完整性校验逻辑 & \texttt{DmVerityDevice} \\
-        \texttt{hash\_tree} & Merkle 树的构建与管理 & \texttt{HashTree} \\
-        \texttt{sha256} & 纯 Rust SHA-256（无外部依赖） & \texttt{sha256::sha256} \\
-        \texttt{device\_mapper} & 设备链接（chaining）的基础设施 & \texttt{PassthroughDevice}, \texttt{DmStackBuilder} \\
-        \texttt{statistics} & I/O 性能计数器与阶段归因 & \texttt{InstrumentedDevice}, \texttt{IoStatsSnapshot} \\
-        \texttt{runtime} & 运行时 mapper 管理（Linux dm\_ioctl 兼容） & \texttt{RuntimeMapper}, \texttt{DmControlDevice} \\
-        \texttt{error} & 统一错误处理 & \texttt{DmError}, \texttt{Result} \\
+        \texttt{block\_device} & 抽象与文件/内存后端 & 400 & \texttt{BlockDevice}, \texttt{FileBlockDevice}, \texttt{MemoryBlockDevice} \\
+        \texttt{dm\_crypt} & AES-XTS 透明加密 & 350 & \texttt{DmCryptDevice}, \texttt{DmCryptTable} \\
+        \texttt{dm\_verity} & 只读完整性 & 200 & \texttt{DmVerityDevice} \\
+        \texttt{hash\_tree} & Merkle 构建与校验 & 150 & \texttt{HashTree} \\
+        \texttt{sha256} & 纯 Rust SHA-256 & 120 & \texttt{sha256::sha256} \\
+        \texttt{device\_mapper} & 链接与 \texttt{DmStackBuilder} & 180 & \texttt{PassthroughDevice}, \texttt{DmStackBuilder} \\
+        \texttt{statistics} & I/O 与阶段归因 & 150 & \texttt{InstrumentedDevice}, \texttt{IoStatsSnapshot} \\
+        \texttt{runtime} & 运行时 mapper / \texttt{dm\_ioctl} & 260 & \texttt{RuntimeMapper}, \texttt{DmControlDevice} \\
         \bottomrule
     \end{tabular}
 \end{table}
@@ -121,16 +120,17 @@ let verity = DmVerityDevice::open(crypt, tree, root_hash)?;
 \begin{table}[H]
     \centering
     \caption{用户态与内核态实体映射}
-    \begin{tabular}{p{0.25\textwidth}p{0.30\textwidth}p{0.35\textwidth}}
+    \begin{tabular}{p{0.22\textwidth}p{0.33\textwidth}p{0.35\textwidth}}
         \toprule
         \textbf{功能} & \textbf{用户态（dmctl）} & \textbf{内核态（aster-dm）} \\
         \midrule
-        块设备后端 & \texttt{FileBlockDevice} / \texttt{MemoryBlockDevice} & \texttt{VirtioBlkAdapter}（包装 \texttt{virtio-blk}） \\
+        代码 & \texttt{crates/dm/}、\texttt{crates/dmctl/} & \texttt{asterinas/kernel/comps/dm/}，补丁 \texttt{asterinas\_port/patches/} 0001--0007 \\
+        块设备后端 & \texttt{FileBlockDevice} / \texttt{MemoryBlockDevice} & \texttt{VirtioBlkAdapter}（virtio-blk BIO） \\
         加密映射器 & \texttt{DmCryptDevice} & \texttt{DmTarget::Crypt} \\
         完整性映射器 & \texttt{DmVerityDevice} & \texttt{DmTarget::Verity} \\
-        组合构建器 & \texttt{DmStackBuilder} & \texttt{dm\_stack} 启动参数（补丁 0007） \\
-        控制接口 & N/A（用户态直接调用） & \texttt{/dev/mapper/control}（\texttt{dm\_ioctl}） \\
-        同步原语 & \texttt{std::sync::Mutex} & \texttt{spin::Mutex} + \texttt{disable\_preempt} \\
+        组合构建器 & \texttt{DmStackBuilder} / \texttt{demo-stack} & \texttt{dm\_stack=crypt,verity}（补丁 0007） \\
+        控制接口 & 命令行、\texttt{crypt-table-fill} & \texttt{/dev/mapper/control}（供 cryptsetup） \\
+        同步 & \texttt{std::sync::Mutex} & \texttt{spin::Mutex} + \texttt{disable\_preempt} \\
         \bottomrule
     \end{tabular}
 \end{table}
@@ -150,7 +150,8 @@ let verity = DmVerityDevice::open(crypt, tree, root_hash)?;
 
 \subsection{dm-crypt 数据流}
 
-写入路径：
+\textbf{写入路径}：按块号算扇区 $\to$ scratch 缓冲 $\to$ AES-XTS（扇区号作 plain64 IV）$\to$ 下层设备。4 KiB 块拆成 8 个 512 字节扇区分别变换，才能和 Linux 一致。具体步骤：
+
 \begin{enumerate}
     \item 应用程序或文件系统向 \texttt{DmCryptDevice} 发起 \texttt{write\_block} 请求；
     \item 根据逻辑块 ID 和 \texttt{iv\_offset} 计算对应的物理扇区号；
@@ -159,11 +160,12 @@ let verity = DmVerityDevice::open(crypt, tree, root_hash)?;
     \item 底层设备完成写入后，释放 scratch 缓冲区，完成上层 BIO。
 \end{enumerate}
 
-读取路径是上述过程的逆操作：从底层设备读取密文到 scratch 缓冲区，使用相同的扇区号进行解密，然后写回上层 segment，最后释放 scratch 缓冲区。
+\textbf{读取路径}是上述过程的逆操作：从底层设备读取密文到 scratch 缓冲区，使用相同的扇区号进行解密，然后写回上层 segment，最后释放 scratch 缓冲区。
 
 \subsection{dm-verity 数据流}
 
-读取路径：
+\textbf{读取路径}：读数据块 $\to$ SHA-256 $\to$ 沿 on-disk 树或认证后缓存走到 root hash $\to$ 不一致则 \texttt{IntegrityViolation}。\textbf{写一律拒绝}。具体步骤：
+
 \begin{enumerate}
     \item 从底层块设备读取原始数据块；
     \item \texttt{HashTree::verify\_block} 计算检索到的数据的 SHA-256 哈希值；
@@ -194,6 +196,8 @@ let verity = DmVerityDevice::open(crypt, tree, root_hash)?;
     \item 在 Asterinas 内核中，通过启动参数 \texttt{dm.perf\_stats=1} 启用细粒度阶段计时（如 \texttt{lower\_wait}、\texttt{AES-XTS}、\texttt{SHA-256}、\texttt{cache\_lookup} 等），并通过 \texttt{\seqsplit{/proc/dm-performance-stats}} 导出；
     \item \texttt{/proc/dm-verity-stats} 提供 \texttt{verified}、\texttt{bio\_blocks}、\texttt{data\_rereads}、\texttt{hash\_hits}、\texttt{hash\_misses}、\texttt{auth\_shortcuts} 等计数器，直接反映优化效果——这些计数器在正式性能测试中用于验证 BIO 复用（\texttt{data\_rereads=0}）和缓存命中（\texttt{auth\_shortcuts}）的实际收益。
 \end{itemize}
+
+内核启用 \texttt{dm.perf\_stats=1} 后的实测归因数据表明：dm-crypt 热路径里下层等待约占 97.84\%、AES-XTS 约占 1.82\%；dm-verity 下层等待约占 93.01\%、数据 SHA-256 约占 5.74\%。算法本身不是主瓶颈，所以优化优先做缓冲池、缓存和 BIO 复用，而不是再改一轮 AES。
 
 这种设计使得开发者可以精确量化每个映射器层的开销，从而指导优化方向。
 
@@ -233,17 +237,18 @@ pub struct TargetCapabilities {
     \item \textbf{根切换}：initramfs 中的 \texttt{init} 脚本在 \texttt{dm-root} 模式下挂载 mapper，执行 \texttt{pivot\_root} 切换到受保护根。
 \end{enumerate}
 
-补丁序列（\texttt{asterinas\_port/patches/0001--0007}）记录了完整的集成演进历史，每一补丁对应一个可独立验证的增量功能，总补丁代码量约 4000 行。
+补丁序列（\texttt{asterinas\_port/patches/0001--0007}）记录了完整的集成演进历史，每一补丁对应一个可独立验证的增量功能，总补丁代码量约 4000 行。补丁用法详见 \texttt{asterinas\_port/README.md}。
 
 \section{小结}
 
-本章详细阐述了系统的核心架构，包括统一的 \texttt{BlockDevice} 抽象、可组合的映射器链模式、模块分解、双目标跨环境可移植性（含代码实体映射图）、数据流架构（含分层栈数据流图）、线程安全保证（含内核/用户态锁策略差异）、性能可观测性设计、运行时控制面和 Asterinas 内核集成架构。通过将核心逻辑与平台细节解耦，并增加性能可观测性和安全能力传播机制，该项目为后续的加密、完整性校验及性能优化奠定了坚实的基础。
+本章详细阐述了系统的核心架构，包括统一的 \texttt{BlockDevice} 抽象、可组合的映射器链模式、模块分解（含约行数）、双目标跨环境可移植性（含代码实体映射表）、数据流架构（含 4 KiB 拆 8 扇区的关键约束和 verity 写拒绝语义）、线程安全保证（含内核/用户态锁策略差异）、性能可观测性设计（含实测归因百分比）、运行时控制面、安全能力传播和 Asterinas 内核集成架构。
 
 关键设计亮点回顾：
 \begin{itemize}
-    \item \texttt{BlockDevice} trait 作为统一抽象，约 150 行接口定义支撑了整个存储安全框架；
-    \item 双目标架构使用户态可作为“安全网”快速验证算法，内核态保证真实 I/O 路径和性能；
+    \item \texttt{BlockDevice} trait 作为统一抽象，支撑了整个存储安全框架；
+    \item 双目标架构使用户态可作为"安全网"快速验证算法，内核态才是赛题交付物；
     \item Rust 的类型系统（\texttt{Send}、\texttt{Sync}、\texttt{TargetCapabilities}）在编译期保证了线程安全和安全能力传播的正确性；
+    \item 性能归因数据表明算法本身不是主瓶颈，优化优先做缓冲池、缓存和 BIO 复用；
     \item 性能可观测性设计将优化决策建立在量化数据之上，而非经验猜测。
 \end{itemize}
 

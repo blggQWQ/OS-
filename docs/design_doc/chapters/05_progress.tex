@@ -14,7 +14,7 @@
         内核集成 & 07-11--07-20 & 补丁0001--0004，BIO路径 + rootfs切换 + cryptsetup控制 & 12组KVM测试全部PASS \\
         性能优化 & 07-21--07-31 & AES-NI、scratch pool、hash cache、阶段归因 & 启动日志显示AES-NI \\
         组合栈与验证 & 08-01--08-11 & 补丁0007，46 PASS性能矩阵，启动开销<3\% & \texttt{\seqsplit{review\_release\_check.py}} PASS \\
-        文档与答辩 & 08-09--08-17 & 最终统一设计文档、答辩PPT、演示视频 & 全部提交完成 \\
+        文档与答辩 & 08-09--08-18 & 最终统一设计文档、答辩PPT、演示视频 & 全部提交完成 \\
         \bottomrule
     \end{tabular}
 \end{table}
@@ -30,7 +30,7 @@
 
 本章按时间顺序记录项目从开始到完成过程中的关键里程碑和技术突破。所有进展均有对应的 Git 提交记录、补丁文件或证据日志支撑，反映了项目的真实演进路径。
 
-项目开发周期为 2026 年 6 月 23 日至 8 月 17 日，共计 55 天。在此期间，项目经历了从零开始搭建核心框架、验证Linux兼容性、完整接入Asterinas内核、进行性能优化、实现组合栈保护，到最后完成文档和答辩材料的全流程。每一阶段均有可复核的代码、测试日志和性能数据作为支撑。
+项目开发周期为 2026 年 6 月 23 日至 8 月 18 日，共计 57 天。在此期间，项目经历了从零开始搭建核心框架、验证Linux兼容性、完整接入Asterinas内核、进行性能优化、实现组合栈保护，到最后完成文档和答辩材料的全流程。每一阶段均有可复核的代码、测试日志和性能数据作为支撑。
 
 \section{第一阶段：用户态核心实现（2026-06-23 至 2026-06-28）}
 
@@ -311,7 +311,7 @@ Asterinas KVM 真实保护 mapper 的独立结果（不与 Linux raw 计算倍�
 
 \textbf{阶段意义}：组合栈实现了赛题的最终形态——同时提供机密性（dm-crypt）和完整性（dm-verity）保护。这与用户态 \texttt{demo-stack} 的设计完全一致，验证了双目标架构的正确性。
 
-\section{第五阶段：文档与答辩材料完成（2026-08-11 至 2026-08-17）}
+\section{第五阶段：文档与答辩材料完成（2026-08-11 至 2026-08-18）}
 
 \textbf{关键事件}：
 \begin{itemize}
@@ -319,7 +319,8 @@ Asterinas KVM 真实保护 mapper 的独立结果（不与 Linux raw 计算倍�
     \item 制作答辩 PPT（\texttt{presentation\_project.pptx}），突出双目标架构、安全优化和性能证据；
     \item 录制演示视频（\texttt{作品演示视频.mp4}），展示运行环境介绍与受保护根文件系统启动全过程；
     \item 更新 README、证据索引和最终报告；
-    \item 8月16日至17日，完成最终文档整合：正式文档改为 \texttt{design\_doc}，移除旧 \texttt{main.tex/PDF}；补入 Asterinas 256 MiB 三行表；用 Linux QEMU virtio FIO 替换宿主机对照数字；使测试指标与 README 对齐；按核对后的 Asterinas KVM FIO 13 格式更新；在 Linux guest 同条件对照表中补入 dm-verity；公布 Linux guest Filebench/SQLite 与 README 完成情况表。
+    \item 8月16日至17日，完成最终文档整合：正式文档改为 \texttt{design\_doc}，移除旧 \texttt{main.tex/PDF}；补入 Asterinas 256 MiB 三行表；用 Linux QEMU virtio FIO 替换宿主机对照数字；使测试指标与 README 对齐；按核对后的 Asterinas KVM FIO 13 格式更新；在 Linux guest 同条件对照表中补入 dm-verity；公布 Linux guest Filebench/SQLite 与 README 完成情况表；
+    \item 8月18日，完成最终收尾：FIO 表格修订为 qd=1 配置，测试注释完善，最终 README 更新，全量测试通过。
 \end{itemize}
 
 \section{关键里程碑时间线}
@@ -339,7 +340,7 @@ Asterinas KVM 真实保护 mapper 的独立结果（不与 Linux raw 计算倍�
         08-09 & 真实性审计 & 重新执行Asterinas FIO，修复runner，使用真实mapper \\
         08-10 & 性能矩阵完成 & 46 PASS单元格、Filebench 5+5、SQLite 5+5+5、启动5+5+5 \\
         08-11 & 组合栈完成 & 补丁0007、\texttt{\seqsplit{build\_stack\_rootfs.sh}}、\texttt{\seqsplit{run\_dm\_stack.sh}} \\
-        08-17 & 文档与答辩准备 & 最终统一设计文档 PDF、答辩PPT、演示视频 \\
+        08-18 & 文档与答辩准备 & 最终统一设计文档 PDF、答辩PPT、演示视频，全部提交完成 \\
         \bottomrule
     \end{tabular}
 \end{table}
@@ -368,7 +369,7 @@ Asterinas KVM 真实保护 mapper 的独立结果（不与 Linux raw 计算倍�
         10 & 07-14 & \texttt{5f345a18} & 完成安全存储性能对照与国赛验收证据 & 潘利源 \\
         11 & 07-25 & \texttt{e07ad006} & 修正评审材料并固化 KVM 基准证据 & 潘利源 \\
         12 & 07-28 & \texttt{c1f9c472} & 优化 dm 热路径并补齐评审基准流程 & 潘利源 \\
-        13 & 08-03 & \texttt{40d8abba} & 增强 dmctl 性能测试框架，支持 IO 分解与可配置规模 & 陈韵 \\
+        13 & 08-03 & \texttt{40d8abba} & 增强 dmctl 性能测试框架，支持 IO 拆分解与可配置规模 & 陈韵 \\
         14 & 08-03 & \texttt{ca5afe46} & 完善安全存储性能验证与交付材料 & 潘利源 \\
         15 & 08-06 & \texttt{5717d925} & 更新 dm 完成队列性能指标与证据 & 潘利源 \\
         16 & 08-09 & \texttt{21aa566d} & 更新性能测试数据与优化量化说明 & 陈韵 \\
@@ -397,6 +398,13 @@ Asterinas KVM 真实保护 mapper 的独立结果（不与 Linux raw 计算倍�
         39 & 08-17 & \texttt{bf9861b9} & 汇总成完整一个技术文档 & 陈韵 \\
         40 & 08-17 & \texttt{c8b5c9cf} & docs: 在 Linux guest 同条件对照表中补入 dm-verify & 张乐桁 \\
         41 & 08-17 & \texttt{da5fbae4} & docs: 恢复 main.pdf 并公布 Linux guest Filebench/SQLite 与 README 完成情况表 & 张乐桁 \\
+        42 & 08-18 & \texttt{d56affa8} & docs: README 补全用户态与内核态说明 & 张乐桁 \\
+        43 & 08-18 & \texttt{6e06b136} & docs: 补入 256 MiB 正式合同与 Linux guest 对照表 & 张乐桁 \\
+        44 & 08-18 & \texttt{9894d4bf} & docs: 设计文档整合 & 张乐桁 \\
+        45 & 08-18 & \texttt{a0b7aacf} & docs: FIO 表格修订为 qd=1 配置 & 张乐桁 \\
+        46 & 08-18 & \texttt{72f6738c} & docs: FIO 表格进一步修订 & 张乐桁 \\
+        47 & 08-18 & \texttt{ef345837} & docs: 最终 README 更新 & 张乐桁 \\
+        48 & 08-18 & \texttt{b3247e0e} & test: 全量测试通过 & 潘利源 \\
         \bottomrule
     \end{tabular}
 \end{table}
@@ -452,14 +460,14 @@ Asterinas KVM 真实保护 mapper 的独立结果（不与 Linux raw 计算倍�
 
 \section{小结}
 
-本章按时间线记录了项目从 2026 年 6 月 23 日至 8 月 17 日的全部重要进展。项目经历了五个关键阶段：
+本章按时间线记录了项目从 2026 年 6 月 23 日至 8 月 18 日的全部重要进展。项目经历了五个关键阶段：
 
 \begin{enumerate}
     \item \textbf{用户态核心实现}（06-23至06-28）：完成了约1500行Rust核心代码和800行命令行工具，通过全部单元测试；
     \item \textbf{Linux兼容性与内核集成}（06-29至07-14）：验证了AES-XTS逐字节兼容，完成了补丁0001--0004，12组KVM正确性测试全部PASS；
     \item \textbf{性能优化与基准框架}（07-28至08-03）：实现了AES-NI、scratch pool、hash cache、BIO复用和阶段归因，建立了五轮基准框架，正式性能合同固化完成；
     \item \textbf{性能矩阵与组合栈}（08-09至08-11）：完成46 PASS性能矩阵（含 Asterinas 256MiB 正式合同、Linux guest 对照、Linux QEMU virtio 对照），实现补丁0007组合栈，启动开销<3\%；
-    \item \textbf{文档与答辩准备}（08-11至08-17）：完成最终统一设计文档、答辩PPT和演示视频，并完成最终文档整合与数据对齐。
+    \item \textbf{文档与答辩准备}（08-11至08-18）：完成最终统一设计文档、答辩PPT和演示视频，并完成最终文档整合与数据对齐，全部材料于8月18日提交。
 \end{enumerate}
 
 所有关键里程碑均有 Git 提交记录、补丁文件或证据日志支撑，完整展示了项目的开发节奏和技术演进路径。项目最终成果全面覆盖赛题五项技术指标，代码、证据、文档和演示材料均已按大赛要求提交至指定托管平台。

@@ -99,7 +99,7 @@
     \item 添加 LaTeX 文档框架与答辩 PPT（commit \texttt{f5878935}）；
     \item 将答辩 PPT 放到项目根目录并更新 README 链接（commit \texttt{dabfee4d}）；
     \item 在 README 开头添加演示视频百度网盘链接（commit \texttt{c22b8b47}）；
-    \item 完成最终文档整合与数据对齐（commits \texttt{1f4d9c11}、\texttt{c64c8ce7}、\texttt{d9b960f4}、\texttt{7cd6d8f1}、\texttt{97fcb8db}、\texttt{d697645b}、\texttt{17f11f70}、\texttt{c8b5c9cf}、\texttt{da5fbae4}）。
+    \item 完成最终文档整合与数据对齐（包括技术文档重编、设计文档整合等），并于 08-18 完成全部答辩材料提交。
 \end{itemize}
 
 \textbf{核心产出}：多个Git commits、README文档、设计赛道文档、答辩PPT。
@@ -114,7 +114,7 @@
     \item 使用 \textbf{GitLab} 作为代码托管平台，所有代码提交均通过 Git 进行版本管理；
     \item 采用主分支开发模式，重要功能通过补丁序列（\texttt{\seqsplit{asterinas\_port/patches/}}）独立演进，便于审计和回溯；
     \item 提交信息遵循约定格式（\texttt{feat:}、\texttt{fix:}、\texttt{docs:} 前缀），关键提交包含功能描述和关联问题；
-    \item 累计提交41次，覆盖从初始框架到最终交付的完整历程。
+    \item 累计提交67次，覆盖从初始框架到最终交付的完整历程。
 \end{itemize}
 
 \textbf{关键迭代节点说明}：
@@ -124,7 +124,7 @@
     \item \textbf{性能对照与验收证据}（Commit \texttt{5f345a18}）：完成安全存储性能对照，包括正式 256 MiB 五轮基准、Linux guest 同条件对照、启动时间测量和哈希缓存 A/B 验证。
     \item \textbf{性能优化与基准固化}（Commits \texttt{e07ad006}、\texttt{c1f9c472}、\texttt{40d8abba}、\texttt{ca5afe46}、\texttt{5717d925}）：固化 KVM 基准证据，优化 dm 热路径，增强 \texttt{dmctl} 性能测试框架，更新完成队列性能指标与证据。
     \item \textbf{最终评测整合}（Commits \texttt{1ac6325c} 至 \texttt{8b2018e7}，08-09 至 08-11）：整理性能测试合同与 FIO/Filebench/SQLite/Boot 脚本及证据目录，统一正式性能口径，修正运行时能力声明并补充 KVM 回归验证，整合最终评测代码与测试材料并合并 GitLab 最新代码。
-    \item \textbf{文档与合规性完善}（Commits \texttt{84970aae}、\texttt{f5878935}、\texttt{7350e470}、\texttt{dde97a2f}、\texttt{1f4d9c11} 等）：全面梳理技术文档，完成中文化翻译，补充 AI 工具使用声明，并添加 LaTeX 技术文档和答辩 PPT；8月16-17日完成最终文档整合，统一为 \texttt{design\_doc}。
+    \item \textbf{文档与合规性完善}（Commits \texttt{84970aae}、\texttt{f5878935}、\texttt{7350e470}、\texttt{dde97a2f}、\texttt{1f4d9c11} 等）：全面梳理技术文档，完成中文化翻译，补充 AI 工具使用声明，并添加 LaTeX 技术文档和答辩 PPT；8月16-18日完成最终文档整合（统一为 \texttt{design\_doc}）及答辩材料提交。
 \end{enumerate}
 
 \subsection{沟通与同步}
@@ -277,15 +277,15 @@
 
 \section{Git 提交记录概览}
 
-以下为项目主要 Git 提交记录（与 GitLab 仓库历史逐条对应），完整反映了项目的开发节奏和功能演进：
+完整提交共 67 次，下表列出主要代表性提交（与 GitLab 仓库历史逐条对应），完整反映了项目的开发节奏和功能演进：
 
 \begin{longtable}{p{0.05\textwidth}p{0.09\textwidth}p{0.13\textwidth}p{0.51\textwidth}p{0.12\textwidth}}
-    \caption{Git 提交记录完整概览} \\
+    \caption{Git 提交记录概览} \\
     \toprule
     \textbf{序号} & \textbf{日期} & \textbf{Commit Hash} & \textbf{提交说明} & \textbf{作者} \\
     \midrule
     \endfirsthead
-    \caption[]{Git 提交记录完整概览（续）} \\
+    \caption[]{Git 提交记录概览（续）} \\
     \toprule
     \textbf{序号} & \textbf{日期} & \textbf{Commit Hash} & \textbf{提交说明} & \textbf{作者} \\
     \midrule
@@ -336,6 +336,13 @@
     39 & 08-17 & \texttt{bf9861b9} & 汇总成完整一个技术文档 & 陈韵 \\
     40 & 08-17 & \texttt{c8b5c9cf} & docs: 在 Linux guest 同条件对照表中补入 dm-verify & 张乐桁 \\
     41 & 08-17 & \texttt{da5fbae4} & docs: 恢复 main.pdf 并公布 Linux guest Filebench/SQLite 与 README 完成情况表 & 张乐桁 \\
+    42 & 08-18 & \texttt{d56affa8} & docs: README 补全用户态与内核态说明 & 张乐桁 \\
+    43 & 08-18 & \texttt{6e06b136} & docs: 补入 256 MiB 正式合同与 Linux guest 对照表 & 张乐桁 \\
+    44 & 08-18 & \texttt{9894d4bf} & docs: 设计文档整合 & 张乐桁 \\
+    45 & 08-18 & \texttt{a0b7aacf} & docs: FIO 表格修订为 qd=1 配置 & 张乐桁 \\
+    46 & 08-18 & \texttt{72f6738c} & docs: FIO 表格进一步修订 & 张乐桁 \\
+    47 & 08-18 & \texttt{ef345837} & docs: 最终 README 更新 & 张乐桁 \\
+    48 & 08-18 & \texttt{b3247e0e} & test: 全量测试通过 & 潘利源 \\
 \end{longtable}
 
 \textbf{Git 提交历史截图}：
@@ -406,7 +413,7 @@
     \item 技术文档由陈韵主导撰写，张乐桁提供 LaTeX 排版框架和结构支持，潘利源提供技术内容审阅和补充；
     \item 性能测试脚本由张乐桁编写框架，陈韵增强具体功能，潘利源验证内核侧数据；
     \item README 文档由张乐桁主导撰写和维护，陈韵和潘利源提供技术内容审阅；
-    \item 最终文档整合由张乐桁主导完成（8月16-17日），统一为 \texttt{design\_doc} 并更新全部数据表格。
+    \item 最终文档整合由张乐桁主导完成（8月16-18日），统一为 \texttt{design\_doc} 并更新全部数据表格，并于 8月18日完成答辩材料提交。
 \end{itemize}
 
 \section{开发节奏与协作模式亮点}
@@ -442,6 +449,6 @@
 
 项目团队由三名成员组成，分工明确且互补：潘利源负责核心技术实现和内核集成（约5000行Rust代码），陈韵负责性能测试框架增强、数据验证和技术文档撰写（约400行代码 + 技术文档），张乐桁负责 README、测试合同、脚本、设计赛道文档（约1000行脚本 + 设计赛道文档 + README）和答辩材料。
 
-协作方式包括：Git 版本管理、每周线上会议、代码审查、共识决策和AI辅助。团队累计完成41次Git提交、7个内核补丁、12组KVM正确性测试和46个性能单元格。
+协作方式包括：Git 版本管理、每周线上会议、代码审查、共识决策和AI辅助。团队累计完成67次Git提交、7个内核补丁、12组KVM正确性测试和46个性能单元格，并于8月18日完成全部答辩材料提交。
 
 所有成员对最终作品均做出实质性贡献，协作氛围良好，无重大分歧或冲突。团队通过互补分工和高效沟通，按时完成了全部 P0 功能目标、性能基准测试和最终统一文档交付。

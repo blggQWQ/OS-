@@ -7,13 +7,13 @@
     \centering
     \begin{tabular}{p{0.20\textwidth}p{0.35\textwidth}p{0.35\textwidth}}
         \toprule
-        \textbf{调研方向} & \textbf{核心发现} & \textbf{对本项目的启示} \\
+        \textbf{调研方向} & \textbf{核心发现} & \textbf{对本项目的约束} \\
         \midrule
         Linux Device Mapper & dm-crypt 使用 XTS-AES + plain64 IV；dm-verity 使用 SHA-256 Merkle 树 + on-disk 哈希树布局 & 必须与 Linux 逐字节兼容，否则无法与 cryptsetup 互操作 \\
-        Asterinas 内核架构 & Framekernel + OSTD + BIO 异步 I/O + \texttt{no\_std} 环境 & 无法复用 Linux 代码，需从头设计 Rust 实现，适配 BIO 路径 \\
-        AES-XTS 标准 & NIST SP 800-38E 定义 XTS-AES；Linux 使用 AES-256-XTS 双密钥 & 需严格遵循标准，并通过固定向量验证兼容性 \\
-        SHA-256 标准 & FIPS 180-4 定义；Linux dm-verity 使用 32 字节摘要 & 需实现纯 Rust SHA-256，无外部依赖 \\
-        Rust 系统编程 & 所有权、借用检查、trait 系统、\texttt{no\_std} 支持 & 可构建内存安全的存储框架，类型系统可编码安全能力 \\
+        Asterinas 内核架构 & Framekernel + OSTD + BIO 异步 I/O + \texttt{no\_std} 环境 & 不能复用 Linux 代码，补丁接入 \texttt{aster-block} \\
+        AES-XTS 标准 & NIST SP 800-38E 定义 XTS-AES；Linux 使用 AES-256-XTS 双密钥 & 扇区级 IV，固定向量验证 \\
+        SHA-256 标准 & FIPS 180-4 定义；Linux dm-verity 使用 32 字节摘要 & 纯 Rust，无外部哈希库 \\
+        Rust 系统编程 & 所有权、trait、\texttt{no\_std} & 用类型编码安全能力 \\
         \bottomrule
     \end{tabular}
 \end{table}
@@ -31,6 +31,8 @@
     \item 性能与启动要求：I/O 吞吐及延迟接近 Linux，\texttt{dm-verity} 不显著增加内核启动时间；
     \item 技术探索：探索基于 Rust OS 的可信存储性能优化技术。
 \end{enumerate}
+
+测试环境为 QEMU 虚拟机，存储接口统一使用 \texttt{virtio-blk} 标准化虚拟化接口。
 
 这些要求覆盖了功能完整性、Linux 兼容性、性能可观测性和技术创新性四个维度。本项目在全部五个指标上均已完成并通过验证。
 
@@ -62,9 +64,11 @@
     
     \item \textbf{密码学工程的精确性要求}：AES-256-XTS 和 SHA-256 必须与 Linux 内核的 \texttt{\seqsplit{aes-xts-plain64}} 逐字节兼容。任何微小的差异（如 IV 生成的小端序处理、XTS 微调乘法的实现）都会导致 \texttt{cryptsetup} 无法解密 Linux 创建的加密卷，破坏互操作性。
     
+    \item \textbf{块大小与扇区大小的不匹配}：Asterinas 的 BIO 以 4 KiB 为粒度，而 Linux \texttt{dm-crypt} 的 IV 按 512 字节扇区生成。因此每个 4 KiB BIO 必须拆成 8 个 512 字节扇区分别进行 XTS 变换，才能与 Linux 逐字节一致。这一拆分逻辑是正确性的关键约束。
+    
     \item \textbf{内核集成的系统复杂度}：Device Mapper 不是一个独立模块，它需要与块设备层（BIO 提交与完成回调）、设备文件系统（\texttt{/dev/mapper/control}）、启动流程（参数解析与根切换）等多个内核子系统协同工作，集成面广、耦合度高。
     
-    \item \textbf{性能优化的安全性约束}：所有优化（缓存、缓冲池、硬件加速）必须在不削弱安全语义的前提下进行。例如，哈希缓存必须遵循“先认证、后插入”原则，否则可能破坏 dm-verity 的完整性信任链。
+    \item \textbf{性能优化的安全性约束}：所有优化（缓存、缓冲池、硬件加速）必须在不削弱安全语义的前提下进行。例如，哈希缓存必须遵循"先认证、后插入"原则，否则可能破坏 dm-verity 的完整性信任链。
     
     \item \textbf{可信存储的信任链建立}：\texttt{dm-verity} 的根哈希需要通过安全渠道注入（启动参数），但启动参数本身可能被篡改。这要求在系统设计中明确信任边界，并确保即使缓存命中也不会绕过根哈希验证。
 \end{enumerate}
@@ -91,14 +95,14 @@ Linux 内核的 Device Mapper 是一个通用的块设备映射框架，通过 \
     \item \textbf{映射表（Mapping Table）}：由一系列目标（target）组成，每个目标描述一段逻辑地址范围映射到下层设备的方式。表格式为：\texttt{<start\_sector> <length> <\seqsplit{target\_type}> <target\_args>}；
     \item \textbf{目标驱动（Target Driver）}：每个 target 类型（如 \texttt{crypt}、\texttt{verity}、\texttt{linear}）对应一个内核模块，实现 \texttt{map} 函数处理 BIO。\texttt{dm-crypt} 和 \texttt{dm-verity} 是其中应用最广泛的两种 target；
     \item \textbf{控制接口}：通过 \texttt{/dev/mapper/control} 的 ioctl 命令（\texttt{DM\_DEV\_CREATE}、\texttt{DM\_TABLE\_LOAD}、\texttt{DM\_DEV\_SUSPEND}、\texttt{DM\_DEV\_STATUS}、\texttt{DM\_DEV\_REMOVE}）完成 mapper 的生命周期管理；
-    \item \textbf{用户态工具链}：\texttt{cryptsetup} 是 \texttt{dm-crypt} 的主要用户，它封装了 LUKS（Linux Unified Key Setup）格式——PBKDF 密钥派生、keyslot 管理和 LUKS header 解析均在用户态完成，内核只接收最终的 volume key 和 dm-crypt table。
+    \item \textbf{用户态工具链}：\texttt{cryptsetup} 是 \texttt{dm-crypt} 的主要用户，它封装了 LUKS（Linux Unified Key Setup）格式——PBKDF 密钥派生、keyslot 管理和 LUKS header 解析均在用户态完成，内核只接收最终的 volume key 和 dm-crypt table。本项目同样遵循此职责分层。
 \end{enumerate}
 
 本项目参考了 Linux \texttt{dm-crypt} 和 \texttt{dm-verity} 的以下设计要点，并确保实现与其语义一致：
 
 \begin{itemize}
     \item \texttt{dm-crypt}：XTS-AES 模式（NIST SP 800-38E），IV 生成采用 \texttt{plain64} 策略（64 位扇区号小端序），支持 \texttt{iv\_offset} 和 \texttt{data\_offset} 参数；
-    \item \texttt{dm-verity}：SHA-256 构建 Merkle 树（块大小 4096 字节，哈希值 32 字节），根哈希作为信任锚，支持 on-disk 哈希树布局（每 128 个哈希值组成一个 4096 字节的哈希块），只读语义。
+    \item \texttt{dm-verity}：SHA-256 构建 Merkle 树（块大小 4096 字节，哈希值 32 字节），根哈希作为信任锚，支持 on-disk 哈希树布局（每 128 个 32 字节哈希装进一个 4096 字节的哈希块），只读语义。
 \end{itemize}
 
 \subsection{星绽操作系统（Asterinas）架构深入分析}
@@ -160,7 +164,7 @@ SHA-256 是 \texttt{dm-verity} 使用的哈希算法，输出 32 字节（256 �
     \item \textbf{叶子层（Leaf Level）}：使用 \texttt{sha256} 对底层设备的每个数据块进行哈希运算，生成叶子节点的哈希值；
     \item \textbf{中间层（Intermediate Levels）}：将下一层的哈希值两两拼接并进行哈希运算，从而形成上一层；
     \item \textbf{填充（Padding）}：如果某一层有奇数个哈希值，则最后一个哈希值会被复制一次以凑成一对，确保每层都能配对；
-    \item \textbf{根哈希（Root Hash）}：该过程持续进行，直到只剩下一个哈希值，该值被指定为 root hash，作为整个卷的“信任锚”。
+    \item \textbf{根哈希（Root Hash）}：该过程持续进行，直到只剩下一个哈希值，该值被指定为 root hash，作为整个卷的"信任锚"。
 \end{enumerate}
 
 在星绽内核的 \texttt{aster-dm} 组件中，哈希树采用 on-disk 布局：数据块从镜像开头连续存放，哈希树从 \texttt{hash\_start\_block} 开始依次写入各层哈希块。每个哈希块可容纳 \texttt{4096 / 32 = 128} 个 SHA-256 哈希值。这种设计使得标准 ext2 镜像可以与哈希树共存，而无需修改原有的数据布局，便于在现有系统上部署。
@@ -264,7 +268,7 @@ pub trait BlockDevice: Send + Sync {
         Linux 兼容性 & \textbf{中风险}：plain64 IV 和 XTS 实现细节易出错 & 早期编写交叉验证脚本，迭代修正 \\
         Asterinas 集成 & \textbf{中风险}：BIO 接口和启动流程需要深入理解 & 补丁序列渐进式集成，每步独立验证 \\
         性能达标 & \textbf{中风险}：虚拟机环境 I/O 性能波动大 & 固定五轮、交替顺序、保留原始数据 \\
-        优化不削弱安全 & \textbf{高风险}：缓存可能绕过完整性校验 & “先认证后插入”设计原则 + 计数器验证 \\
+        优化不削弱安全 & \textbf{高风险}：缓存可能绕过完整性校验 & "先认证后插入"设计原则 + 计数器验证 \\
         \bottomrule
     \end{tabular}
 \end{table}
@@ -273,7 +277,7 @@ pub trait BlockDevice: Send + Sync {
 
 \begin{enumerate}
     \item 核心算法有明确的标准（NIST、FIPS）和参考实现（Linux 内核），验证手段成熟；
-    \item 双目标架构（用户态 + 内核态）使用户态可作为“安全网”，在进入内核前充分验证算法和逻辑；
+    \item 双目标架构（用户态 + 内核态）使用户态可作为"安全网"，在进入内核前充分验证算法和逻辑；
     \item Asterinas 提供了清晰的组件接入接口（\texttt{Components.toml}、\texttt{aster-cmdline}、\texttt{aster-block}），集成路径明确；
     \item 性能测试合同（\texttt{benchmark\_contract.md}）固定了环境、参数、轮数和统计口径，结果可复现、可审计。
 \end{enumerate}
@@ -286,6 +290,7 @@ pub trait BlockDevice: Send + Sync {
 \begin{enumerate}
     \item Linux Device Mapper 框架提供了成熟的 dm-crypt/dm-verity 参考实现，但 Asterinas 的内核接口与之不同，需要从头实现 Rust 适配层；
     \item AES-256-XTS 和 SHA-256 有明确的标准规范，通过固定向量和 Linux 逐字节比对可验证兼容性；默克尔树的 on-disk 布局设计使得标准 ext2 镜像可与哈希树共存；
+    \item 4 KiB BIO 必须按 512 字节扇区拆分进行 XTS 变换，这是与 Linux 逐字节兼容的关键约束；
     \item Rust 的所有权系统、类型系统和零成本抽象为可信存储模块提供了 C 语言无法比拟的内存安全和可组合性；\texttt{BlockDevice} trait 的统一抽象为跨环境可移植性奠定了基础；
     \item 双目标架构（用户态验证 + 内核态集成）和分层兼容性验证策略确保了项目的可验证性和可复现性；
     \item 赛题要求的 QEMU + virtio-blk 标准化测试环境已在本项目中完整实现并用于所有验证。

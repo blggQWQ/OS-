@@ -3,7 +3,7 @@
 
 \section*{本章执行摘要}
 
-本项目在星绽操作系统（Asterinas）上使用 Rust 语言实现了与 Linux 兼容的 \texttt{dm-crypt} 透明加密和 \texttt{dm-verity} 完整性校验功能，填补了星绽生态在可信存储领域的关键空白。核心算法（AES-256-XTS、SHA-256 Merkle Tree）与 Linux 内核逐字节兼容，并通过统一的 \texttt{BlockDevice} trait 抽象，同时服务于用户态（\texttt{dmctl} 工具）和内核态（\texttt{aster-dm} 组件）。项目已通过 KVM 正确性测试（R01--R03、C01--C05、V01--V07 全部 PASS）和五轮性能基准（46 个有效 FIO 单元格），并实现了 AES-NI 硬件加速、认证后哈希缓存、有界临时缓冲池等性能优化措施。全部代码、证据、文档和演示材料已按赛题要求提交至指定托管平台。
+本项目在星绽操作系统（Asterinas）上使用 Rust 语言实现了与 Linux 兼容的 \texttt{dm-crypt} 透明加密和 \texttt{dm-verity} 完整性校验功能，填补了星绽生态在可信存储领域的关键空白。核心算法（AES-256-XTS、SHA-256 Merkle Tree）与 Linux 内核逐字节兼容，并通过统一的 \texttt{BlockDevice} trait 抽象，同时服务于用户态（\texttt{dmctl} 工具）和内核态（\texttt{aster-dm} 组件）。项目已通过 KVM 正确性测试（R01--R03、C01--C05、V01--V07 全部 PASS）和五轮性能基准（46 个有效 FIO 单元格），并实现了 AES-NI 硬件加速、认证后哈希缓存、有界临时缓冲池、BIO 复用等性能优化措施。全部代码、证据、文档和演示材料已按赛题要求提交至指定托管平台。
 
 \begin{table}[H]
     \centering
@@ -15,13 +15,11 @@
         dm-verity 基础功能（哈希树、SHA-256、启动参数） & \texttt{已完成} & R03/V01 PASS \\
         dm-crypt 基础功能（透明加解密、cryptsetup 支撑） & \texttt{已完成} & R01/C01--C05 PASS \\
         根文件系统加密 & \texttt{已完成} & R02 PASS \\
-        性能与启动要求 & \texttt{已完成} & 五轮性能矩阵 PASS \\
-        技术探索（Rust OS 存储优化） & \texttt{已完成} & AES-NI、hash cache、scratch pool \\
+        性能与启动要求 & \texttt{已完成} & 五轮矩阵；verity 启动开销 2.75\% \\
+        技术探索（Rust OS 存储优化） & \texttt{已完成} & AES-NI、hash cache、scratch pool、BIO 复用 \\
         \bottomrule
     \end{tabular}
 \end{table}
-
-\subsection*{赛题评审要点对应速查}
 
 \section{项目背景与意义}
 
@@ -64,7 +62,7 @@ Linux 内核通过 Device Mapper 框架提供的 \texttt{dm-crypt}（透明加�
     \item 支持 on-disk 哈希树布局，根哈希作为可信锚点通过启动参数（\texttt{rootfs\_verity.hash}）注入；
     \item 读路径逐层验证数据块至根哈希，任意篡改（数据块或中间哈希块）均会被检测并拒绝；
     \item 强制执行只读语义，禁止写入操作；
-    \item 支持可配置的认证后哈希缓存（默认 256 块），缓存遵循“先认证、后插入”原则，不削弱安全边界。
+    \item 支持可配置的认证后哈希缓存（默认 256 块），缓存遵循"先认证、后插入"原则，不削弱安全边界。
 \end{itemize}
 
 \subsection{功能目标二：dm-crypt 透明加密}
@@ -96,14 +94,14 @@ Linux 内核通过 Device Mapper 框架提供的 \texttt{dm-crypt}（透明加�
 
 \subsection{功能目标五：性能与启动要求}
 
-赛题要求“在 I/O 吞吐及延迟上接近 Linux，且 dm-verity 不显著增加 boot 时间”。本项目在 Linux QEMU virtio 和 Asterinas KVM 两个平台上分别完成五轮基准测试，结果如下：
+赛题要求"在 I/O 吞吐及延迟上接近 Linux，且 dm-verity 不显著增加 boot 时间"。本项目在 Linux QEMU virtio 和 Asterinas KVM 两个平台上分别完成五轮基准测试，结果如下：
 
 \begin{itemize}
     \item \textbf{Asterinas 256 MiB 正式合同 4K 顺序读}：raw 4.249 MiB/s，dm-crypt 4.059 MiB/s（相对配对 raw 95.6\%），dm-verity 3.815 MiB/s（相对配对 raw 87.3\%）；
     \item \textbf{Asterinas KVM 13 格 mapper 4K 顺序读中位带宽}：dm-crypt 8.908 MiB/s，dm-verity 7.505 MiB/s（独立矩阵，不与 4.249 计算保留率）；
     \item \textbf{Linux guest 同条件对照（4 KiB sync QD1）}：Linux raw / dm-crypt / dm-verity 为 5.150 / 4.746 / 4.369 MiB/s，Asterinas 为 4.245 / 4.059 / 3.815 MiB/s；crypt 保留率 92.158\% vs 95.621\%，verity 保留率相对配对 raw 为 94.1\% vs 87.3\%；
     \item \textbf{Linux QEMU virtio 4K 顺序读中位带宽}：raw 11.391 MiB/s，dm-crypt 10.942 MiB/s，dm-verity 10.704 MiB/s（QEMU/KVM、8 GiB、\texttt{libaio}，作为对照参考，不跨平台计算倍率）；
-    \item \textbf{启动开销}：dm-crypt 相对 plain 根中位开销 0.58\%，dm-verity 相对 plain 根中位开销 2.75\%（均为五轮中位数），满足“不显著增加”的要求；
+    \item \textbf{启动开销}：dm-crypt 相对 plain 根中位开销 0.58\%，dm-verity 相对 plain 根中位开销 2.75\%（均为五轮中位数），满足"不显著增加"的要求；
     \item 提供可复现的 FIO（46 个有效 PASS 单元格）、Filebench（5+5 轮）、SQLite（5+5+5 轮）和启动耗时（5+5+5 轮）矩阵，每个单元格至少五轮，报告中位数和标准差。
 \end{itemize}
 
@@ -113,8 +111,8 @@ Linux 内核通过 Device Mapper 框架提供的 \texttt{dm-crypt}（透明加�
     \item \textbf{AES-NI 硬件加速}：在内核中集成 AES-NI 指令，在保存/恢复 FPU/XMM 状态的前提下执行加密/解密，启动日志明确显示 \texttt{backend=AES-NI}；
     \item \textbf{有界临时缓冲池}：实现 \texttt{CryptScratchPool}，默认容量 32，支持 A/B 对照验证（设为 0 可关闭），量化减少动态分配带来的延迟；
     \item \textbf{认证后哈希缓存}：只有沿完整 Merkle 路径验证成功（到达 root hash）的哈希块才允许插入缓存，缓存命中时直接使用已认证的哈希块（计数器 \texttt{auth\_shortcuts} 记录），在不削弱安全边界的前提下减少重复 SHA-256 计算；
-    \item \textbf{BIO 数据复用}：对 4 KiB 对齐的 BIO 直接复用已完成的数据块进行校验，避免因校验而重复读取同一数据块（计数器 \texttt{data\_rereads=0} 验证该优化生效）；
-    \item \textbf{可组合安全能力传播}：设计 \texttt{DmStackBuilder}（用户态）和 \texttt{dm\_stack} 内核启动参数，使安全能力（confidentiality、integrity、read\_only）能够自动传播和汇总。
+    \item \textbf{4 KiB 对齐 BIO 复用}：对 4 KiB 对齐的 BIO 直接复用已完成的数据块进行校验，避免因校验而重复读取同一数据块（计数器 \texttt{data\_rereads=0} 验证该优化生效）；
+    \item \textbf{\texttt{TargetCapabilities} 沿栈传播}：设计 \texttt{TargetCapabilities} 类型与 \texttt{DmStackBuilder}（用户态）及 \texttt{dm\_stack} 内核启动参数，使安全能力（confidentiality、integrity、read\_only）能够沿设备栈自动传播和静态汇总。
 \end{itemize}
 
 \section{赛题要求映射}
@@ -131,7 +129,7 @@ Linux 内核通过 Device Mapper 框架提供的 \texttt{dm-crypt}（透明加�
         dm-crypt 基础功能（透明加解密、支撑 cryptsetup） & \texttt{aes-xts-plain64} 逐字节兼容；\texttt{/dev/mapper/control} 支持 \texttt{cryptsetup} & R01/C01--C05 PASS \\
         根文件系统加密 & \texttt{dm\_crypt.*} 参数创建加密 mapper，\texttt{dm-root} 模式切换根 & R02 PASS \\
         性能与启动要求 & 分平台五轮基准完成；plain/verity 启动开销 2.75\% & 46 个 FIO PASS 单元格 \\
-        技术探索（Rust OS 存储优化） & AES-NI、scratch pool、认证后 hash cache、BIO 复用、阶段归因统计 & \texttt{/proc/dm-*-stats} 输出 \\
+        技术探索（Rust OS 存储优化） & AES-NI、scratch pool、认证后 hash cache、BIO 复用、\texttt{TargetCapabilities} 沿栈传播 & \texttt{/proc/dm-*-stats} 输出 \\
         \bottomrule
     \end{tabular}
 \end{table}
@@ -149,7 +147,7 @@ Linux 内核通过 Device Mapper 框架提供的 \texttt{dm-crypt}（透明加�
 
 \section{系统架构概述}
 
-系统的核心抽象是 \texttt{BlockDevice} trait，它定义了统一的块级 I/O 接口（\texttt{read\_block} 和 \texttt{write\_block}）。不同的存储后端（如内存、文件、物理磁盘）均实现该 trait，而加密和完整性校验模块（\texttt{DmCryptDevice}、\texttt{DmVerityDevice}）则以“装饰器”模式包装下层设备，形成可堆叠的映射器链。
+系统的核心抽象是 \texttt{BlockDevice} trait，它定义了统一的块级 I/O 接口（\texttt{read\_block} 和 \texttt{write\_block}）。不同的存储后端（如内存、文件、物理磁盘）均实现该 trait，而加密和完整性校验模块（\texttt{DmCryptDevice}、\texttt{DmVerityDevice}）则以"装饰器"模式包装下层设备，形成可堆叠的映射器链。
 
 \begin{figure}[H]
     \centering
@@ -173,7 +171,7 @@ Linux 内核通过 Device Mapper 框架提供的 \texttt{dm-crypt}（透明加�
 
 \section{测试环境与验证方法}
 
-赛题要求“基于 QEMU 虚拟机搭建标准化测试环境，存储设备统一通过 virtio-blk 标准化虚拟化接口实现管理与数据交互”。本项目严格遵循：
+赛题要求"基于 QEMU 虚拟机搭建标准化测试环境，存储设备统一通过 virtio-blk 标准化虚拟化接口实现管理与数据交互"。本项目严格遵循：
 
 \begin{itemize}
     \item \textbf{测试环境}：Asterinas 官方开发镜像 \texttt{\seqsplit{asterinas/asterinas:0.18.0-20260618}}，QEMU/KVM，\texttt{-cpu host}，1 vCPU，8 GiB 内存；
@@ -229,7 +227,7 @@ Linux 内核通过 Device Mapper 框架提供的 \texttt{dm-crypt}（透明加�
     \item \texttt{dm-verity}：on-disk Merkle 树验证与根切换已通过正反例验证；
     \item 受保护根文件系统：加密根（R02）和校验根（R03/V01）均已通过 \texttt{pivot\_root} 验证；
     \item 性能基准：46 个 FIO PASS 单元格、Filebench/SQLite/Boot 五轮矩阵全部完成，启动开销 < 3\%；
-    \item 技术探索：AES-NI、scratch pool、认证后 hash cache、BIO 复用均已实现并量化验证。
+    \item 技术探索：AES-NI、scratch pool、认证后 hash cache、BIO 复用、\texttt{TargetCapabilities} 沿栈传播均已实现并量化验证。
 \end{itemize}
 
 项目成果全面覆盖赛题五项技术指标和四项评审要点，所有代码、证据、文档和演示材料均已按大赛要求提交至指定托管平台。后续章节将详细阐述系统架构设计、核心模块实现、测试验证过程及开发中的关键问题与解决方法。
