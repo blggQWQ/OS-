@@ -1,6 +1,6 @@
 # 星绽操作系统 dm-crypt / dm-verity
 
-全国大学生计算机系统能力大赛操作系统设计赛功能挑战项目。本文是 [设计赛道文档](docs/design_doc/design_doc.pdf) 与 [技术实现文档](docs/document/main.pdf) 的缩略版：目录与两份 PDF 对齐，每章先给速览表，再写要点。算法细节、补丁逐文件说明、完整证据链以 PDF 为准。
+全国大学生计算机系统能力大赛操作系统设计赛功能挑战项目。
 
 | 项目 | 信息 |
 |---|---|
@@ -27,14 +27,7 @@
 | 性能与启动要求 | 已完成 | 五轮矩阵；verity 启动开销 2.75% |
 | 技术探索（Rust OS 存储优化） | 已完成 | AES-NI、hash cache、scratch pool、BIO 复用 |
 
-### 评审要点
 
-| 评审要点 | 权重 | 本项目 |
-|---|---|---|
-| 实现完整度 | 50% | 五项指标完成；R01–R03、C01–C05、V01–V07 全部 PASS |
-| 文档完整性 | 20% | 技术文档、设计赛道文档、用户手册、AI 声明 |
-| Demo 质量 | 20% | `final_demo.sh`、演示视频、KVM 根切换实况 |
-| 创新性 | 10% | 双目标架构、认证后缓存、AES-NI、阶段归因 |
 
 机密计算 Guest 里内存可受 TEE 保护，rootfs 仍落在宿主机不可信介质上，面临明文可读、离线篡改和整盘替换。Linux 用 Device Mapper 的 `dm-crypt` / `dm-verity` 补机密性与完整性。星绽是 Framekernel + OSTD 的 Rust OS，BIO、设备注册和启动流程与 Linux 不同，不能移植 C 实现。本项目用 Rust 补这一层：算法与 Linux `aes-xts-plain64`、SHA-256 Merkle 布局对齐，同时落到用户态 `dmctl` 和内核 `aster-dm`。
 
