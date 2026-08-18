@@ -165,7 +165,7 @@ flowchart LR
 | 组合与验收 | 08-01 – 08-11 | 补丁 0007；46 PASS | `review_release_check.py` PASS |
 | 文档答辩 | 08-09 – 08-14 | PDF、PPT、视频 | 提交托管平台 |
 
-补丁对应关系：0001 组件骨架与 target；0002 BIO / ext2 魔数自检；0003 `dm-root` + `pivot_root`；0004 `dm_ioctl`；0005 性能优化；0006 阶段归因；0007 组合栈。早期 FIO 曾把不存在的 mapper 测成普通文件，判为 `HARNESS_BUG`，已从正式生成输入剔除。
+补丁对应关系：0001 组件骨架与 target；0002 BIO / ext2 魔数自检；0003 `dm-root` + `pivot_root`；0004 `dm_ioctl`；0005 性能优化；0006 阶段归因；0007 组合栈。
 
 ---
 
@@ -302,7 +302,6 @@ QEMU 进程启动计至串口出现受保护根文件系统 PASS 标记。相对
 | dm-crypt rootfs | 5 | 51.629820 |
 | dm-verity rootfs | 5 | 52.743415 |
 
-旧 Asterinas FIO 目录曾把不存在的 mapper 当普通文件测试，已判定为 `HARNESS_BUG`，不在仓库正式数据或生成器输入中。
 
 ---
 
