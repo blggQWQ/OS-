@@ -1,0 +1,7 @@
+platform,target,median_mib_s,retention_percent,retention_baseline,paired_raw_mib_s,notes
+Linux guest,raw,5.150,100.0,table_raw,5.150,README Linux guest vs Asterinas 4KiB sync QD1 256MiB
+Linux guest,dm-crypt,4.746,92.158,table_raw,5.150,retention vs table raw column
+Linux guest,dm-verity,4.369,94.1,paired_raw,4.641,retention vs paired raw 4.641 not table raw
+Asterinas,raw,4.245,100.0,table_raw,4.245,README Linux guest vs Asterinas 4KiB sync QD1 256MiB
+Asterinas,dm-crypt,4.059,95.621,table_raw,4.245,retention vs table raw column
+Asterinas,dm-verity,3.815,87.3,paired_raw,4.368,retention vs paired raw 4.368 not table raw
