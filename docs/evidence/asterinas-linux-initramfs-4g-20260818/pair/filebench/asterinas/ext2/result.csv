@@ -1,0 +1,2 @@
+platform,filesystem,workload,status,ops,ops_per_sec,mb_per_sec
+asterinas-kvm,ext2,filebench-fileserver,ok,504729,8398.724,201.9

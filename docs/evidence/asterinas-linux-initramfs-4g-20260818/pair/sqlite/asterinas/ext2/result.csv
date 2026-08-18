@@ -1,0 +1,2 @@
+platform,filesystem,workload,status,total_s
+asterinas-kvm,ext2,sqlite-speedtest1-size1000,ok,244.649

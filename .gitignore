@@ -22,8 +22,7 @@ __pycache__/
 all_sources_summary.txt
 aster-initramfs.img
 aster-kernel.bin
-asterinas
+/asterinas
 asterinas_custom.iso
 asterinas_dmcrypt.iso
 export.py
-asterinas

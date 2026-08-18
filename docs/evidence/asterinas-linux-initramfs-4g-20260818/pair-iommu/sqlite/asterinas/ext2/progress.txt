@@ -1,0 +1,4 @@
+[pair] START asterinas sqlite/ext2_benchmarks MEM=4G
+build_rc=0
+make_pid=190
+qemu_log=/root/asterinas/qemu.log
