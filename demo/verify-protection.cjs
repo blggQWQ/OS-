@@ -1,0 +1,14 @@
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const {chromium}=require('C:/Users/潘丽园/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');
+const records=[];
+async function post(route,p){const r=await fetch('http://127.0.0.1:3138/api/'+route,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)});const x=await r.json();assert(r.ok,JSON.stringify(x));records.push({route,result:x});return x;}
+const config={device:'root-01',goal:'both',crypt:true,verity:true,rootTrusted:true,mount:'mapper'};
+(async()=>{
+ let t=await post('prepare',config);assert.equal(t.status,'已核验，待激活');assert((await post('change',{device:'root-01'})).ok);assert.equal((await post('activate',{id:t.id})).engineResult.error,'Stale');
+ t=await post('prepare',config);assert((await post('recreate',{device:'root-01'})).ok);assert.equal((await post('activate',{id:t.id})).engineResult.error,'Stale');
+ t=await post('prepare',config);assert((await post('activate',{id:t.id})).engineResult.ok);assert.equal((await post('change',{device:'root-01'})).error,'Busy');assert.equal((await post('recreate',{device:'root-01'})).error,'Busy');assert((await post('change',{device:'data-01'})).ok);assert((await post('close',{id:t.id})).engineResult.ok);assert((await post('change',{device:'root-01'})).ok);
+ const browser=await chromium.launch({headless:true,executablePath:'C:/Users/潘丽园/AppData/Local/ms-playwright/chromium-1200/chrome-win64/chrome.exe'});
+ try{const page=await browser.newPage({viewport:{width:1440,height:1100},deviceScaleFactor:1.5});const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto('http://127.0.0.1:3138');await page.locator('#prepare').click();await page.locator('#proofStatus').filter({hasText:'待激活'}).waitFor();await page.locator('#activate').click();await page.locator('#proofStatus').filter({hasText:'演示映射已创建'}).waitFor();await page.locator('#change').click();await page.locator('#proofStatus').filter({hasText:'Busy'}).waitFor();await page.screenshot({path:'demo/screenshot-pass.png',fullPage:true});await page.locator('#tasks button').first().click();await page.locator('#prepare').click();await page.locator('#proofStatus').filter({hasText:'待激活'}).waitFor();await page.locator('#recreate').click();await page.locator('#activate').click();await page.locator('#proofStatus').filter({hasText:'Stale'}).waitFor();await page.locator('section').filter({has:page.locator('#proofStatus')}).screenshot({path:'demo/screenshot-reject.png'});assert.deepEqual(errors,[]);}finally{await browser.close();}
+ fs.writeFileSync('demo/protection-verification.json',JSON.stringify({scope:'user-space model; synthetic devices',records},null,2));console.log('PASS: stale generations, recreated identities, Busy leases, unrelated changes, close/release and browser experiment');
+})().catch(e=>{console.error(e);process.exitCode=1;});

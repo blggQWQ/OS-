@@ -1,0 +1,1 @@
+人员资料、成员排序、指导教师、两位推荐者意见、签名和公章需由团队核实补充。原项目全国赛优胜奖的资格影响需由学院认定，成果来源与奖项如实填写。新增用户态 Rust 状态一致性模型及交互 Demo 已有测试记录；真实设备及内核接入属于深化研究。研究说明见 docs/protection_consistency.md，交互验证记录见 demo/protection-verification.json。

@@ -7,6 +7,7 @@ pub mod error;
 pub mod hash_tree;
 pub mod sha256;
 pub mod statistics;
+pub mod protection;
 
 pub use block_device::{BlockDevice, FileBlockDevice, MemoryBlockDevice};
 pub use device_mapper::{

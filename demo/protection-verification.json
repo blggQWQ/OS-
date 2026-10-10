@@ -1,0 +1,402 @@
+{
+  "scope": "user-space model; synthetic devices",
+  "records": [
+    {
+      "route": "prepare",
+      "result": {
+        "id": "DEMO-004",
+        "created": "2026-10-10T05:51:06.829Z",
+        "device": "root-01",
+        "goal": "both",
+        "status": "已核验，待激活",
+        "simulation": true,
+        "checks": [
+          {
+            "name": "机密性保护",
+            "ok": true,
+            "detail": "已配置加密层"
+          },
+          {
+            "name": "完整性保护",
+            "ok": true,
+            "detail": "已配置校验层"
+          },
+          {
+            "name": "可信根配置",
+            "ok": true,
+            "detail": "已声明演示可信根"
+          },
+          {
+            "name": "挂载路径一致性",
+            "ok": true,
+            "detail": "指向演示受保护映射"
+          }
+        ],
+        "events": [
+          "后端接收配置",
+          "完成策略与路径规则检查",
+          "Rust核验并绑定设备身份与依赖配置版本"
+        ],
+        "config": {
+          "device": "root-01",
+          "goal": "both",
+          "crypt": true,
+          "verity": true,
+          "rootTrusted": true,
+          "mount": "mapper"
+        },
+        "engineResult": {
+          "ok": true,
+          "result": "checked"
+        }
+      }
+    },
+    {
+      "route": "change",
+      "result": {
+        "ok": true,
+        "result": "generation_changed"
+      }
+    },
+    {
+      "route": "activate",
+      "result": {
+        "id": "DEMO-004",
+        "created": "2026-10-10T05:51:06.829Z",
+        "device": "root-01",
+        "goal": "both",
+        "status": "核验失效",
+        "simulation": true,
+        "checks": [
+          {
+            "name": "机密性保护",
+            "ok": true,
+            "detail": "已配置加密层"
+          },
+          {
+            "name": "完整性保护",
+            "ok": true,
+            "detail": "已配置校验层"
+          },
+          {
+            "name": "可信根配置",
+            "ok": true,
+            "detail": "已声明演示可信根"
+          },
+          {
+            "name": "挂载路径一致性",
+            "ok": true,
+            "detail": "指向演示受保护映射"
+          }
+        ],
+        "events": [
+          "后端接收配置",
+          "完成策略与路径规则检查",
+          "Rust核验并绑定设备身份与依赖配置版本",
+          "Rust拒绝激活：Stale"
+        ],
+        "config": {
+          "device": "root-01",
+          "goal": "both",
+          "crypt": true,
+          "verity": true,
+          "rootTrusted": true,
+          "mount": "mapper"
+        },
+        "engineResult": {
+          "ok": false,
+          "error": "Stale"
+        }
+      }
+    },
+    {
+      "route": "prepare",
+      "result": {
+        "id": "DEMO-005",
+        "created": "2026-10-10T05:51:06.861Z",
+        "device": "root-01",
+        "goal": "both",
+        "status": "已核验，待激活",
+        "simulation": true,
+        "checks": [
+          {
+            "name": "机密性保护",
+            "ok": true,
+            "detail": "已配置加密层"
+          },
+          {
+            "name": "完整性保护",
+            "ok": true,
+            "detail": "已配置校验层"
+          },
+          {
+            "name": "可信根配置",
+            "ok": true,
+            "detail": "已声明演示可信根"
+          },
+          {
+            "name": "挂载路径一致性",
+            "ok": true,
+            "detail": "指向演示受保护映射"
+          }
+        ],
+        "events": [
+          "后端接收配置",
+          "完成策略与路径规则检查",
+          "Rust核验并绑定设备身份与依赖配置版本"
+        ],
+        "config": {
+          "device": "root-01",
+          "goal": "both",
+          "crypt": true,
+          "verity": true,
+          "rootTrusted": true,
+          "mount": "mapper"
+        },
+        "engineResult": {
+          "ok": true,
+          "result": "checked"
+        }
+      }
+    },
+    {
+      "route": "recreate",
+      "result": {
+        "ok": true,
+        "result": "identity_replaced"
+      }
+    },
+    {
+      "route": "activate",
+      "result": {
+        "id": "DEMO-005",
+        "created": "2026-10-10T05:51:06.861Z",
+        "device": "root-01",
+        "goal": "both",
+        "status": "核验失效",
+        "simulation": true,
+        "checks": [
+          {
+            "name": "机密性保护",
+            "ok": true,
+            "detail": "已配置加密层"
+          },
+          {
+            "name": "完整性保护",
+            "ok": true,
+            "detail": "已配置校验层"
+          },
+          {
+            "name": "可信根配置",
+            "ok": true,
+            "detail": "已声明演示可信根"
+          },
+          {
+            "name": "挂载路径一致性",
+            "ok": true,
+            "detail": "指向演示受保护映射"
+          }
+        ],
+        "events": [
+          "后端接收配置",
+          "完成策略与路径规则检查",
+          "Rust核验并绑定设备身份与依赖配置版本",
+          "Rust拒绝激活：Stale"
+        ],
+        "config": {
+          "device": "root-01",
+          "goal": "both",
+          "crypt": true,
+          "verity": true,
+          "rootTrusted": true,
+          "mount": "mapper"
+        },
+        "engineResult": {
+          "ok": false,
+          "error": "Stale"
+        }
+      }
+    },
+    {
+      "route": "prepare",
+      "result": {
+        "id": "DEMO-006",
+        "created": "2026-10-10T05:51:06.886Z",
+        "device": "root-01",
+        "goal": "both",
+        "status": "已核验，待激活",
+        "simulation": true,
+        "checks": [
+          {
+            "name": "机密性保护",
+            "ok": true,
+            "detail": "已配置加密层"
+          },
+          {
+            "name": "完整性保护",
+            "ok": true,
+            "detail": "已配置校验层"
+          },
+          {
+            "name": "可信根配置",
+            "ok": true,
+            "detail": "已声明演示可信根"
+          },
+          {
+            "name": "挂载路径一致性",
+            "ok": true,
+            "detail": "指向演示受保护映射"
+          }
+        ],
+        "events": [
+          "后端接收配置",
+          "完成策略与路径规则检查",
+          "Rust核验并绑定设备身份与依赖配置版本"
+        ],
+        "config": {
+          "device": "root-01",
+          "goal": "both",
+          "crypt": true,
+          "verity": true,
+          "rootTrusted": true,
+          "mount": "mapper"
+        },
+        "engineResult": {
+          "ok": true,
+          "result": "checked"
+        }
+      }
+    },
+    {
+      "route": "activate",
+      "result": {
+        "id": "DEMO-006",
+        "created": "2026-10-10T05:51:06.886Z",
+        "device": "root-01",
+        "goal": "both",
+        "status": "演示映射已创建",
+        "simulation": true,
+        "checks": [
+          {
+            "name": "机密性保护",
+            "ok": true,
+            "detail": "已配置加密层"
+          },
+          {
+            "name": "完整性保护",
+            "ok": true,
+            "detail": "已配置校验层"
+          },
+          {
+            "name": "可信根配置",
+            "ok": true,
+            "detail": "已声明演示可信根"
+          },
+          {
+            "name": "挂载路径一致性",
+            "ok": true,
+            "detail": "指向演示受保护映射"
+          }
+        ],
+        "events": [
+          "后端接收配置",
+          "完成策略与路径规则检查",
+          "Rust核验并绑定设备身份与依赖配置版本",
+          "Rust同锁复核身份版本并固定依赖"
+        ],
+        "config": {
+          "device": "root-01",
+          "goal": "both",
+          "crypt": true,
+          "verity": true,
+          "rootTrusted": true,
+          "mount": "mapper"
+        },
+        "engineResult": {
+          "ok": true,
+          "result": "active"
+        }
+      }
+    },
+    {
+      "route": "change",
+      "result": {
+        "ok": false,
+        "error": "Busy"
+      }
+    },
+    {
+      "route": "recreate",
+      "result": {
+        "ok": false,
+        "error": "Busy"
+      }
+    },
+    {
+      "route": "change",
+      "result": {
+        "ok": true,
+        "result": "generation_changed"
+      }
+    },
+    {
+      "route": "close",
+      "result": {
+        "id": "DEMO-006",
+        "created": "2026-10-10T05:51:06.886Z",
+        "device": "root-01",
+        "goal": "both",
+        "status": "已关闭",
+        "simulation": true,
+        "checks": [
+          {
+            "name": "机密性保护",
+            "ok": true,
+            "detail": "已配置加密层"
+          },
+          {
+            "name": "完整性保护",
+            "ok": true,
+            "detail": "已配置校验层"
+          },
+          {
+            "name": "可信根配置",
+            "ok": true,
+            "detail": "已声明演示可信根"
+          },
+          {
+            "name": "挂载路径一致性",
+            "ok": true,
+            "detail": "指向演示受保护映射"
+          }
+        ],
+        "events": [
+          "后端接收配置",
+          "完成策略与路径规则检查",
+          "Rust核验并绑定设备身份与依赖配置版本",
+          "Rust同锁复核身份版本并固定依赖",
+          "Rust释放本任务依赖引用"
+        ],
+        "config": {
+          "device": "root-01",
+          "goal": "both",
+          "crypt": true,
+          "verity": true,
+          "rootTrusted": true,
+          "mount": "mapper"
+        },
+        "engineResult": {
+          "ok": true,
+          "result": "closed"
+        }
+      }
+    },
+    {
+      "route": "change",
+      "result": {
+        "ok": true,
+        "result": "generation_changed"
+      }
+    }
+  ]
+}
